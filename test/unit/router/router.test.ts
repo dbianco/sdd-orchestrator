@@ -47,8 +47,10 @@ describe('route: rules in order', () => {
     expect(out.decision).toMatchObject({ framework: 'bmad', track: 'quick' });
   });
   it('rule 1 and 2: unknown framework fails with UNKNOWN_FRAMEWORK', () => {
-    expect(() => route(input({ policy: { framework: 'aiup', path_rules: [], risk_paths: [] } }))).toThrow(DomainError);
-    try { route(input({ framework_preference: 'aiup' })); } catch (e) { expect((e as DomainError).code).toBe('UNKNOWN_FRAMEWORK'); }
+    expect(() => route(input({ policy: { framework: 'aiup', path_rules: [], risk_paths: [] } })))
+      .toThrow(expect.objectContaining({ code: 'UNKNOWN_FRAMEWORK' }));
+    expect(() => route(input({ framework_preference: 'aiup' })))
+      .toThrow(expect.objectContaining({ code: 'UNKNOWN_FRAMEWORK' }));
   });
   it('rule 2: explicit preference with a warning when later rules differ', () => {
     const out = route(input({ framework_preference: 'spec-kit' }));
@@ -57,6 +59,49 @@ describe('route: rules in order', () => {
   });
   it('rule 2: BMAD preference defaults to full', () => {
     expect(route(input({ framework_preference: 'bmad' })).decision.track).toBe('full');
+  });
+  it('rule 1: trivial downgraded when policy names a framework', () => {
+    const out = route(input({
+      policy: { framework: 'bmad', path_rules: [], risk_paths: [] },
+      workspace: { intent: 'trivial', estimated_files: 1, paths_touched: ['src/a.ts'], is_greenfield: false },
+    }));
+    expect(out.decision.intent).toBe('feature');
+    expect(out.decision.rule).toBe('1-policy');
+    expect(out.decision.framework).toBe('bmad');
+    expect(out.decision.reasons.some((r) => r.includes('intent trivial downgraded to feature: policy names a framework'))).toBe(true);
+  });
+  it('rule 2: trivial downgraded when explicit preference given, reporting what rule 4 would have chosen', () => {
+    const out = route(input({
+      framework_preference: 'bmad',
+      workspace: { intent: 'trivial', estimated_files: 1, paths_touched: ['src/a.ts'], is_greenfield: false },
+    }));
+    expect(out.decision.intent).toBe('feature');
+    expect(out.decision.rule).toBe('2-preference');
+    expect(out.decision.framework).toBe('bmad');
+    expect(out.decision.reasons.some((r) => r.includes('intent trivial downgraded to feature: explicit preference'))).toBe(true);
+    // The speculative "what would rules 3-12 have chosen" call must see the ORIGINAL
+    // trivial intent (before downgrade), so for a genuinely rule-4-eligible workspace
+    // it must report rule 4-trivial -> none, not whatever a later rule would pick for
+    // the downgraded 'feature' intent.
+    expect(out.decision.reasons.some((r) => /rule 4-trivial would have chosen none/.test(r))).toBe(true);
+  });
+  it('rule 1 wins over rule 2 when both policy and preference are given, and no preference reason leaks', () => {
+    const out = route(input({
+      policy: { framework: 'openspec', path_rules: [], risk_paths: [] },
+      framework_preference: 'bmad',
+    }));
+    expect(out.decision.rule).toBe('1-policy');
+    expect(out.decision.framework).toBe('openspec');
+    expect(out.decision.reasons.some((r) => r.includes('preference'))).toBe(false);
+  });
+  it('rule 2: reasons contain exactly the expected entries with no leaked speculative-call side effects', () => {
+    const out = route(input({ framework_preference: 'spec-kit' }));
+    expect(out.decision.reasons).toEqual([
+      'intent feature (no phrase matched)',
+      'size medium (4 files, estimate asserted by host)',
+      'brownfield (asserted by host)',
+      'preference spec-kit honoured; rule 10-brownfield-small-medium would have chosen openspec',
+    ]);
   });
   it('rule 3: spike returns none with guidance and no track', () => {
     const out = route(input({ task_description: 'Can we stream exports?' }));
@@ -105,6 +150,18 @@ describe('route: rules in order', () => {
     expect(route(input({ app: { compliance: true, default_stack: [] }, workspace: { estimated_files: 25 } })).decision).toMatchObject({ framework: 'bmad', track: 'full', rule: '9-large-compliance-or-subsystem' });
     expect(route(input({ workspace: { estimated_files: 12, new_subsystem: true } })).decision).toMatchObject({ framework: 'bmad', track: 'quick' });
     expect(route(input({ workspace: { estimated_files: null, new_subsystem: true } })).decision).toMatchObject({ framework: 'bmad', track: 'full' });
+  });
+  it('rule 8 refactor precedes rule 9 even at large size with compliance', () => {
+    const out = route(input({ task_description: 'refactor exports', app: { compliance: true, default_stack: [] }, workspace: { estimated_files: 25 } }));
+    expect(out.decision).toMatchObject({ framework: 'spec-kit', track: 'refactor', rule: '8-refactor-large' });
+  });
+  it('rule 6 incident precedes rule 9 even at large size with compliance and new subsystem', () => {
+    const out = route(input({ task_description: 'production is down', app: { compliance: true, default_stack: [] }, workspace: { estimated_files: 30, new_subsystem: true } }));
+    expect(out.decision).toMatchObject({ framework: 'openspec', track: 'hotfix', rule: '6-incident', high_risk: true });
+  });
+  it('rule 5 product precedes rule 9 even at large size with compliance', () => {
+    const out = route(input({ task_description: 'PRD for a new product', app: { compliance: true, default_stack: [] }, workspace: { estimated_files: 25 } }));
+    expect(out.decision).toMatchObject({ framework: 'sdlc', track: 'default', rule: '5-product' });
   });
   it('rule 10: brownfield small or medium routes to openspec default', () => {
     expect(route(input()).decision).toMatchObject({ framework: 'openspec', track: 'default', rule: '10-brownfield-small-medium', confidence: 'high' });

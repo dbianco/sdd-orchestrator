@@ -168,9 +168,14 @@ export function route(input: RouterInput): RouterOutput {
   if (!partial && input.framework_preference) {
     const { name, track } = parseFrameworkRef(input.framework_preference);
     const fw = requireFramework(ctx, name, 'framework_preference');
-    if (ctx.intent === 'trivial') { ctx.intent = 'feature'; reasons.push('intent trivial downgraded to feature: explicit preference'); }
+    // Snapshot ctx BEFORE the trivial-downgrade mutation below, so the speculative
+    // "what would rules 3-12 have chosen" call sees the original intent (e.g. still
+    // 'trivial') rather than the already-downgraded 'feature'. The spread plus fresh
+    // reasons array also ensures none of that speculative call's own side effects
+    // (further intent mutation, reason pushes) leak into the real ctx/reasons.
     let wouldHave: RulePick | null = null;
     try { wouldHave = rulesThreeToTwelve({ ...ctx, reasons: [] }); } catch { wouldHave = null; }
+    if (ctx.intent === 'trivial') { ctx.intent = 'feature'; reasons.push('intent trivial downgraded to feature: explicit preference'); }
     if (wouldHave && wouldHave.framework !== name) {
       reasons.push(`preference ${name} honoured; rule ${wouldHave.rule} would have chosen ${wouldHave.framework}`);
     } else {
