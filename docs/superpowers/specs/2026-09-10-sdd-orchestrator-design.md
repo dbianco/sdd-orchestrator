@@ -1,6 +1,6 @@
 # SDD Orchestrator: Design Specification
 
-**Status:** Draft for review (revision 2, after adversarial review)
+**Status:** Draft for review (revision 3)
 **Date:** 2026-09-10
 **Supersedes:** the v1.0.0 draft `sdd_orchestrator_spec.md`, preserved in commit 0aacf55
 
@@ -142,23 +142,24 @@ changing the engine.
 
 ### 5.2 Main call flow
 
-1. Host calls `route_task` with the task description, app slug, actor and
-   workspace facts.
+1. Host calls `route_task` with the task description, app slug and workspace
+   facts. This call is read-only and may be repeated.
 2. MCP surface validates input and loads the app and its current policy.
 3. Router produces a decision: framework (or `none` for spikes), track,
    confidence, rule, reasons, high-risk flag, and clarifying questions when
    confidence is medium.
-4. If confidence is `high`, or the host passed `confirm: true`, the lifecycle
-   engine creates a feature in phase `specify`, pinned to the current version
-   of the chosen framework pack. If the decision is `none`, or confidence is
-   `medium` without `confirm`, no feature is created.
-5. If a feature was created, the assembler builds and persists the context pack
-   for `specify`.
-6. Surface returns the decision, the feature id and pack when present, the
-   questions when present, and any warnings.
+4. Surface returns the decision, the questions when present, and any warnings.
+   Nothing is written.
+5. The host shows the decision to its user, answers any questions by calling
+   `route_task` again with better facts, and then calls `start_feature` with
+   the accepted decision. The lifecycle engine creates a feature in phase
+   `specify`, pinned to the current version of the chosen framework pack.
+   `start_feature` is refused when the decision's framework is `none`.
+6. The assembler builds and persists the context pack for `specify`, and
+   `start_feature` returns the feature id, the pack and next instructions.
 
 Resume never goes through the router. A host resumes with `get_context` or
-`get_feature_status` using the feature id from `.sdd/feature.json`.
+`get_feature_status` using a feature id it kept (section 11.2).
 
 ## 6. Data model
 
@@ -170,7 +171,7 @@ is the display identity from the `actor` parameter (section 11.3).
 | `apps` | slug, name, default_stack text[], compliance bool, token_budget int null, stop_conditions text[] | Unit of app memory. `stop_conditions` are appended to position 6 of every pack for this app |
 | `app_policies` | app_id, version, policy jsonb, actor, reason | Append-only. The current policy is the highest version. `policy` holds `{framework}` and optional `path_rules: [{glob, framework}]` |
 | `frameworks` | name, pack_version, phases jsonb, gates jsonb, status (active, deprecated) | One row per ingested framework pack version. The router's known-framework list is the active rows |
-| `features` | app_id, slug, framework, framework_pack_version, track, current_phase, status (active, blocked, archived), blocked_reason, high_risk bool, failed_cycles int, policy_version, source_task text, decision jsonb | One row per routed feature. Bound to a workspace by `.sdd/feature.json` |
+| `features` | app_id, slug, framework, framework_pack_version, track, current_phase, status (active, blocked, archived), blocked_reason, high_risk bool, failed_cycles int, policy_version, source_task text, decision jsonb | One row per routed feature, created by `start_feature` |
 | `context_packs` | feature_id, phase, items jsonb ([{stable_id, version}]), token_count, budget, degraded bool, over_budget bool | One row per assembled pack. `advance_phase` references the pack it was working from |
 | `phase_transitions` | feature_id, from_phase, to_phase, direction (forward, backward), result (pass, fail), findings jsonb, evidence jsonb, pack_id null, artifact_hashes jsonb, human_approved bool, reason, actor | Audit trail of every gate run |
 | `feature_artifacts` | transition_id, name, sha256, byte_length, content text | Artifact text as submitted, capped at 256 KB per artifact. Larger artifacts store hash and length only |
@@ -207,7 +208,7 @@ Rules:
 
 ## 7. MCP surface
 
-Six developer-facing tools. Admin operations are CLI only (section 12.4),
+Seven developer-facing tools. Admin operations are CLI only (section 12.4),
 which keeps the tool list small and keeps knowledge writes off the network
 path.
 
@@ -222,17 +223,14 @@ host read from `.sdd/config.json`. It is attribution only (section 11.3).
 
 ### 7.1 Tools
 
-**`route_task`**
+**`route_task`** (read-only)
 
 | Input | Type | Notes |
 |---|---|---|
 | `task_description` | string, required | |
 | `app` | slug, required | |
-| `actor` | string, required | |
 | `workspace` | object, required | See below |
 | `framework_preference` | string, optional | Validated against active frameworks at call time |
-| `confirm` | bool, default false | Create the feature even at medium confidence |
-| `feature_slug` | string, optional | Defaults to a slug derived from the task description |
 
 `workspace` fields, all optional, null meaning unknown: `stack` string[],
 `intent` (`feature`, `spike`, `product`, `auto`), `is_greenfield` bool,
@@ -242,14 +240,24 @@ a host derives them.
 
 | Output | Notes |
 |---|---|
-| `decision` | `{framework or "none", track or null, confidence: high or medium, rule, reasons[], high_risk, policy_version}` |
-| `feature_id` | Present only when a feature was created |
-| `context_pack` | Present only when a feature was created |
-| `pack_id` | Present with `context_pack` |
+| `decision` | `{framework or "none", track or null, confidence: high or medium, rule, reasons[], high_risk, policy_version, framework_pack_version}` |
 | `clarifying_questions[]` | At most three, present at medium confidence |
 | `guidance` | Prototype-first guidance text when `framework` is `none` |
 | `attached_layers[]` | `[{stable_id, version, kind}]` for quality layer and stack guides |
-| `next_instructions` | Tells the host to write `.sdd/feature.json` and what to do in `specify` |
+
+**`start_feature`**
+
+| Input | Notes |
+|---|---|
+| `app`, `actor` | required |
+| `task_description` | required; stored as `source_task` |
+| `decision` | required; the `decision` object returned by `route_task`, possibly with a different `framework` if the user overrode it. The framework must be active or the call fails with `UNKNOWN_FRAMEWORK`; `none` is refused with `VALIDATION_ERROR` |
+| `workspace` | the facts used, stored with the decision for audit |
+| `feature_slug` | optional; defaults to a slug derived from the task description |
+
+Returns `feature_id`, `context_pack`, `pack_id`, `feature` state, and
+`next_instructions` for `specify`, including the instruction to keep the
+feature id.
 
 **`get_context`**
 
@@ -340,7 +348,7 @@ degraded retrieval are normal results with `findings` or `warnings`.
 |---|---|---|
 | `APP_NOT_FOUND` | Unknown app slug | any |
 | `FEATURE_NOT_FOUND` | Unknown feature id | any |
-| `UNKNOWN_FRAMEWORK` | Preference names no active framework | `route_task` |
+| `UNKNOWN_FRAMEWORK` | Preference or decision names no active framework | `route_task`, `start_feature` |
 | `STALE_STATE` | `expected_phase` differs from the current phase | `advance_phase` |
 | `PHASE_ORDER_VIOLATION` | Target phase not reachable from the current one under the pinned pack; allowed targets attached | `advance_phase` |
 | `FEATURE_BLOCKED` | Feature is blocked; reason attached | forward `advance_phase` only. Reads, backward moves and `propose_memory` remain allowed |
@@ -412,6 +420,10 @@ produce the same signals:
 
 Any null fact is unknown and lowers confidence per rule 9.
 
+Workspace facts, `human_approved` and verify evidence are host assertions. The
+server records them with the actor and never verifies them independently. The
+decision's `reasons` name every asserted fact it relied on.
+
 ## 9. Context assembly
 
 A **context pack** is the ordered, budgeted block of text returned for one
@@ -477,7 +489,14 @@ lands on the next non-skipped phase. Completing `integrate` moves to `learn`
 when the pack has it, else to `archived`. Completing `learn` archives.
 
 Every pack must map all seven phases explicitly; ingestion rejects a pack that
-does not.
+does not. Each mapped phase may carry an `alias`, the framework's own name for
+it (for example `proposal` for OpenSpec's specify), used in headers, prompts
+and status output so the host sees the vocabulary its framework uses.
+
+This is a deliberately constrained graph: one shared sequence, skippable
+optional phases, backward edges with a reason, and two terminal states
+(`blocked`, `archived`). It covers every framework in scope. A general
+per-framework graph engine is not part of v1.
 
 | Framework | Mapping |
 |---|---|
@@ -507,6 +526,11 @@ library is deterministic and the server never fills in missing content.
 Severity is `blocker` unless the pack marks a check `warning`. `scope_drift`
 defaults to `warning`.
 
+The library is a versioned allowlist compiled into the server. Packs select
+and parameterise checks; they cannot ship executable policy of any kind. A new
+check requires a server release, and `frameworks.gates` records the library
+version the pack was validated against.
+
 ### 10.3 Transitions
 
 - `advance_phase` locks the feature row (`SELECT ... FOR UPDATE`), compares
@@ -523,7 +547,8 @@ defaults to `warning`.
   When `failed_cycles` reaches 3 the feature becomes `blocked` with the reason
   from the call. Unblocking is a backward move.
 - Completing `integrate` and, when present, `learn` sets status `archived`.
-- `next_instructions` always tells the host to update `.sdd/feature.json`.
+- `next_instructions` always restates the feature id and current phase so
+  the host can persist them however it chooses.
 
 ### 10.4 Verify evidence
 
@@ -570,11 +595,13 @@ whatever database the environment names.
 
 ### 11.2 Client setup
 
-A workspace commits `.sdd/config.json` (server URL, app slug, actor name and
-email, optional `greenfield: true`) and, once routed, `.sdd/feature.json` on
-the feature branch (feature id, framework, phase at last sync). The server is
-authoritative; `.sdd/feature.json` is a cache the host rewrites after every
-`advance_phase`, and `STALE_STATE` tells the host when it has fallen behind.
+The server holds all feature state and depends on no file in any workspace.
+Hosts need somewhere to keep the server URL, app slug, actor identity and the
+feature id between sessions. The recommended convention, a committed
+`.sdd/config.json` plus a per-branch `.sdd/feature.json` cache, is described in
+`docs/verification/host-integration.md`, not here. Whatever a host keeps
+locally is a cache: the server is authoritative, and `STALE_STATE` tells the
+host when its copy has fallen behind.
 
 ### 11.3 Security posture
 
@@ -625,7 +652,7 @@ version: 1.0.0            # pack version, recorded on every item as pack_version
 source_url: https://github.com/Fission-AI/OpenSpec
 license: MIT
 phases:                   # framework packs only; all seven required
-  specify:   { command: "/opsx:propose", template: openspec.template.proposal }
+  specify:   { alias: proposal, command: "/opsx:propose", template: openspec.template.proposal }
   plan:      skipped
   tasks:     skipped
   implement: { command: "/opsx:apply",   template: openspec.template.apply }
@@ -730,8 +757,9 @@ whole pack validates and all embeddings are computed.
   backward moves and repin; concurrent `advance_phase` producing one
   `STALE_STATE`; `failed_cycles` reaching blocked; embedding model mismatch.
 - **Contract** tests through the MCP SDK client over both transports: tool
-  schemas, error codes, warnings, and every instruction-bearing tool returning
-  its text inline.
+  schemas, error codes, warnings, `route_task` writing nothing, `start_feature`
+  refusing `none` and inactive frameworks, and every instruction-bearing tool
+  returning its text inline.
 - **Host verification** under `docs/verification/`: a feature matrix of tools,
   resources and prompts against Claude Code and Cursor, the workspace-facts
   helper script, and a scripted walkthrough of one OpenSpec feature and one
@@ -770,3 +798,12 @@ framework change; `actor` on every mutating call; persisted packs, artifacts,
 policies and pack versions; engine-mandated spec review; numeric routing
 thresholds and workspace-fact derivations; fixed embedding dimension, tokenizer,
 chunking, retrieval parameters, concurrency control and observability.
+
+Revision 3 changes after the external review in
+`docs/superpowers/reviews/2026-09-10-sdd-orchestrator-review.md`: `route_task`
+is read-only and `start_feature` creates the feature; host facts, approval and
+evidence are stated to be recorded assertions; the gate library is stated to be
+a compiled allowlist requiring a server release; phase aliases added; workspace
+file conventions moved to the host integration guide; the constrained phase
+model is stated as deliberate. The review's local-first default was not
+adopted because the shared-server topology was decided earlier.
