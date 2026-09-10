@@ -1,6 +1,6 @@
 # SDD Orchestrator: Design Specification
 
-**Status:** Draft for review (revision 4)
+**Status:** Draft for review (revision 5)
 **Date:** 2026-09-10
 **Supersedes:** the v1.0.0 draft `sdd_orchestrator_spec.md`, preserved in commit 0aacf55
 
@@ -91,7 +91,8 @@ Findings that shaped the design:
 | Term | Meaning |
 |---|---|
 | Framework | A named SDD workflow with its own artifacts and commands: OpenSpec, Spec Kit, BMAD, Kiro, or the `sdlc` house flow |
-| Track | A variant of a framework with its own phase mapping and gates. Only BMAD has tracks (`quick`, `full`) in v1 |
+| Track | A variant of a framework with its own phase mapping and gates. v1 tracks: BMAD `quick` and `full`; OpenSpec `default`, `hotfix` and `refactor`; Spec Kit `default` and `refactor` |
+| Intent | What kind of work a task is: `feature`, `product`, `spike`, `incident`, `remediation` or `refactor`. Supplied by the host or inferred from the task text |
 | House flow | The workflow of the TextraAI `sdlc` plugin: PRD, scoping doc, jot down (a short technical design note), task breakdown, implement-task |
 | Quality layer | Addy Osmani's `agent-skills` (MIT): process skills such as test-driven development, code review and security hardening, attached to every decision |
 | Stack guide | A language or framework engineering standard, for example the plugin's Go, React and Node guides |
@@ -146,9 +147,9 @@ the engine.
 1. Host calls `route_task` with the task description, app slug and workspace
    facts. This call is read-only and may be repeated.
 2. MCP surface validates input and loads the app and its current policy.
-3. Router produces a decision: framework (or `none` for spikes), track,
-   confidence, rule, reasons, high-risk flag, and clarifying questions when
-   confidence is medium.
+3. Router produces a decision: intent, framework (or `none` for spikes),
+   track, confidence, rule, reasons, high-risk flag, and clarifying questions
+   when confidence is medium.
 4. Surface returns the decision, the questions when present, and any warnings.
    Nothing is written.
 5. The host shows the decision to its user, answers any questions by calling
@@ -176,13 +177,13 @@ through the Prompts primitive (section 11.3).
 | `app_policies` | app_id, version, policy jsonb, reason | Append-only, unique on (app_id, version). The current policy is the highest version. `policy` holds `framework` (nullable), `path_rules: [{glob, framework}]`, `risk_paths: [glob]` (extends the default list). An app with no policy row behaves as `{framework: null}` with `policy_version` null |
 | `frameworks` | name, pack_version, tracks jsonb, gate_library_version, status (active, deprecated) | Unique on (name, pack_version). `tracks` maps track name (or `default`) to `{phases, gates}`. The current version of a framework is its highest active `pack_version` |
 | `embedding_config` | provider, model, dimension, reindexed_at | Single row, written by `ingest` and `reindex`, checked at startup and on every retrieval |
-| `features` | app_id, slug, framework, framework_pack_version, track, current_phase, status (active, blocked, archived), blocked_reason, high_risk bool, failed_cycles int, policy_version null, policy_override_reason null, source_task text, decision jsonb, workspace jsonb | Unique on (app_id, slug); a collision appends `-2`, `-3`. Created by `start_feature` |
+| `features` | app_id, slug, intent, framework, framework_pack_version, track, current_phase, status (active, blocked, archived), blocked_reason, high_risk bool, failed_cycles int, policy_version null, policy_override_reason null, source_task text, external_ref text null, trigger_ref text null, decision jsonb, workspace jsonb | Unique on (app_id, slug); a collision appends `-2`, `-3`. Created by `start_feature`. `external_ref` is the backlog ticket (Linear, Jira); `trigger_ref` is what caused the work (incident id, CVE, alert) |
 | `context_packs` | feature_id, phase, scope jsonb, focus text null, items jsonb ([{stable_id, version}]), rendered text, token_count, budget, degraded bool, over_budget bool | One row per assembled pack. `rendered` is the exact text returned, so an audit can reproduce what the agent saw |
 | `phase_transitions` | feature_id, from_phase, to_phase, direction (forward, backward), result (pass, fail), findings jsonb, evidence jsonb null, pack_id null, artifact_hashes jsonb, human_approved bool, reason null | Audit trail of every transition attempt. `created_by` is the actor |
 | `feature_artifacts` | transition_id, name, sha256, byte_length, content text null | Artifact text as submitted, capped at 256 KB per artifact. Larger artifacts store hash and length only |
 | `knowledge_items` | stable_id, version int, kind, tier (always_on, retrieved), framework text null, app_id null, memory_type null, human_id text null, stack_tags text[], phase_tags text[], title, body, front_matter jsonb, pack_name, pack_version text null, status (active, deprecated), superseded_by null, deprecation_reason, source_path, source_hash, source_url, license | Unique on (stable_id, version). Immutable once active. `framework` null means every framework; empty `phase_tags` means every phase |
 | `knowledge_chunks` | item_id, ordinal, heading_path, text, embedding vector(1024), embedding_model, token_count, tokenizer | One row per section, hard cap 512 tokens |
-| `proposals` | app_id, feature_id, payload jsonb, status (pending, approved, rejected), reviewed_by, review_reason | Approval copies payload into `knowledge_items` |
+| `proposals` | app_id, feature_id, payload jsonb, supersedes text null, status (pending, approved, rejected), reviewed_by, review_reason | Approval copies payload into `knowledge_items`; when `supersedes` names an active item, approval also sets `superseded_by` on it |
 
 `kind` is one of `framework_pack`, `standard`, `stack_guide`, `app_memory`.
 `memory_type`, required when `kind` is `app_memory`, is one of `adr`,
@@ -219,7 +220,7 @@ Rules:
 
 ## 7. MCP surface
 
-Seven developer-facing tools. Admin operations are CLI only (section 12.4),
+Eight developer-facing tools. Admin operations are CLI only (section 12.4),
 which keeps the tool list small and keeps knowledge writes off the network
 path.
 
@@ -246,14 +247,15 @@ persists a pack.
 | `framework_preference` | string, optional | Validated against current frameworks at call time |
 
 `workspace` fields, all optional, null meaning unknown: `stack` string[],
-`intent` (`feature`, `spike`, `product`, `auto`), `is_greenfield` bool,
+`intent` (`feature`, `product`, `spike`, `incident`, `remediation`, `refactor`,
+`auto`), `is_greenfield` bool,
 `has_spec_library` bool, `estimated_files` int, `paths_touched` string[],
 `repositories` int, `new_subsystem` bool, `host` string. Section 8.3 states how
 a host derives them.
 
 | Output | Notes |
 |---|---|
-| `decision` | `{framework or "none", track or null, confidence: high or medium, rule, reasons[], high_risk, policy_version, framework_pack_version}` |
+| `decision` | `{intent, framework or "none", track, confidence: high or medium, rule, reasons[], high_risk, policy_version, framework_pack_version}` |
 | `clarifying_questions[]` | At most three, present at medium confidence |
 | `guidance` | Prototype-first guidance text when `framework` is `none` |
 | `attached_layers[]` | One entry per attached pack: `{pack_name, pack_version, kind}`. Always the quality layer; plus each stack-guide pack whose `stack_tags` intersect `workspace.stack`, falling back to `apps.default_stack` |
@@ -267,6 +269,8 @@ a host derives them.
 | `decision` | required; the `decision` object returned by `route_task`, possibly with a different `framework` or `track` if the user overrode it |
 | `workspace` | the facts used, stored for audit |
 | `feature_slug` | optional; defaults to a slug derived from the task description |
+| `external_ref` | optional backlog ticket id, for example `YAL-123`; also used as the default `feature_slug` prefix |
+| `trigger_ref` | optional cause reference, for example `INC-204`, `CVE-2026-1234`, or an alert id |
 | `policy_override_reason` | required when `decision.framework` differs from what the app's current policy names |
 
 Behaviour: the server stores the client-supplied `decision` verbatim, then
@@ -331,15 +335,25 @@ heading_path, text, score, match: vector or exact_id}`.
 
 Input: `feature_id`, `actor`, `kind` (`app_memory` or `standard`),
 `memory_type` (required for `app_memory`), `title`, `body`, `stack_tags[]`,
-`links[]` (paths or ticket ids to archived artifacts). Returns `proposal_id`,
-`status`.
+`links[]` (paths or ticket ids to archived artifacts), `supersedes` (optional
+`stable_id` of an active item this one replaces, for example the business rule
+a change retires). Returns `proposal_id`, `status`.
 
 **`get_feature_status`**
 
-Input: `feature_id`. Returns framework, framework_pack_version, track,
+Input: `feature_id`. Returns intent, framework, framework_pack_version, track,
 current_phase, phase alias, status, blocked_reason, high_risk, failed_cycles,
-allowed forward and backward targets, transitions[] (summaries), latest pack
-id per phase.
+external_ref, trigger_ref, allowed forward and backward targets, transitions[]
+(summaries), latest pack id per phase.
+
+**`list_features`** (read-only)
+
+Input: `app` (required), `status[]` (default `active` and `blocked`),
+`external_ref` (optional exact match), `limit` (default 50). Returns
+`features[]` `{feature_id, slug, intent, framework, track, current_phase,
+status, external_ref, trigger_ref, updated_at}`. Lets a host working through
+a backlog see what is already in flight and resume it instead of routing the
+same ticket twice.
 
 ### 7.2 Result and error encoding
 
@@ -410,7 +424,7 @@ signals used.
 |---|---|
 | App policy | Current `app_policies` row: `framework`, or the first `path_rules` glob matching any `paths_touched` |
 | Explicit preference | `framework_preference` |
-| Intent | `workspace.intent` if not `auto`; else `spike` when the task text matches the spike phrase list, `product` when it matches the product phrase list, else `feature`. Both lists are server configuration with defaults (`can we`, `prototype`, `spike`, `is it possible`; `whole product`, `new product`, `epic`, `PRD`) |
+| Intent | `workspace.intent` if not `auto`; else the first phrase list the task text matches, in this order: `incident` (`outage`, `production is down`, `hotfix`, `P1`, `INC-\d+`), `remediation` (`CVE-\d+`, `vulnerability`, `Snyk`, `deprecated library`), `refactor` (`refactor`, `no behaviour change`, `no behavior change`, `extract`, `untangle`), `spike` (`can we`, `prototype`, `spike`, `is it possible`), `product` (`whole product`, `new product`, `PRD`); else `feature`. Lists are server configuration; the defaults are these. A backlog ticket title alone rarely matches `product`, which is intended |
 | Greenfield | `is_greenfield`; if null, `not has_spec_library`; if both null, unknown |
 | Size | `small`: `estimated_files` at most 3 and all `paths_touched` share one top-level directory. `large`: `estimated_files` at least 20, or `repositories` at least 2, or `new_subsystem` true. Else `medium`. Unknown when `estimated_files` is null and `new_subsystem` is not true |
 | Risk paths | Any `paths_touched` matching the default list plus the policy's `risk_paths`. Default: `**/payments/**`, `**/billing/**`, `**/auth/**`, `**/*crypto*`, `**/migrations/**`, `infra/**`, `**/*.tf`, `.github/workflows/**` |
@@ -423,22 +437,29 @@ forces human approval at `verify` to `integrate` (section 10.3).
 
 | Order | Condition | Decision |
 |---|---|---|
-| 1 | Policy names a framework, or a path rule matches | That framework, confidence high |
-| 2 | Explicit preference | That framework, confidence high, with a warning in `reasons` if rules 3 to 9 would differ |
+| 1 | Policy names a framework, or a path rule matches | That framework, confidence high. Track from intent per rules 5 and 6 when the framework has it, else `default` |
+| 2 | Explicit preference | That framework, confidence high, with a warning in `reasons` if rules 3 to 11 would differ. Track as in rule 1 |
 | 3 | Intent `spike` | `none`. Return prototype-first guidance; no feature |
 | 4 | Intent `product` | `sdlc` house flow, starting at PRD |
-| 5 | Size large and (compliance or `new_subsystem`) | BMAD. Track `quick` when `estimated_files` is at most 15 and compliance is false, else `full` |
-| 6 | Brownfield and size small or medium | OpenSpec |
-| 7 | Greenfield and size small or medium | Spec Kit |
-| 8 | Size large | Spec Kit |
-| 9 | Greenfield status or size unknown | Confidence medium. Candidate OpenSpec when `has_spec_library` is true, else Spec Kit. Up to three clarifying questions asking for the missing facts |
+| 5 | Intent `incident` | OpenSpec, track `hotfix`, any size. `high_risk` forced true |
+| 6 | Intent `refactor` and size small or medium | OpenSpec, track `refactor` |
+| 7 | Intent `refactor` and size large | Spec Kit, track `refactor` |
+| 8 | Size large and (compliance or `new_subsystem`) | BMAD. Track `quick` when `estimated_files` is at most 15 and compliance is false, else `full` |
+| 9 | Brownfield and size small or medium | OpenSpec, track `default` |
+| 10 | Greenfield and size small or medium, or size large | Spec Kit, track `default` |
+| 11 | Greenfield status or size unknown | Confidence medium. Candidate OpenSpec when `has_spec_library` is true, else Spec Kit. Up to three clarifying questions asking for the missing facts |
+
+Intent `remediation` has no rule of its own: it routes by size like a feature,
+is recorded on the feature, and its `trigger_ref` is expected to name the CVE
+or scanner finding so retrieval surfaces prior decisions about the same
+dependency.
 
 Kiro is routed only by rules 1 and 2, since its workflow assumes its IDE. Its
 EARS requirement patterns are ingested as a `standard` with `framework` null
 and `phase_tags: [specify]`, so every framework's specify phase retrieves them.
 
-`track` is null for every framework without tracks. When rules 1 or 2 name
-BMAD, the track is `full` unless the preference or policy names one.
+`track` is `default` for frameworks with a single track. When rules 1 or 2
+name BMAD, the track is `full` unless the preference or policy names one.
 
 If rule 1 or 2 names a framework with no current version, the call fails with
 `UNKNOWN_FRAMEWORK`.
@@ -508,7 +529,9 @@ Steps:
 4. Deduplicate by item, keeping the best chunk per item, then take the top 8.
 
 The query text is the `focus` parameter when present, else the feature's
-`source_task`. Voyage requests use `input_type: document` at ingestion and
+`source_task`. The feature's `trigger_ref` and `external_ref` are always added
+to the exact-identifier step so an incident or ticket referenced elsewhere in
+memory is found. Voyage requests use `input_type: document` at ingestion and
 `input_type: query` at retrieval; Ollama has no such distinction.
 
 ### 9.3 Budget and tokens
@@ -551,8 +574,11 @@ general per-framework graph engine is not part of v1.
 
 | Framework and track | Mapping |
 |---|---|
-| OpenSpec | `propose` covers specify, plan and tasks in one transition (plan and tasks skipped as separate stops); `apply` is implement; `verify` plus `sync` are verify; `archive` is integrate; learn skipped |
-| Spec Kit | constitution is an always-on standard, not a phase; specify (with clarify), plan, tasks (with analyze), implement map one to one; verify is the local harness plus checklist; integrate is the pull request; reconcile is learn |
+| OpenSpec `default` | `propose` covers specify, plan and tasks in one transition (plan and tasks skipped as separate stops); `apply` is implement; `verify` plus `sync` are verify; `archive` is integrate; learn skipped |
+| OpenSpec `hotfix` | specify is a minimal proposal: reproduction, expected behaviour, regression test as acceptance criterion; plan and tasks skipped; implement, verify, integrate as `default`; learn is mandatory and its prompt asks for an `incident` memory proposal. Declares `spec_review: deferred` |
+| OpenSpec `refactor` | specify is a design proposal with `Observed Behaviors`, `Assumed Contracts` and `Characterization Tests` sections and an empty delta spec; plan and tasks skipped; implement, verify, integrate as `default`; learn skipped. Verify requires `max_existing_tests_modified: 0` |
+| Spec Kit `default` | constitution is an always-on standard, not a phase; specify (with clarify), plan, tasks (with analyze), implement map one to one; verify is the local harness plus checklist; integrate is the pull request; reconcile is learn |
+| Spec Kit `refactor` | as `default`, but the spec requires `Observed Behaviors`, `Assumed Contracts` and `Characterization Tests` sections and no functional requirements, and verify requires `max_existing_tests_modified: 0` |
 | BMAD `quick` | quick-spec covers specify through tasks; quick-dev is implement; code-review is verify; integrate is the pull request; learn skipped |
 | BMAD `full` | PRD and architecture are specify; epics and stories are plan and tasks; dev-story is implement; code-review is verify; integrate is the pull request; retrospective is learn |
 | Kiro | requirements is specify, design is plan, tasks is tasks; implement, verify and integrate use the Kiro pack's own generic templates; learn skipped |
@@ -580,7 +606,7 @@ lines from one `task_regex` match to the next.
 | `task_done_checks` | `artifact`, `task_regex`, `done_regex` | Every task block must contain a `done_regex` match |
 | `task_ordering` | `artifact`, `task_regex` with named group `id`, `dep_regex` with named group `id` | Every dependency id must belong to a task that appears earlier |
 | `delta_markers` | `artifact` | Sections `ADDED`, `MODIFIED`, `REMOVED` Requirements recognised; each entry under `REMOVED` must contain `**Reason**` and `**Migration**` |
-| `verify_evidence` | `max_new_high` (default 0) | Section 10.4 rules |
+| `verify_evidence` | `max_new_high` (default 0), `max_existing_tests_modified` (default null, not checked) | Section 10.4 rules |
 | `scope_drift` | `plan_artifact`, `files_section` | Paths in `evidence.files_changed` not present in the section (paths extracted as backticked tokens or tokens matching `[\w./-]+\.\w+`) produce a `warning` finding |
 | `human_approved` | none | `human_approved` was true; recorded with the actor |
 
@@ -612,7 +638,10 @@ Mandated approvals:
 
 - The engine mandates `human_approved` on the first forward transition out of
   `specify` for every track, because spec review is the highest-leverage
-  checkpoint. Tracks may require it elsewhere.
+  checkpoint. A track may declare `spec_review: deferred`, which moves that
+  mandated approval to the transition out of `verify`; only the `hotfix` seed
+  track does so, because a production outage should not wait on a spec review
+  but must not merge without a human. Tracks may require approval elsewhere.
 - When `high_risk` is true the engine also mandates it on the transition out of
   `verify`.
 
@@ -642,7 +671,9 @@ Required on the forward transition out of `verify`:
   "lint":     "pass",
   "security": { "status": "pass", "new_high": 0, "skipped_reason": null },
   "files_changed": ["src/api/export.ts", "src/api/export.test.ts"],
-  "implements": ["REQ-03", "US-02"]
+  "implements": ["REQ-03", "US-02"],
+  "existing_tests_modified": 0,
+  "characterization_tests": ["src/orders/export.characterization.test.ts"]
 }
 ```
 
@@ -655,10 +686,14 @@ Required on the forward transition out of `verify`:
 | `security.skipped_reason` | when status is `skipped` | string |
 | `files_changed` | when the track declares `scope_drift` | string[] |
 | `implements` | no | string[] |
+| `existing_tests_modified` | when the track sets `max_existing_tests_modified` | int; count of pre-existing test files changed |
+| `characterization_tests` | when the track sets `max_existing_tests_modified` | string[]; must be non-empty |
 
-`verify_evidence` passes when `tests.failed` is 0, `lint` is `pass`, and either
-`security.status` is `pass` with `new_high` at most `max_new_high`, or
-`security.status` is `skipped` with a reason. A skipped scan adds a `warning`
+`verify_evidence` passes when `tests.failed` is 0, `lint` is `pass`, either
+`security.status` is `pass` with `new_high` at most `max_new_high` or
+`security.status` is `skipped` with a reason, and, when the track sets
+`max_existing_tests_modified`, `existing_tests_modified` is at or below it and
+`characterization_tests` is non-empty. A skipped scan adds a `warning`
 finding. Any missing required field is a `blocker`. The server records evidence
 as given and never infers a result from an absent field.
 
@@ -753,6 +788,7 @@ license: MIT
 app: null                 # optional default app slug for every item in the pack
 tracks:                   # framework packs only. A pack without tracks uses a single key "default"
   quick:
+    spec_review: required # or deferred; see section 10.3
     phases:               # all seven required
       specify:   { alias: quick-spec, command: "/bmad-bmm-quick-spec", template: bmad.template.quick-spec }
       plan:      skipped
@@ -810,8 +846,11 @@ the chunk text, and `heading_path` stores the full path so a heading like
 Seed packs contain templates only for the phases they map, not full upstream
 distributions.
 
-- `openspec`, `spec-kit`, `bmad`: templates, command vocabulary, phase mapping
-  and gates, adapted from their MIT sources with attribution.
+- `openspec` (tracks `default`, `hotfix`, `refactor`), `spec-kit` (tracks
+  `default`, `refactor`), `bmad` (tracks `quick`, `full`): templates, command
+  vocabulary, phase mapping and gates, adapted from their MIT sources with
+  attribution. The `hotfix` and `refactor` templates are written for this
+  project following Graziano's brownfield guidance.
 - `kiro`: templates written for this project in Kiro's three-document structure
   and EARS notation. No proprietary text is copied. The EARS patterns ship as a
   framework-null standard.
@@ -841,7 +880,7 @@ Every CLI write takes `--actor`, defaulting to the OS user name.
 | `sdd-admin ingest <dir>` | Validate the whole pack, embed in batches, then write in one transaction. Changed files become a new version; unchanged files are skipped by hash; removed files warn. Refused on embedding mismatch |
 | `sdd-admin deprecate <stable_id> [--successor <id>] --reason ...` | Retire one item |
 | `sdd-admin deprecate-framework <name> [--version V] --reason ...` | Retire a framework version, or all versions. Features pinned to it continue; new routing to it fails |
-| `sdd-admin proposals list \| approve <id> \| reject <id> --reason ...` | Review agent proposals |
+| `sdd-admin proposals list \| approve <id> \| reject <id> --reason ...` | Review agent proposals. Approving one with `supersedes` also marks the named item superseded |
 | `sdd-admin reindex` | Re-embed all chunks with the configured model, then rewrite `embedding_config` |
 
 Ingestion refuses a pack with duplicate ids, missing required front matter, a
@@ -854,15 +893,17 @@ computed.
 ## 13. Testing
 
 - **Router**: one unit test per rule, plus conflict, unknown-signal,
-  preference-contradiction, deprecated-framework, policy path-rule and BMAD
-  track selection cases. Pure, no database.
+  preference-contradiction, deprecated-framework, policy path-rule, intent
+  phrase-list precedence and track selection cases for every intent. Pure, no
+  database.
 - **Gate checks**: passing and failing artifact fixtures for every check under
   each seed track's parameters, including `missing_artifact`, the
   measurable-criteria detector, OpenSpec delta validation and verify evidence
   with a skipped scan and with a missing required field.
 - **Lifecycle engine**: reachability for every seed track, archive from the
-  last phase, backward targets, mandated approvals, `failed_cycles` reaching
-  blocked and the unblock, error precedence.
+  last phase, backward targets, mandated approvals including deferred spec
+  review on `hotfix`, `failed_cycles` reaching blocked and the unblock, error
+  precedence.
 - **Assembler**: ordering, scope semantics, trimming priority, over-budget
   behaviour, deduplication, exact-id ranking, framework-null and empty
   phase-tag inclusion, superseded exclusion, pinned framework version, degraded
@@ -870,8 +911,10 @@ computed.
 - **Integration** against Postgres in Docker: ingestion versioning,
   supersession and removed-file warning; app-scoped ingestion; deprecation of
   items and framework versions; proposal approval producing a retrievable item;
-  policy versioning; a full feature lifecycle from `start_feature` to archive
-  for every seed track with transitions, packs and artifacts recorded;
+  policy versioning; proposal approval with `supersedes` retiring the old
+  item; `list_features` by app, status and `external_ref`; a full feature
+  lifecycle from `start_feature` to archive for every seed track with
+  transitions, packs and artifacts recorded;
   backward moves and repin; concurrent `advance_phase` producing one
   `STALE_STATE`; embedding config mismatch and reindex.
 - **Contract** tests through the MCP SDK client over both transports: tool
@@ -938,3 +981,13 @@ list; gate algorithms and per-transition artifact lists; evidence field table;
 MCP result and error encoding; scope semantics; rendered text stored per pack;
 CLI commands for app settings and framework deprecation; leftover workspace
 file references removed.
+
+Revision 5 changes after the use-case walkthrough (new capability, business
+rule change, production incident, scanner finding, legacy refactor, telemetry
+regression, backlog throughput): intents `incident`, `remediation` and
+`refactor`; OpenSpec `hotfix` and `refactor` tracks and a Spec Kit `refactor`
+track; deferred spec review for hotfixes; `trigger_ref` and `external_ref` on
+features and in exact-id retrieval; `supersedes` on proposals so a changed rule
+retires the old one; `existing_tests_modified` and `characterization_tests`
+evidence; the `list_features` tool; `epic` removed from the product phrase
+list so backlog tickets do not route to the PRD flow.
