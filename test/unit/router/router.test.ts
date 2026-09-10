@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { route, parseFrameworkRef, type RouterInput } from '../../../src/router/router.js';
-import { DomainError } from '../../../src/errors.js';
 
 const frameworks = [
   { name: 'openspec', pack_version: '1.0.0', tracks: ['default', 'hotfix', 'refactor'] },
@@ -198,5 +197,25 @@ describe('route: rules in order', () => {
   it('sets high_risk from risk paths without changing the framework', () => {
     const out = route(input({ workspace: { estimated_files: 4, paths_touched: ['src/billing/x.ts'], is_greenfield: false } }));
     expect(out.decision).toMatchObject({ framework: 'openspec', high_risk: true });
+  });
+  it('rule 6: throws UNKNOWN_FRAMEWORK when openspec has no hotfix track', () => {
+    const noHotfix = frameworks.map((f) => (f.name === 'openspec' ? { ...f, tracks: ['default'] } : f));
+    expect(() => route(input({ task_description: 'production is down', frameworks: noHotfix })))
+      .toThrow(expect.objectContaining({ code: 'UNKNOWN_FRAMEWORK' }));
+  });
+  it('rule 7: throws UNKNOWN_FRAMEWORK when openspec has no refactor track', () => {
+    const noRefactor = frameworks.map((f) => (f.name === 'openspec' ? { ...f, tracks: ['default'] } : f));
+    expect(() => route(input({ task_description: 'refactor exports', workspace: { estimated_files: 5 }, frameworks: noRefactor })))
+      .toThrow(expect.objectContaining({ code: 'UNKNOWN_FRAMEWORK' }));
+  });
+  it('rule 8: throws UNKNOWN_FRAMEWORK when spec-kit has no refactor track', () => {
+    const noRefactor = frameworks.map((f) => (f.name === 'spec-kit' ? { ...f, tracks: ['default'] } : f));
+    expect(() => route(input({ task_description: 'refactor exports', workspace: { estimated_files: 25 }, frameworks: noRefactor })))
+      .toThrow(expect.objectContaining({ code: 'UNKNOWN_FRAMEWORK' }));
+  });
+  it('rule 9: throws UNKNOWN_FRAMEWORK when bmad has neither the requested track nor a fallback', () => {
+    const noFull = frameworks.map((f) => (f.name === 'bmad' ? { ...f, tracks: ['quick'] } : f));
+    expect(() => route(input({ app: { compliance: true, default_stack: [] }, workspace: { estimated_files: 25 }, frameworks: noFull })))
+      .toThrow(expect.objectContaining({ code: 'UNKNOWN_FRAMEWORK' }));
   });
 });

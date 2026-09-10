@@ -9,7 +9,7 @@
     "sdd-admin": "dist/cli/index.js"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "dev": "tsx src/index.ts",
     "dev:stdio": "tsx src/index.ts --stdio",

@@ -8,8 +8,12 @@ export const DEFAULT_RISK_PATHS: string[] = [
 
 const matchOptions = { dot: true };
 
+export function normalizePath(path: string): string {
+  return path.replace(/\\/g, '/').replace(/^\.\//, '').replace(/^\/+/, '');
+}
+
 export function topLevelDir(path: string): string {
-  const cleaned = path.replace(/^\.\//, '').replace(/^\/+/, '');
+  const cleaned = normalizePath(path);
   return cleaned.split('/')[0] ?? cleaned;
 }
 
@@ -32,14 +36,14 @@ export function greenfieldOf(ws: Workspace): boolean | null {
 
 export function matchRiskPaths(paths: string[], extra: string[]): string[] {
   const isRisk = picomatch([...DEFAULT_RISK_PATHS, ...extra], matchOptions);
-  return paths.filter((p) => isRisk(p.replace(/^\.\//, '')));
+  return paths.filter((p) => isRisk(normalizePath(p)));
 }
 
 export function matchPolicyPathRule(policy: Policy | null, paths: string[]): PathRule | null {
   if (!policy) return null;
   for (const rule of policy.path_rules) {
     const m = picomatch(rule.glob, matchOptions);
-    if (paths.some((p) => m(p.replace(/^\.\//, '')))) return rule;
+    if (paths.some((p) => m(normalizePath(p)))) return rule;
   }
   return null;
 }

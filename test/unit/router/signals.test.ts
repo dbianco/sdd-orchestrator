@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  DEFAULT_RISK_PATHS, sizeOf, greenfieldOf, matchRiskPaths, matchPolicyPathRule, topLevelDir,
+  DEFAULT_RISK_PATHS, sizeOf, greenfieldOf, matchRiskPaths, matchPolicyPathRule, topLevelDir, normalizePath,
 } from '../../../src/router/signals.js';
 
 describe('sizeOf', () => {
@@ -56,6 +56,12 @@ describe('matchRiskPaths', () => {
     expect(matchRiskPaths(['src/webhooks/stripe.ts'], ['**/webhooks/**'])).toEqual(['src/webhooks/stripe.ts']);
     expect(matchRiskPaths(['src/orders/x.ts'], [])).toEqual([]);
   });
+  it('matches an absolute path against the default risk paths', () => {
+    expect(matchRiskPaths(['/infra/main.tf'], [])).toEqual(['/infra/main.tf']);
+  });
+  it('matches a Windows-style path against a risk glob', () => {
+    expect(matchRiskPaths(['src\\auth\\x.ts'], [])).toEqual(['src\\auth\\x.ts']);
+  });
 });
 
 describe('matchPolicyPathRule', () => {
@@ -66,6 +72,25 @@ describe('matchPolicyPathRule', () => {
   it('returns null with no match or no policy', () => {
     expect(matchPolicyPathRule(policy, ['src/orders/x.ts'])).toBeNull();
     expect(matchPolicyPathRule(null, ['src/payments/x.ts'])).toBeNull();
+  });
+  it('matches an absolute path', () => {
+    expect(matchPolicyPathRule(policy, ['/src/payments/x.ts'])).toEqual({ glob: '**/payments/**', framework: 'bmad' });
+  });
+  it('matches a Windows-style path', () => {
+    const authPolicy = { framework: null, path_rules: [{ glob: '**/auth/**', framework: 'openspec' }], risk_paths: [] };
+    expect(matchPolicyPathRule(authPolicy, ['src\\auth\\x.ts'])).toEqual({ glob: '**/auth/**', framework: 'openspec' });
+  });
+});
+
+describe('normalizePath', () => {
+  it('strips a leading ./', () => {
+    expect(normalizePath('./src/x.ts')).toBe('src/x.ts');
+  });
+  it('strips a leading /', () => {
+    expect(normalizePath('/infra/main.tf')).toBe('infra/main.tf');
+  });
+  it('converts backslashes to forward slashes', () => {
+    expect(normalizePath('src\\auth\\x.ts')).toBe('src/auth/x.ts');
   });
 });
 

@@ -42,14 +42,14 @@ interface Ctx {
   intent: Intent;
   size: Size;
   greenfield: boolean | null;
-  risk: string[];
+  risk: readonly string[];
   compliance: boolean;
-  ws: Workspace;
-  frameworks: Map<string, KnownFramework>;
-  reasons: string[];
+  ws: Readonly<Workspace>;
+  frameworks: ReadonlyMap<string, KnownFramework>;
+  reasons: readonly string[];
 }
 
-function requireFramework(ctx: Ctx, name: string, source: string): KnownFramework {
+function requireFramework(ctx: Readonly<Ctx>, name: string, source: string): KnownFramework {
   const fw = ctx.frameworks.get(name);
   if (!fw) {
     throw new DomainError('UNKNOWN_FRAMEWORK', `${source} names framework "${name}" which has no current version`, {
@@ -59,7 +59,7 @@ function requireFramework(ctx: Ctx, name: string, source: string): KnownFramewor
   return fw;
 }
 
-function trackForIntent(fw: KnownFramework, ctx: Ctx, named: string | null): string | null {
+function trackForIntent(fw: KnownFramework, ctx: Readonly<Ctx>, named: string | null): string | null {
   if (fw.tracks.length === 0) return null;
   if (named) {
     if (!fw.tracks.includes(named)) {
@@ -78,36 +78,41 @@ function trackForIntent(fw: KnownFramework, ctx: Ctx, named: string | null): str
 
 interface RulePick { framework: string; track: string | null; rule: string; confidence: 'high' | 'medium'; questions: string[]; guidance: string | null; lite: boolean }
 
-function rulesThreeToTwelve(ctx: Ctx): RulePick {
+interface RulesResult { pick: RulePick; intent: Intent; reasons: string[] }
+
+function rulesThreeToTwelve(ctx: Readonly<Ctx>): RulesResult {
+  const extraReasons: string[] = [];
+  let intent = ctx.intent;
+  const done = (p: RulePick): RulesResult => ({ pick: p, intent, reasons: extraReasons });
   const none = (rule: string, guidance: string | null, lite: boolean): RulePick => ({ framework: 'none', track: null, rule, confidence: 'high', questions: [], guidance, lite });
   const pick = (name: string, rule: string, track?: string): RulePick => {
     const fw = requireFramework(ctx, name, `rule ${rule}`);
-    return { framework: name, track: track ?? trackForIntent(fw, ctx, null), rule, confidence: 'high', questions: [], guidance: null, lite: false };
+    return { framework: name, track: trackForIntent(fw, ctx, track ?? null), rule, confidence: 'high', questions: [], guidance: null, lite: false };
   };
 
-  if (ctx.intent === 'spike') return none('3-spike', SPIKE_GUIDANCE, false);
+  if (intent === 'spike') return done(none('3-spike', SPIKE_GUIDANCE, false));
 
-  if (ctx.intent === 'trivial') {
+  if (intent === 'trivial') {
     const causes: string[] = [];
     if (ctx.size !== 'small') causes.push(`size is ${ctx.size}`);
     if (ctx.risk.length > 0) causes.push(`risk path matched (${ctx.risk.join(', ')})`);
     if (ctx.compliance) causes.push('app is under compliance');
-    if (causes.length === 0) return none('4-trivial', null, true);
-    ctx.reasons.push(`intent trivial downgraded to feature: ${causes.join('; ')}`);
-    ctx.intent = 'feature';
+    if (causes.length === 0) return done(none('4-trivial', null, true));
+    extraReasons.push(`intent trivial downgraded to feature: ${causes.join('; ')}`);
+    intent = 'feature';
   }
 
-  if (ctx.intent === 'product') return pick('sdlc', '5-product');
-  if (ctx.intent === 'incident') return pick('openspec', '6-incident', 'hotfix');
-  if (ctx.intent === 'refactor' && (ctx.size === 'small' || ctx.size === 'medium')) return pick('openspec', '7-refactor-small-medium', 'refactor');
-  if (ctx.intent === 'refactor' && ctx.size === 'large') return pick('spec-kit', '8-refactor-large', 'refactor');
+  if (intent === 'product') return done(pick('sdlc', '5-product'));
+  if (intent === 'incident') return done(pick('openspec', '6-incident', 'hotfix'));
+  if (intent === 'refactor' && (ctx.size === 'small' || ctx.size === 'medium')) return done(pick('openspec', '7-refactor-small-medium', 'refactor'));
+  if (intent === 'refactor' && ctx.size === 'large') return done(pick('spec-kit', '8-refactor-large', 'refactor'));
   if (ctx.size === 'large' && (ctx.compliance || ctx.ws.new_subsystem === true)) {
     const files = ctx.ws.estimated_files ?? null;
     const quick = files !== null && files <= 15 && !ctx.compliance;
-    return pick('bmad', '9-large-compliance-or-subsystem', quick ? 'quick' : 'full');
+    return done(pick('bmad', '9-large-compliance-or-subsystem', quick ? 'quick' : 'full'));
   }
-  if (ctx.greenfield === false && (ctx.size === 'small' || ctx.size === 'medium')) return pick('openspec', '10-brownfield-small-medium', 'default');
-  if ((ctx.greenfield === true && (ctx.size === 'small' || ctx.size === 'medium')) || ctx.size === 'large') return pick('spec-kit', '11-greenfield-or-large', 'default');
+  if (ctx.greenfield === false && (ctx.size === 'small' || ctx.size === 'medium')) return done(pick('openspec', '10-brownfield-small-medium', 'default'));
+  if ((ctx.greenfield === true && (ctx.size === 'small' || ctx.size === 'medium')) || ctx.size === 'large') return done(pick('spec-kit', '11-greenfield-or-large', 'default'));
 
   const questions: string[] = [];
   if (ctx.greenfield === null) questions.push('Is this a greenfield repository (fewer than 20 commits) or does it already have a spec library?');
@@ -115,7 +120,7 @@ function rulesThreeToTwelve(ctx: Ctx): RulePick {
   if (ctx.size === 'unknown' && ctx.ws.new_subsystem == null) questions.push('Does this introduce a new subsystem or a second repository?');
   const candidate = ctx.ws.has_spec_library === true ? 'openspec' : 'spec-kit';
   const fw = requireFramework(ctx, candidate, 'rule 12');
-  return { framework: candidate, track: trackForIntent(fw, ctx, null), rule: '12-unknown', confidence: 'medium', questions: questions.slice(0, 3), guidance: null, lite: false };
+  return done({ framework: candidate, track: trackForIntent(fw, ctx, null), rule: '12-unknown', confidence: 'medium', questions: questions.slice(0, 3), guidance: null, lite: false });
 }
 
 export function route(input: RouterInput): RouterOutput {
@@ -168,13 +173,13 @@ export function route(input: RouterInput): RouterOutput {
   if (!partial && input.framework_preference) {
     const { name, track } = parseFrameworkRef(input.framework_preference);
     const fw = requireFramework(ctx, name, 'framework_preference');
-    // Snapshot ctx BEFORE the trivial-downgrade mutation below, so the speculative
-    // "what would rules 3-12 have chosen" call sees the original intent (e.g. still
-    // 'trivial') rather than the already-downgraded 'feature'. The spread plus fresh
-    // reasons array also ensures none of that speculative call's own side effects
-    // (further intent mutation, reason pushes) leak into the real ctx/reasons.
+    // Call BEFORE the trivial-downgrade mutation below, so the speculative "what would
+    // rules 3-12 have chosen" call sees the original intent (e.g. still 'trivial')
+    // rather than the already-downgraded 'feature'. rulesThreeToTwelve is pure (it
+    // takes a Readonly<Ctx> and returns its intent/reasons changes rather than
+    // mutating), so this call cannot leak any side effects into the real ctx/reasons.
     let wouldHave: RulePick | null = null;
-    try { wouldHave = rulesThreeToTwelve({ ...ctx, reasons: [] }); } catch { wouldHave = null; }
+    try { wouldHave = rulesThreeToTwelve(ctx).pick; } catch { wouldHave = null; }
     if (ctx.intent === 'trivial') { ctx.intent = 'feature'; reasons.push('intent trivial downgraded to feature: explicit preference'); }
     if (wouldHave && wouldHave.framework !== name) {
       reasons.push(`preference ${name} honoured; rule ${wouldHave.rule} would have chosen ${wouldHave.framework}`);
@@ -184,7 +189,12 @@ export function route(input: RouterInput): RouterOutput {
     partial = { framework: name, track: trackForIntent(fw, ctx, track), rule: '2-preference', confidence: 'high', questions: [], guidance: null, lite: false };
   }
 
-  if (!partial) partial = rulesThreeToTwelve(ctx);
+  if (!partial) {
+    const result = rulesThreeToTwelve(ctx);
+    ctx.intent = result.intent;
+    reasons.push(...result.reasons);
+    partial = result.pick;
+  }
 
   const highRisk = risk.length > 0 || ctx.intent === 'incident';
   const fw = partial.framework === 'none' ? null : ctx.frameworks.get(partial.framework) ?? null;
@@ -195,7 +205,7 @@ export function route(input: RouterInput): RouterOutput {
     track: partial.track,
     confidence: partial.confidence,
     rule: partial.rule,
-    reasons: ctx.reasons,
+    reasons,
     high_risk: highRisk,
     policy_version: input.policy_version,
     framework_pack_version: fw?.pack_version ?? null,
