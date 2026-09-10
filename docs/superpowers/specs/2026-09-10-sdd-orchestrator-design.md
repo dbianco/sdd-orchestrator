@@ -1,6 +1,6 @@
 # SDD Orchestrator: Design Specification
 
-**Status:** Draft for review (revision 5)
+**Status:** Draft for review (revision 6)
 **Date:** 2026-09-10
 **Supersedes:** the v1.0.0 draft `sdd_orchestrator_spec.md`, preserved in commit 0aacf55
 
@@ -60,6 +60,10 @@ replaced by these references.
   templates). This book has no material on retrieval or context engineering.
 - ainativesoftware.engineering/compare, the framework comparison covering Spec
   Kit, OpenSpec, BMAD, Kiro and Agent Skills.
+- Nearform, *9 Lessons Learnt Running AI-Native Engineering in 2026*. Lessons
+  03 (map the system first), 05 (match rigour to risk), 06 (unwritten
+  knowledge), 07 (token economics), 08 (two faces of trust) and 09 (measure
+  adoption) shape the `trivial` intent and the roadmap in section 14.
 
 Findings that shaped the design:
 
@@ -83,7 +87,11 @@ Findings that shaped the design:
 - Tactical artifacts (spec, plan, tasks) are archived after merge. Living
   memory is the strategic tier: constitution, decisions, constraints. Link to
   archived specs, do not duplicate them.
-- Neither source describes AIUP. The term "context pack" appears in neither
+- Not every change needs the same process. Nearform's lesson 05 separates
+  "write a full spec and decompose it" from "prompt directly for something
+  small and well-defined"; the `trivial` intent is the second path, and it is
+  never inferred from text so risky work cannot slip through it.
+- Neither book describes AIUP. The term "context pack" appears in neither
   book and is defined in section 9.
 
 ### 4.1 Terms
@@ -92,7 +100,8 @@ Findings that shaped the design:
 |---|---|
 | Framework | A named SDD workflow with its own artifacts and commands: OpenSpec, Spec Kit, BMAD, Kiro, or the `sdlc` house flow |
 | Track | A variant of a framework with its own phase mapping and gates. v1 tracks: BMAD `quick` and `full`; OpenSpec `default`, `hotfix` and `refactor`; Spec Kit `default` and `refactor` |
-| Intent | What kind of work a task is: `feature`, `product`, `spike`, `incident`, `remediation` or `refactor`. Supplied by the host or inferred from the task text |
+| Intent | What kind of work a task is: `feature`, `product`, `spike`, `trivial`, `incident`, `remediation` or `refactor`. Supplied by the host, or inferred from the task text except for `trivial` |
+| Lite pack | The reduced response for `trivial` work: always-on standards and stack guide sections only, no feature and no gates |
 | House flow | The workflow of the TextraAI `sdlc` plugin: PRD, scoping doc, jot down (a short technical design note), task breakdown, implement-task |
 | Quality layer | Addy Osmani's `agent-skills` (MIT): process skills such as test-driven development, code review and security hardening, attached to every decision |
 | Stack guide | A language or framework engineering standard, for example the plugin's Go, React and Node guides |
@@ -247,8 +256,8 @@ persists a pack.
 | `framework_preference` | string, optional | Validated against current frameworks at call time |
 
 `workspace` fields, all optional, null meaning unknown: `stack` string[],
-`intent` (`feature`, `product`, `spike`, `incident`, `remediation`, `refactor`,
-`auto`), `is_greenfield` bool,
+`intent` (`feature`, `product`, `spike`, `trivial`, `incident`, `remediation`,
+`refactor`, `auto`), `is_greenfield` bool,
 `has_spec_library` bool, `estimated_files` int, `paths_touched` string[],
 `repositories` int, `new_subsystem` bool, `host` string. Section 8.3 states how
 a host derives them.
@@ -257,7 +266,8 @@ a host derives them.
 |---|---|
 | `decision` | `{intent, framework or "none", track, confidence: high or medium, rule, reasons[], high_risk, policy_version, framework_pack_version}` |
 | `clarifying_questions[]` | At most three, present at medium confidence |
-| `guidance` | Prototype-first guidance text when `framework` is `none` |
+| `guidance` | Prototype-first guidance text when the intent is `spike` |
+| `lite_pack` | Present when the intent is `trivial`: positions 2 and 5 of section 9.1 plus the app's stop conditions, within the app budget. No feature, no gates |
 | `attached_layers[]` | One entry per attached pack: `{pack_name, pack_version, kind}`. Always the quality layer; plus each stack-guide pack whose `stack_tags` intersect `workspace.stack`, falling back to `apps.default_stack` |
 
 **`start_feature`**
@@ -424,7 +434,7 @@ signals used.
 |---|---|
 | App policy | Current `app_policies` row: `framework`, or the first `path_rules` glob matching any `paths_touched` |
 | Explicit preference | `framework_preference` |
-| Intent | `workspace.intent` if not `auto`; else the first phrase list the task text matches, in this order: `incident` (`outage`, `production is down`, `hotfix`, `P1`, `INC-\d+`), `remediation` (`CVE-\d+`, `vulnerability`, `Snyk`, `deprecated library`), `refactor` (`refactor`, `no behaviour change`, `no behavior change`, `extract`, `untangle`), `spike` (`can we`, `prototype`, `spike`, `is it possible`), `product` (`whole product`, `new product`, `PRD`); else `feature`. Lists are server configuration; the defaults are these. A backlog ticket title alone rarely matches `product`, which is intended |
+| Intent | `workspace.intent` if not `auto`; else the first phrase list the task text matches, in this order: `incident` (`outage`, `production is down`, `hotfix`, `P1`, `INC-\d+`), `remediation` (`CVE-\d+`, `vulnerability`, `Snyk`, `deprecated library`), `refactor` (`refactor`, `no behaviour change`, `no behavior change`, `extract`, `untangle`), `spike` (`can we`, `prototype`, `spike`, `is it possible`), `product` (`whole product`, `new product`, `PRD`); else `feature`. `trivial` is never inferred: it applies only when the host sets `workspace.intent: trivial`. Lists are server configuration; the defaults are these. A backlog ticket title alone rarely matches `product`, which is intended |
 | Greenfield | `is_greenfield`; if null, `not has_spec_library`; if both null, unknown |
 | Size | `small`: `estimated_files` at most 3 and all `paths_touched` share one top-level directory. `large`: `estimated_files` at least 20, or `repositories` at least 2, or `new_subsystem` true. Else `medium`. Unknown when `estimated_files` is null and `new_subsystem` is not true |
 | Risk paths | Any `paths_touched` matching the default list plus the policy's `risk_paths`. Default: `**/payments/**`, `**/billing/**`, `**/auth/**`, `**/*crypto*`, `**/migrations/**`, `infra/**`, `**/*.tf`, `.github/workflows/**` |
@@ -438,16 +448,17 @@ forces human approval at `verify` to `integrate` (section 10.3).
 | Order | Condition | Decision |
 |---|---|---|
 | 1 | Policy names a framework, or a path rule matches | That framework, confidence high. Track from intent per rules 5 and 6 when the framework has it, else `default` |
-| 2 | Explicit preference | That framework, confidence high, with a warning in `reasons` if rules 3 to 11 would differ. Track as in rule 1 |
+| 2 | Explicit preference | That framework, confidence high, with a warning in `reasons` if rules 3 to 12 would differ. Track as in rule 1 |
 | 3 | Intent `spike` | `none`. Return prototype-first guidance; no feature |
-| 4 | Intent `product` | `sdlc` house flow, starting at PRD |
-| 5 | Intent `incident` | OpenSpec, track `hotfix`, any size. `high_risk` forced true |
-| 6 | Intent `refactor` and size small or medium | OpenSpec, track `refactor` |
-| 7 | Intent `refactor` and size large | Spec Kit, track `refactor` |
-| 8 | Size large and (compliance or `new_subsystem`) | BMAD. Track `quick` when `estimated_files` is at most 15 and compliance is false, else `full` |
-| 9 | Brownfield and size small or medium | OpenSpec, track `default` |
-| 10 | Greenfield and size small or medium, or size large | Spec Kit, track `default` |
-| 11 | Greenfield status or size unknown | Confidence medium. Candidate OpenSpec when `has_spec_library` is true, else Spec Kit. Up to three clarifying questions asking for the missing facts |
+| 4 | Intent `trivial`, size small, no risk path matched, compliance false | `none`. Return a lite pack; no feature. If size is not small, a risk path matches, or the app is under compliance, the intent is downgraded to `feature` with a warning in `reasons` and evaluation continues |
+| 5 | Intent `product` | `sdlc` house flow, starting at PRD |
+| 6 | Intent `incident` | OpenSpec, track `hotfix`, any size. `high_risk` forced true |
+| 7 | Intent `refactor` and size small or medium | OpenSpec, track `refactor` |
+| 8 | Intent `refactor` and size large | Spec Kit, track `refactor` |
+| 9 | Size large and (compliance or `new_subsystem`) | BMAD. Track `quick` when `estimated_files` is at most 15 and compliance is false, else `full` |
+| 10 | Brownfield and size small or medium | OpenSpec, track `default` |
+| 11 | Greenfield and size small or medium, or size large | Spec Kit, track `default` |
+| 12 | Greenfield status or size unknown | Confidence medium. Candidate OpenSpec when `has_spec_library` is true, else Spec Kit. Up to three clarifying questions asking for the missing facts |
 
 Intent `remediation` has no rule of its own: it routes by size like a feature,
 is recorded on the feature, and its `trigger_ref` is expected to name the CVE
@@ -478,7 +489,7 @@ produce the same signals:
   estimate, flagged as an estimate in the reasons.
 - `repositories`: the number of configured repositories the task names.
 
-Any null fact is unknown and lowers confidence per rule 9.
+Any null fact is unknown and lowers confidence per rule 12.
 
 Workspace facts, `human_approved` and verify evidence are host assertions. The
 server records them with the actor and never verifies them independently. The
@@ -894,8 +905,9 @@ computed.
 
 - **Router**: one unit test per rule, plus conflict, unknown-signal,
   preference-contradiction, deprecated-framework, policy path-rule, intent
-  phrase-list precedence and track selection cases for every intent. Pure, no
-  database.
+  phrase-list precedence, `trivial` accepted and downgraded (size, risk path,
+  compliance, inferred from text), and track selection cases for every intent.
+  Pure, no database.
 - **Gate checks**: passing and failing artifact fixtures for every check under
   each seed track's parameters, including `missing_artifact`, the
   measurable-criteria detector, OpenSpec delta validation and verify evidence
@@ -919,7 +931,8 @@ computed.
   `STALE_STATE`; embedding config mismatch and reindex.
 - **Contract** tests through the MCP SDK client over both transports: tool
   schemas and `structuredContent`, error encoding and precedence, warnings,
-  `route_task` writing nothing, `start_feature` refusing `none`, missing track
+  `route_task` writing nothing and returning a lite pack for `trivial`,
+  `start_feature` refusing `none`, missing track
   and inactive frameworks, and every instruction-bearing tool returning its
   text inline.
 - **Host verification** under `docs/verification/`: a feature matrix of tools,
@@ -927,17 +940,55 @@ computed.
   helper script, the host integration guide, and a scripted walkthrough of one
   OpenSpec feature and one Spec Kit feature in each host.
 
-## 14. Follow-ups (out of scope for v1)
+## 14. Roadmap (out of scope for v1)
 
+Each item names what the server produces, what it stores, and the source that
+motivates it. Phases are ordered by value and by how much they reuse data the
+server already holds.
+
+### 14.1 Phase 1.1: views over data the server already stores
+
+| Item | Output | Storage | Source |
+|---|---|---|---|
+| Traceability matrix per app | `sdd://apps/{slug}/rtm` resource and `sdd-admin export rtm <app>`: requirement id, features, files changed, tests, security status, aggregate status, human review state | None new; a view over `features`, `phase_transitions.evidence` and `feature_artifacts` | Plugin RTM design; Durkin ch. 7 audit trail |
+| Pull request description and change impact report | `get_impact_report(feature_id)`: each acceptance criterion and the change that satisfies it, ADRs and standards the pack relied on, scope drift with reasons, evidence summary | None new | Graziano ch. 6 integrate phase |
+| Adoption and flow metrics | Per app and actor: features started vs archived, time per phase, gate failure rate by check, failed cycles, lite-pack share; on `/metrics` and `sdd-admin report` | None new; extends section 11.5 | Nearform lesson 09 |
+
+### 14.2 Phase 1.2: new memory kinds
+
+| Item | Output | Storage | Source |
+|---|---|---|---|
+| System map as app memory | A `system-map` template served before any brownfield work, with the reverse-engineering prompt, characterization-test guidance and BMAD `document-project` scan levels; a `system_map_required` gate that warns or blocks brownfield and refactor features on apps without a map | `memory_type: system_map`, one item per module, with `review_by` | Nearform lesson 03; Graziano ch. 6 Spec Island |
+| Architecture document and boundary check | Versioned architecture doc per app; an `architecture_boundaries` verify check comparing `files_changed` against declared module boundaries and allowed dependencies | `memory_type: architecture`, boundaries in policy JSON | Graziano ch. 8 fitness functions; Nearform "dark code" |
+| Data dictionary and knowledge freshness | `memory_type: glossary`, one description per field or term; `review_by` on every knowledge item; a warning in any pack that used an expired item; `sdd-admin stale` listing expired items | `review_by timestamp` column on `knowledge_items` | Nearform lesson 06 |
+
+### 14.3 Phase 2: trust and economics
+
+| Item | Output | Storage | Source |
+|---|---|---|---|
+| Trust ladder in policy | `autonomy_level` per app (`shadow`, `advisory`, `autonomous_low_risk`) deciding which transitions mandate human approval; `high_risk` always mandates it | Policy JSON field | Nearform lesson 08; Graziano ch. 8 trust ladder |
+| Retrieval evals with a golden dataset | `sdd-admin eval`: a set of queries with expected items per app, run before and after `reindex`, chunking or budget changes, reporting recall and rank changes | `eval_cases` table | Nearform lesson 07 |
+| Audit evidence bundle | `sdd-admin export audit <feature_id>`: spec artifacts, rendered packs, transitions, evidence and approvals in one signed archive | None new | Nearform lesson 08; Durkin SLSA attestations |
+
+### 14.4 Smaller additions
+
+- Handoff document per feature or app in the HANDOFF.md shape (goal, decisions,
+  done, next, open questions), generated from state and memory. Graziano ch. 9.
+- Risk register and rollback plan as optional plan artifacts (`risks.md`,
+  `rollback.md`) with their own gates. Graziano ch. 6.
 - Authentication (bearer tokens, then OAuth) behind an identity interface.
-- LLM router fallback behind the router interface for cases rules leave at
-  medium confidence.
+- LLM router fallback behind the router interface for medium-confidence cases.
 - Adapting the `sdlc` plugin to consume the server instead of its own
   domain-skills table.
 - Automatic ingestion from app repositories on merge.
 - An AIUP pack, once source material is available.
 - Kiro IDE verification.
-- RTM generation from feature transitions and evidence.
+
+### 14.5 Deliberately excluded
+
+- Team sizing and staffing guidance (Nearform lesson 01) and change management
+  beyond adoption metrics (lesson 09): organisational decisions, not tool
+  features.
 - Server-side agent execution of any kind.
 
 ## 15. Relationship to the previous draft
@@ -991,3 +1042,12 @@ features and in exact-id retrieval; `supersedes` on proposals so a changed rule
 retires the old one; `existing_tests_modified` and `characterization_tests`
 evidence; the `list_features` tool; `epic` removed from the product phrase
 list so backlog tickets do not route to the PRD flow.
+
+Revision 6 changes: the `trivial` intent for small, well-defined changes that
+returns a lite pack without a feature or gates, honoured only when the host
+sets it explicitly and downgraded on size, risk or compliance; Nearform's
+lessons added as a source; section 14 rewritten as a phased roadmap covering
+traceability matrix, impact reports, adoption metrics, system map,
+architecture boundaries, data dictionary and freshness, trust ladder,
+retrieval evals, audit bundles, handoff documents and risk and rollback
+artifacts.
