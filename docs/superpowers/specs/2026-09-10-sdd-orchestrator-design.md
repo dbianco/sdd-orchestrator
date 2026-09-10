@@ -2,7 +2,7 @@
 
 **Status:** Draft for review
 **Date:** 2026-09-10
-**Supersedes:** `sdd_orchestrator_spec.md` (v1.0.0 draft)
+**Supersedes:** the v1.0.0 draft `sdd_orchestrator_spec.md`, preserved in commit 0aacf55
 
 ## 1. Summary
 
