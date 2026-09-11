@@ -48,4 +48,17 @@ describe('runGate', () => {
     expect(r.result).toBe('pass');
     expect(r.findings[0]?.severity).toBe('warning');
   });
+  it('does not duplicate the human_approved finding when the gate already declares it', () => {
+    const g = { transition: 'specify->implement', artifacts: ['spec.md'], checks: [
+      { name: 'human_approved' },
+    ] };
+    const r = runGate(g, { artifacts: { 'spec.md': 'x' }, evidence: null, human_approved: false }, true);
+    expect(r.result).toBe('fail');
+    expect(r.findings).toEqual([{ check: 'human_approved', severity: 'blocker', location: null, message: 'human approval is required for this transition' }]);
+  });
+  it('still mandates approval when the gate itself is null', () => {
+    const r = runGate(null, { artifacts: {}, evidence: null, human_approved: false }, true);
+    expect(r.result).toBe('fail');
+    expect(r.findings).toEqual([{ check: 'human_approved', severity: 'blocker', location: null, message: 'human approval is required for this transition' }]);
+  });
 });
