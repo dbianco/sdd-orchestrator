@@ -1,3 +1,8 @@
 .DS_Store
 # Third-party reference material, not for redistribution
 lessonLearn.txt
+.worktrees/
+node_modules/
+dist/
+.env
+coverage/
