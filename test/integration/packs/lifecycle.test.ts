@@ -90,7 +90,9 @@ describe.skipIf(!url)('seed track lifecycles', () => {
   }
 
   it('hotfix defers spec review to verify and requires it there', async () => {
-    const decision: Decision = { intent: 'incident', framework: 'openspec', track: 'hotfix', confidence: 'high', rule: 'test', reasons: [], high_risk: true, policy_version: null, framework_pack_version: '1.0.0' };
+    // high_risk stays false so the approval demanded at verify->integrate can only come from the
+    // track's own spec_review: deferred, not from the high-risk branch of mandatesApproval.
+    const decision: Decision = { intent: 'incident', framework: 'openspec', track: 'hotfix', confidence: 'high', rule: 'test', reasons: [], high_risk: false, policy_version: null, framework_pack_version: '1.0.0' };
     const s = await startFeature(deps, { app: 'checkout', actor: 'w', task_description: 'outage', decision });
     const first = await advancePhase(deps, { feature_id: s.feature_id, actor: 'w', expected_phase: 'specify', target_phase: 'implement', artifacts: { 'proposal.md': hotfixProposal } });
     expect(first.result).toBe('pass');

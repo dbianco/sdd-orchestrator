@@ -30,6 +30,35 @@ describe('seed packs', () => {
     }
   });
 
+  it('no two packs declare the same item id', async () => {
+    // validatePack only dedupes within one pack, and ingestPack downgrades a cross-pack id clash to
+    // a warning that silently moves ownership and bumps the other pack's item to a new version.
+    // Every pack is ingested into one database, so ids have to be globally unique.
+    const owners = new Map<string, string>();
+    const clashes: string[] = [];
+    for (const dir of await packDirs(root)) {
+      const pack = await loadPack(dir);
+      for (const item of pack.items) {
+        const id = item.frontMatter.id;
+        const owner = owners.get(id);
+        if (owner) clashes.push(`${id} declared by both ${owner} and ${pack.manifest.name}`);
+        else owners.set(id, pack.manifest.name);
+      }
+    }
+    expect(clashes).toEqual([]);
+  });
+
+  it('framework packs name themselves after their framework and do not collide', async () => {
+    const frameworks: string[] = [];
+    for (const dir of await packDirs(root)) {
+      const { manifest } = await loadPack(dir);
+      if (manifest.kind !== 'framework_pack') continue;
+      expect(manifest.framework, `${manifest.name} framework`).toBe(manifest.name);
+      frameworks.push(manifest.name);
+    }
+    expect(frameworks.sort()).toEqual(['bmad', 'kiro', 'openspec', 'sdlc', 'spec-kit']);
+  });
+
   it('company ships one always-on constitution; quality layer and stack guides are retrieved and framework-null', async () => {
     const company = await loadPack(join(root, 'company'));
     expect(company.items.filter((i) => i.frontMatter.tier === 'always_on').map((i) => i.frontMatter.id)).toEqual(['company.constitution']);
