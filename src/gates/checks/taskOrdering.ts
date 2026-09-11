@@ -3,23 +3,7 @@ import { finding, type CheckDefinition } from '../types.js';
 import { taskBlocks } from './taskDoneChecks.js';
 
 const withIdGroup = z.string().refine((s) => s.includes('(?<id>'), { message: 'regex must contain named group "id"' });
-const baseParams = z.object({ artifact: z.string(), task_regex: withIdGroup, dep_regex: withIdGroup });
-
-const Params = baseParams.transform((data) => data);
-
-Object.defineProperty(Params, 'parse', {
-  value: (data: unknown) => {
-    try {
-      return baseParams.parse(data);
-    } catch (e) {
-      if (e instanceof z.ZodError) {
-        const err = new Error(e.errors[0]?.message || 'Validation failed');
-        throw err;
-      }
-      throw e;
-    }
-  },
-});
+const Params = z.object({ artifact: z.string(), task_regex: withIdGroup, dep_regex: withIdGroup });
 
 export const taskOrdering: CheckDefinition = {
   name: 'task_ordering',

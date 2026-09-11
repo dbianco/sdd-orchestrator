@@ -38,6 +38,8 @@ describe('task_ordering', () => {
     expect(taskOrdering.run(input('- [ ] T1 a\n- [ ] T2 b, depends on T1', params))).toEqual([]);
   });
   it('rejects regexes without an id group at parse time', () => {
-    expect(() => taskOrdering.params.parse({ artifact: 'x', task_regex: '^- ', dep_regex: 'dep (?<id>T\\d+)' })).toThrow(/named group "id"/);
+    const result = taskOrdering.params.safeParse({ artifact: 'x', task_regex: '^- ', dep_regex: 'dep (?<id>T\\d+)' });
+    expect(result.success).toBe(false);
+    expect(!result.success && result.error.issues[0]?.message).toMatch(/named group "id"/);
   });
 });
