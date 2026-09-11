@@ -20,9 +20,24 @@ only its own database.
 
 ## Status
 
-Design phase. The full design is in
-[`docs/superpowers/specs/2026-09-10-sdd-orchestrator-design.md`](docs/superpowers/specs/2026-09-10-sdd-orchestrator-design.md).
-No code yet.
+v1 implemented per
+[`docs/superpowers/specs/2026-09-10-sdd-orchestrator-design.md`](docs/superpowers/specs/2026-09-10-sdd-orchestrator-design.md)
+and the plan in
+[`docs/superpowers/plans/2026-09-10-sdd-orchestrator-v1.md`](docs/superpowers/plans/2026-09-10-sdd-orchestrator-v1.md).
+Host verification status is tracked in
+[`docs/verification/feature-matrix.md`](docs/verification/feature-matrix.md).
+
+## Development
+
+```bash
+npm install
+npm run db:test:up                       # Postgres + pgvector on :55432
+export SDD_TEST_DATABASE_URL=postgres://sdd:sdd@localhost:55432/sdd_test
+npm test                                 # unit, integration and contract tests
+npm run typecheck
+npm run dev:stdio                        # server over stdio against SDD_DATABASE_URL
+npm run admin -- app list                # sdd-admin without building
+```
 
 ## Planned stack
 
@@ -36,8 +51,7 @@ No code yet.
 
 ## Usage examples
 
-The interface below is the one specified for v1. It is not implemented yet;
-examples show the intended shape so reviewers can judge the contract.
+The interface below is the v1 contract.
 
 ### 1. Run the server
 
@@ -137,9 +151,9 @@ and receives:
 {
   "decision": {
     "framework": "openspec",
-    "track": null,
+    "track": "default",
     "confidence": "high",
-    "rule": "6-brownfield-small-or-medium",
+    "rule": "10-brownfield-small-medium",
     "reasons": ["brownfield (asserted by host)", "size: medium (4 files, one top-level dir)"],
     "high_risk": false,
     "policy_version": 3,
@@ -246,13 +260,16 @@ sdd-admin deprecate-framework kiro --reason "no longer used"
 sdd-admin reindex                       # after switching embedding model
 ```
 
-## Repository layout (planned)
+## Repository layout
 
 ```
 docs/superpowers/specs/   design specifications
-docs/verification/        host walkthrough checklists
-packs/                    seed knowledge packs (frameworks, quality layer, stack guides)
-src/                      server and CLI source
+docs/superpowers/plans/   implementation plans
+docs/verification/        host integration guide, feature matrix, walkthroughs, workspace-facts script
+migrations/               node-pg-migrate schema
+packs/                    seed knowledge packs (frameworks, quality layer, stack guides, company)
+src/                      server, services, assembler, ingestion and CLI
+test/                     unit, integration and contract tests
 ```
 
 ## License
