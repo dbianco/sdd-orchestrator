@@ -51,6 +51,10 @@ describe.skipIf(!url)('sdd-admin', () => {
     await expect(admin('app', 'update', 'checkout', '--budget', '-9')).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining('--budget') });
   });
 
+  it('rejects an invalid proposals --status value instead of reporting a false all-clear', async () => {
+    await expect(admin('proposals', 'list', '--status', 'bogus')).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining('--status') });
+  });
+
   it('rejects a policy file with a typo\'d key instead of installing a silently-empty policy', async () => {
     await admin('app', 'register', 'checkout', '--name', 'Checkout', '--actor', 'daniel');
     const dir = await mkdtemp(join(tmpdir(), 'sdd-'));

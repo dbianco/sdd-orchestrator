@@ -97,6 +97,18 @@ describe.skipIf(!url)('ingestPack', () => {
     expect((await currentItem(pool, 'checkout.steering-v2'))?.app_id).not.toBeNull();
   });
 
+  it('warns when a second pack reuses another pack\'s stable_id', async () => {
+    const pool = await getTestPool();
+    const packA = structuredClone(await loadPack(`${fixtures}mini-company`));
+    packA.manifest.name = 'pack-a';
+    await ingestPack({ pool, embedder }, packA, 'cli');
+    const packB = structuredClone(packA);
+    packB.manifest.name = 'pack-b';
+    packB.items[0]!.sourceHash = 'different-hash-for-pack-b';
+    const r = await ingestPack({ pool, embedder }, packB, 'cli');
+    expect(r.warnings).toContain(`${packA.items[0]!.frontMatter.id} is currently owned by pack "pack-a"; ingesting moves it to "pack-b"`);
+  });
+
   it('does not resurrect an item that was explicitly deprecated when the pack is re-ingested unchanged', async () => {
     const pool = await getTestPool();
     const pack = await loadPack(`${fixtures}mini-framework`);
