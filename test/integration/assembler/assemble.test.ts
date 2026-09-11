@@ -138,6 +138,16 @@ describe.skipIf(!url)('assembleContextPack', () => {
     expect(listed.pack.rendered).toContain('billing.adr.0001');
     await expect(assembleContextPack({ q: pool, embedder: new FakeEmbeddingProvider(), defaultBudget: 6000 }, { feature, app, phase: 'specify', focus: null, scope: ['nope'], createdBy: 'daniel' })).rejects.toMatchObject({ code: 'APP_NOT_FOUND' });
   });
+
+  it('does not re-retrieve or duplicate an always-on item into position 4', async () => {
+    const pool = await getTestPool();
+    const { app, feature } = await fixture(pool);
+    await seed(pool, { stable_id: 'checkout.always.adr9', tier: 'always_on', app_id: app.id, human_id: 'ADR-9', pack_name: 'checkout-steering', title: 'Always-on ADR-9', body: 'Always-on decision text referencing ADR-9' });
+    const { pack } = await assembleContextPack({ q: pool, embedder: new FakeEmbeddingProvider(), defaultBudget: 6000 }, { feature, app, phase: 'specify', focus: 'ADR-9', scope: 'app', createdBy: 'daniel' });
+    expect(pack.rendered.split('checkout.always.adr9').length - 1).toBe(1);
+    const stableIds = pack.items.map((i) => i.stable_id);
+    expect(new Set(stableIds).size).toBe(stableIds.length);
+  });
 });
 
 describe.skipIf(!url)('attachedLayers and lite pack', () => {

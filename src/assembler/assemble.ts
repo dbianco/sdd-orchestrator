@@ -1,4 +1,5 @@
 import type { Phase, Scope } from '../domain/types.js';
+import { DomainError } from '../errors.js';
 import { renderNextGate, renderPhaseInstructions } from '../lifecycle/instructions.js';
 import { phaseMapping } from '../lifecycle/track.js';
 import { currentItem, listAlwaysOn } from '../store/knowledge.js';
@@ -32,7 +33,11 @@ export async function assembleContextPack(deps: AssemblerDeps, input: AssembleIn
   const { feature, app, phase, focus, scope, createdBy } = input;
   const warnings: string[] = [];
   const fw = await getFrameworkVersion(deps.q, feature.framework, feature.framework_pack_version);
-  if (!fw) throw new Error(`pinned framework ${feature.framework}@${feature.framework_pack_version} is missing`);
+  if (!fw) {
+    throw new DomainError('UNKNOWN_FRAMEWORK', `pinned framework ${feature.framework}@${feature.framework_pack_version} is missing`, {
+      framework: feature.framework, pack_version: feature.framework_pack_version,
+    });
+  }
   const track = trackOf(fw, feature.track);
   const mapping = phaseMapping(track, phase);
   const budget = app.token_budget ?? deps.defaultBudget;
@@ -64,7 +69,7 @@ export async function assembleContextPack(deps: AssemblerDeps, input: AssembleIn
 
   const knowledge = await retrieve(deps, {
     query, ids, minSimilarity,
-    filter: { scope: resolved, framework: feature.framework, frameworkPackVersion: feature.framework_pack_version, phase, kinds: ['app_memory', 'standard', 'framework_pack'], tier: null, excludeItemIds: template ? [template.id] : [] },
+    filter: { scope: resolved, framework: feature.framework, frameworkPackVersion: feature.framework_pack_version, phase, kinds: ['app_memory', 'standard', 'framework_pack'], tier: null, excludeItemIds: [...(template ? [template.id] : []), ...alwaysOn.map((i) => i.id)] },
   });
   const guides = stackPacks.length === 0
     ? { chunks: [], degraded: knowledge.degraded }
