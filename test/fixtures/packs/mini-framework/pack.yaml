@@ -1,0 +1,26 @@
+name: mini
+kind: framework_pack
+framework: mini
+version: 1.0.0
+source_url: https://example.com/mini
+license: MIT
+tracks:
+  default:
+    phases:
+      specify:   { alias: proposal, command: "/mini:proposal", template: mini.template.proposal }
+      plan:      skipped
+      tasks:     skipped
+      implement: { alias: apply, template: mini.template.apply }
+      verify:    { alias: verify }
+      integrate: { alias: archive }
+      learn:     skipped
+    gates:
+      - transition: specify->implement
+        artifacts: [proposal.md]
+        checks:
+          - { name: placeholder_scan }
+          - { name: required_sections, params: { artifact: proposal.md, sections: [Why, What Changes] } }
+      - transition: verify->integrate
+        artifacts: []
+        checks:
+          - { name: verify_evidence }

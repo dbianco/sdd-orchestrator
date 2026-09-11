@@ -1,0 +1,14 @@
+services:
+  postgres-test:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: sdd
+      POSTGRES_PASSWORD: sdd
+      POSTGRES_DB: sdd_test
+    ports:
+      - "55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sdd -d sdd_test"]
+      interval: 2s
+      timeout: 5s
+      retries: 20
