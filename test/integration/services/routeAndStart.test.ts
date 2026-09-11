@@ -25,6 +25,14 @@ describe.skipIf(!url)('routeTask and startFeature', () => {
     expect((await deps.pool.query('SELECT count(*)::int AS n FROM context_packs')).rows[0].n).toBe(0);
   });
 
+  it('falls back to app.default_stack when workspace.stack is empty', async () => {
+    const r = await routeTask(deps, { task_description: 'Add CSV export', app: 'checkout', workspace: { estimated_files: 4, is_greenfield: false, stack: [] }, framework_preference: 'mini' });
+    expect(r.attached_layers).toEqual([
+      { pack_name: 'quality-layer', pack_version: '1.0.0', kind: 'standard' },
+      { pack_name: 'stack-guides/react', pack_version: '1.0.0', kind: 'stack_guide' },
+    ]);
+  });
+
   it('returns a lite pack for trivial work', async () => {
     const r = await routeTask(deps, { task_description: 'Rename a label', app: 'checkout', workspace: { intent: 'trivial', estimated_files: 1, paths_touched: ['src/a.tsx'], stack: ['react'] } });
     expect(r.decision).toMatchObject({ intent: 'trivial', framework: 'none', rule: '4-trivial' });

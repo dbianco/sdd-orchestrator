@@ -1,4 +1,4 @@
-import { attachedLayers } from '../assembler/layers.js';
+import { attachedLayers, resolveStack } from '../assembler/layers.js';
 import { buildLitePack, type LitePack } from '../assembler/lite.js';
 import type { AttachedLayer, Decision, Workspace } from '../domain/types.js';
 import { assertEmbeddingConfigMatches } from '../embedding/index.js';
@@ -23,7 +23,7 @@ export async function routeTask(deps: ServiceDeps, input: RouteTaskInput): Promi
     policy: policy?.policy ?? null, policy_version: policy?.version ?? null, app: { compliance: app.compliance, default_stack: app.default_stack }, frameworks,
   });
   deps.metrics?.routed(out.decision.rule);
-  const stack = input.workspace.stack ?? app.default_stack;
+  const stack = resolveStack(input.workspace.stack, app.default_stack);
   const { layers, warnings: layerWarnings } = await attachedLayers(q, stack);
   const warnings = [...out.warnings, ...layerWarnings];
   let litePack: LitePack | null = null;
