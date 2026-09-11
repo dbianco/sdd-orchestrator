@@ -1,6 +1,20 @@
 import { describe, it, expect } from 'vitest';
+import { z } from 'zod';
 import { verifyEvidence } from '../../../../src/gates/checks/verifyEvidence.js';
+import { VerifyEvidenceSchema } from '../../../../src/gates/evidence.js';
 import type { CheckInput } from '../../../../src/gates/types.js';
+import type { VerifyEvidence } from '../../../../src/domain/types.js';
+
+// Compile-time only: if the hand-written VerifyEvidence interface (src/domain/types.ts) and
+// the runtime VerifyEvidenceSchema (src/gates/evidence.ts) diverge, this file fails to
+// typecheck (`npm run typecheck`), catching drift long before it becomes a runtime mismatch.
+type _AssertVerifyEvidenceMatches = z.infer<typeof VerifyEvidenceSchema> extends VerifyEvidence
+  ? VerifyEvidence extends z.infer<typeof VerifyEvidenceSchema>
+    ? true
+    : never
+  : never;
+const _verifyEvidenceTypesMatch: _AssertVerifyEvidenceMatches = true;
+void _verifyEvidenceTypesMatch;
 
 const good = {
   tests: { command: 'npm test', passed: 42, failed: 0 },

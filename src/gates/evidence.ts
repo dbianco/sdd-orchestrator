@@ -13,4 +13,3 @@ export const VerifyEvidenceSchema = z.object({
   existing_tests_modified: z.number().int().nonnegative().optional(),
   characterization_tests: z.array(z.string()).optional(),
 });
-export type VerifyEvidenceInput = z.infer<typeof VerifyEvidenceSchema>;

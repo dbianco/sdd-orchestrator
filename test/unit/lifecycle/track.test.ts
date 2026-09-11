@@ -1,6 +1,18 @@
 import { describe, it, expect } from 'vitest';
+import { z } from 'zod';
 import { TrackDeclSchema, phaseOrder, transitionKey, gateFor, phaseAlias, validateTrackShape } from '../../../src/lifecycle/track.js';
 import type { TrackDecl } from '../../../src/domain/types.js';
+
+// Compile-time only: if the hand-written TrackDecl interface (src/domain/types.ts) and the
+// runtime TrackDeclSchema (src/lifecycle/track.ts) diverge, this file fails to typecheck
+// (`npm run typecheck`), catching drift long before it becomes a runtime mismatch.
+type _AssertTrackDeclMatches = z.infer<typeof TrackDeclSchema> extends TrackDecl
+  ? TrackDecl extends z.infer<typeof TrackDeclSchema>
+    ? true
+    : never
+  : never;
+const _trackDeclTypesMatch: _AssertTrackDeclMatches = true;
+void _trackDeclTypesMatch;
 
 export const openspecDefault: TrackDecl = {
   phases: {
