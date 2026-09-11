@@ -1,0 +1,70 @@
+name: spec-kit
+kind: framework_pack
+framework: spec-kit
+version: 1.0.0
+source_url: https://github.com/github/spec-kit
+license: MIT
+tracks:
+  default:
+    spec_review: required
+    phases:
+      specify:   { alias: specify, command: "/speckit.specify", template: spec-kit.template.spec }
+      plan:      { alias: plan, command: "/speckit.plan", template: spec-kit.template.plan }
+      tasks:     { alias: tasks, command: "/speckit.tasks", template: spec-kit.template.tasks }
+      implement: { alias: implement, command: "/speckit.implement", template: spec-kit.template.implement }
+      verify:    { alias: checklist, command: "/speckit.checklist", template: spec-kit.template.verify }
+      integrate: { alias: pull-request, template: spec-kit.template.integrate }
+      learn:     { alias: reconcile, template: spec-kit.template.learn }
+    gates:
+      - transition: specify->plan
+        artifacts: [spec.md]
+        checks:
+          - { name: placeholder_scan }
+          - { name: required_sections, params: { artifact: spec.md, sections: [User Scenarios, Functional Requirements, Success Criteria] } }
+          - { name: measurable_criteria, params: { artifact: spec.md, section: Success Criteria } }
+      - transition: plan->tasks
+        artifacts: [plan.md]
+        checks:
+          - { name: placeholder_scan }
+          - { name: required_sections, params: { artifact: plan.md, sections: [Technical Context, Project Structure] } }
+      - transition: tasks->implement
+        artifacts: [tasks.md]
+        checks:
+          - { name: placeholder_scan }
+          - { name: task_ordering, params: { artifact: tasks.md, task_regex: "^- \\[ \\] (?<id>T\\d+)", dep_regex: "depends on (?<id>T\\d+)" } }
+      - transition: verify->integrate
+        artifacts: [plan.md]
+        checks:
+          - { name: verify_evidence }
+          - { name: scope_drift, params: { plan_artifact: plan.md, files_section: Project Structure } }
+  refactor:
+    spec_review: required
+    phases:
+      specify:   { alias: specify, command: "/speckit.specify", template: spec-kit.template.refactor-spec }
+      plan:      { alias: plan, command: "/speckit.plan", template: spec-kit.template.plan }
+      tasks:     { alias: tasks, command: "/speckit.tasks", template: spec-kit.template.tasks }
+      implement: { alias: implement, command: "/speckit.implement", template: spec-kit.template.implement }
+      verify:    { alias: checklist, command: "/speckit.checklist", template: spec-kit.template.verify }
+      integrate: { alias: pull-request, template: spec-kit.template.integrate }
+      learn:     { alias: reconcile, template: spec-kit.template.learn }
+    gates:
+      - transition: specify->plan
+        artifacts: [spec.md]
+        checks:
+          - { name: placeholder_scan }
+          - { name: required_sections, params: { artifact: spec.md, sections: [Observed Behaviors, Assumed Contracts, Characterization Tests] } }
+      - transition: plan->tasks
+        artifacts: [plan.md]
+        checks:
+          - { name: placeholder_scan }
+          - { name: required_sections, params: { artifact: plan.md, sections: [Technical Context, Project Structure] } }
+      - transition: tasks->implement
+        artifacts: [tasks.md]
+        checks:
+          - { name: placeholder_scan }
+          - { name: task_ordering, params: { artifact: tasks.md, task_regex: "^- \\[ \\] (?<id>T\\d+)", dep_regex: "depends on (?<id>T\\d+)" } }
+      - transition: verify->integrate
+        artifacts: [plan.md]
+        checks:
+          - { name: verify_evidence, params: { max_existing_tests_modified: 0 } }
+          - { name: scope_drift, params: { plan_artifact: plan.md, files_section: Project Structure } }
