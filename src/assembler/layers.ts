@@ -7,6 +7,13 @@ import type { AppRow } from '../store/rows.js';
 
 export const QUALITY_LAYER_PACK = 'quality-layer';
 
+// Stack-guide packs select by intersection with workspace.stack, falling back to apps.default_stack
+// whenever the workspace stack is absent OR empty (an empty array is the ordinary result of a host
+// that ran stack detection and found nothing — it must fall back just like null/undefined would).
+export function resolveStack(workspaceStack: string[] | null | undefined, defaultStack: string[]): string[] {
+  return workspaceStack && workspaceStack.length > 0 ? workspaceStack : defaultStack;
+}
+
 export async function attachedLayers(q: Queryable, stack: string[]): Promise<{ layers: AttachedLayer[]; warnings: string[] }> {
   const layers: AttachedLayer[] = [];
   const warnings: string[] = [];

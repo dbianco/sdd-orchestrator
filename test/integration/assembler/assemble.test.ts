@@ -139,6 +139,32 @@ describe.skipIf(!url)('assembleContextPack', () => {
     await expect(assembleContextPack({ q: pool, embedder: new FakeEmbeddingProvider(), defaultBudget: 6000 }, { feature, app, phase: 'specify', focus: null, scope: ['nope'], createdBy: 'daniel' })).rejects.toMatchObject({ code: 'APP_NOT_FOUND' });
   });
 
+  it('falls back to app.default_stack when workspace.stack is an empty array', async () => {
+    const pool = await getTestPool();
+    const { app, feature: base } = await fixture(pool);
+    const feature = { ...base, workspace: { stack: [] } };
+    const { pack } = await assembleContextPack({ q: pool, embedder: new FakeEmbeddingProvider(), defaultBudget: 6000 }, { feature, app, phase: 'specify', focus: null, scope: 'app', createdBy: 'daniel' });
+    expect(pack.rendered).toContain('react.hooks');
+  });
+
+  it('warns when the phase template falls back from the pinned framework-pack version to the current version', async () => {
+    const pool = await getTestPool();
+    const app = await createApp(pool, { slug: 'checkout', name: 'Checkout', default_stack: ['typescript', 'react'] }, 'cli');
+    const fallbackTrack: TrackDecl = { ...track, phases: { ...track.phases, specify: { alias: 'proposal', command: '/openspec:proposal', template: 'openspec.template.fallback' } } };
+    await upsertFramework(pool, { name: 'openspec', pack_version: '1.0.0', tracks: { default: fallbackTrack }, gate_library_version: '1' }, 'cli');
+    // Only a newer pack_version of the template exists; nothing under the feature's pinned 1.0.0 version.
+    await seed(pool, { stable_id: 'openspec.template.fallback', kind: 'framework_pack', framework: 'openspec', pack_name: 'openspec', pack_version: '2.0.0', phase_tags: ['specify'], title: 'Fallback template', body: '## Why fallback' });
+    const feature = await createFeature(pool, {
+      app_id: app.id, slug: 'fallback-test', intent: 'feature', framework: 'openspec', framework_pack_version: '1.0.0', track: 'default', high_risk: false,
+      policy_version: null, policy_override_reason: null, source_task: 'test template fallback', external_ref: null, trigger_ref: null,
+      decision: { intent: 'feature', framework: 'openspec', track: 'default', confidence: 'high', rule: '10-brownfield-small-medium', reasons: [], high_risk: false, policy_version: null, framework_pack_version: '1.0.0' },
+      workspace: null,
+    }, 'daniel');
+    const { pack, warnings } = await assembleContextPack({ q: pool, embedder: new FakeEmbeddingProvider(), defaultBudget: 6000 }, { feature, app, phase: 'specify', focus: null, scope: 'app', createdBy: 'daniel' });
+    expect(warnings.some((w) => /openspec\.template\.fallback.*using current version instead/.test(w))).toBe(true);
+    expect(pack.rendered).toContain('## Why fallback');
+  });
+
   it('does not re-retrieve or duplicate an always-on item into position 4', async () => {
     const pool = await getTestPool();
     const { app, feature } = await fixture(pool);
@@ -178,5 +204,12 @@ describe.skipIf(!url)('attachedLayers and lite pack', () => {
     expect(lite.rendered).not.toContain('checkout.adr.0007');
     expect(lite.token_count).toBe(countTokens(lite.rendered));
     expect((await pool.query('SELECT count(*)::int AS n FROM context_packs')).rows[0].n).toBe(0);
+  });
+
+  it('reports degraded when there is no embedder even if no stack pack matches (so retrieve() never runs)', async () => {
+    const pool = await getTestPool();
+    const { app } = await fixture(pool);
+    const lite = await buildLitePack({ q: pool, embedder: null, defaultBudget: 6000 }, { app, taskDescription: 'csv export orders', stack: ['nonexistent-stack'] });
+    expect(lite.degraded).toBe(true);
   });
 });

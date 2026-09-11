@@ -15,10 +15,14 @@ export function renderPack(s: PackSections): string {
   ].join('\n\n');
 }
 
-function attr(v: string): string { return v.replace(/"/g, '&quot;'); }
+function attr(v: string): string { return v.replace(/&/g, '&amp;').replace(/"/g, '&quot;'); }
+
+// Neutralizes any closing-tag sequence a chunk's body might contain so it cannot prematurely
+// terminate our own <retrieved> wrapper and forge a fake, differently-attributed block after it.
+function escapeBody(v: string): string { return v.replace(/<\/retrieved/gi, '&lt;/retrieved'); }
 
 export function renderChunk(c: RetrievedChunk): string {
-  return `<retrieved id="${attr(c.stable_id)}" version="${c.version}" path="${attr(c.heading_path)}" match="${c.match}">\n${c.text}\n</retrieved>`;
+  return `<retrieved id="${attr(c.stable_id)}" version="${c.version}" path="${attr(c.heading_path)}" match="${c.match}">\n${escapeBody(c.text)}\n</retrieved>`;
 }
 
 export function renderAlwaysOn(items: { stable_id: string; version: number; title: string; body: string }[]): string {

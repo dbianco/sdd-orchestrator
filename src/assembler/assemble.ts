@@ -10,7 +10,7 @@ import type { RetrievedChunk } from '../store/retrieval.js';
 import { countTokens } from '../tokens.js';
 import { trimToBudget } from './budget.js';
 import { extractExactIds } from './exactIds.js';
-import { attachedLayers, resolveScope } from './layers.js';
+import { attachedLayers, resolveScope, resolveStack } from './layers.js';
 import { renderAlwaysOn, renderChunk, renderPack, renderStopConditions } from './render.js';
 import { DEFAULT_MIN_SIMILARITY, retrieve, type RetrieveDeps } from './retrieve.js';
 
@@ -20,13 +20,16 @@ export interface AssembledPack { pack: ContextPackRow; warnings: string[] }
 
 interface Scored { chunk: RetrievedChunk; tokens: number; score: number }
 
-async function pinnedTemplate(deps: AssemblerDeps, feature: FeatureRow, templateId: string | undefined): Promise<KnowledgeItemRow | null> {
+async function pinnedTemplate(deps: AssemblerDeps, feature: FeatureRow, templateId: string | undefined, warnings: string[]): Promise<KnowledgeItemRow | null> {
   if (!templateId) return null;
   const r = await deps.q.query<KnowledgeItemRow>(
     `SELECT * FROM knowledge_items WHERE stable_id = $1 AND pack_name = $2 AND pack_version = $3 ORDER BY version DESC LIMIT 1`,
     [templateId, feature.framework, feature.framework_pack_version],
   );
-  return r.rows[0] ?? (await currentItem(deps.q, templateId));
+  if (r.rows[0]) return r.rows[0];
+  const current = await currentItem(deps.q, templateId);
+  if (current) warnings.push(`phase template "${templateId}" not found for ${feature.framework}@${feature.framework_pack_version}, using current version instead`);
+  return current;
 }
 
 export async function assembleContextPack(deps: AssemblerDeps, input: AssembleInput): Promise<AssembledPack> {
@@ -50,7 +53,7 @@ export async function assembleContextPack(deps: AssemblerDeps, input: AssembleIn
   const alwaysOn = await listAlwaysOn(deps.q, app.id);
   items.push(...alwaysOn.map((i) => ({ stable_id: i.stable_id, version: i.version })));
   // Position 3
-  const template = await pinnedTemplate(deps, feature, mapping.template);
+  const template = await pinnedTemplate(deps, feature, mapping.template, warnings);
   if (mapping.template && !template) warnings.push(`phase template "${mapping.template}" not found for ${feature.framework}@${feature.framework_pack_version}`);
   if (template) items.push({ stable_id: template.stable_id, version: template.version });
   // Position 6
@@ -63,7 +66,7 @@ export async function assembleContextPack(deps: AssemblerDeps, input: AssembleIn
   const query = focus ?? feature.source_task;
   const ids = extractExactIds(query, feature.source_task, feature.trigger_ref, feature.external_ref);
   const resolved = await resolveScope(deps.q, scope, app);
-  const { layers, warnings: layerWarnings } = await attachedLayers(deps.q, feature.workspace?.stack ?? app.default_stack);
+  const { layers, warnings: layerWarnings } = await attachedLayers(deps.q, resolveStack(feature.workspace?.stack, app.default_stack));
   warnings.push(...layerWarnings);
   const stackPacks = layers.filter((l) => l.kind === 'stack_guide').map((l) => l.pack_name);
 
@@ -73,7 +76,7 @@ export async function assembleContextPack(deps: AssemblerDeps, input: AssembleIn
   });
   const guides = stackPacks.length === 0
     ? { chunks: [], degraded: knowledge.degraded }
-    : await retrieve(deps, { query, ids, minSimilarity, filter: { scope: resolved, framework: feature.framework, frameworkPackVersion: feature.framework_pack_version, phase, kinds: ['stack_guide'], packNames: stackPacks } });
+    : await retrieve(deps, { query, ids, minSimilarity, filter: { scope: resolved, framework: feature.framework, frameworkPackVersion: feature.framework_pack_version, phase, kinds: ['stack_guide'], packNames: stackPacks, excludeItemIds: [...(template ? [template.id] : []), ...alwaysOn.map((i) => i.id)] } });
   const degraded = knowledge.degraded || guides.degraded;
   if (degraded) warnings.push('retrieval degraded: embedding provider unavailable, positions 4 and 5 built from exact-id matches only');
 
