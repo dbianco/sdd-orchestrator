@@ -12,7 +12,7 @@ tracks:
       plan:      skipped
       tasks:     skipped
       implement: { alias: quick-dev, command: "/bmad-bmm-quick-dev", template: bmad.template.quick-dev }
-      verify:    { alias: code-review, command: "bmad-code-review", template: bmad.template.code-review }
+      verify:    { alias: code-review, command: "/bmad-bmm-code-review", template: bmad.template.code-review }
       integrate: { alias: pull-request, template: bmad.template.integrate }
       learn:     skipped
     gates:
@@ -33,7 +33,7 @@ tracks:
       plan:      { alias: epics, command: "/bmad-bmm-epics", template: bmad.template.epics }
       tasks:     { alias: stories, command: "/bmad-bmm-stories", template: bmad.template.stories }
       implement: { alias: dev-story, command: "/bmad-bmm-dev-story", template: bmad.template.dev-story }
-      verify:    { alias: code-review, command: "bmad-code-review", template: bmad.template.code-review }
+      verify:    { alias: code-review, command: "/bmad-bmm-code-review", template: bmad.template.code-review }
       integrate: { alias: pull-request, template: bmad.template.integrate }
       learn:     { alias: retrospective, command: "/bmad-bmm-retrospective", template: bmad.template.retrospective }
     gates:

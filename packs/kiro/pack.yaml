@@ -2,7 +2,11 @@ name: kiro
 kind: framework_pack
 framework: kiro
 version: 1.0.0
-source_url: https://kiro.dev/docs/specs/
+# No source_url: nothing in this pack is derived word-for-word from Kiro's own
+# documentation (see README.md), and stamping the AWS-proprietary docs URL onto
+# every ingested row alongside `license: MIT` would misstate the provenance of
+# the row. The license below covers this project's originals only.
+source_url: null
 license: MIT
 tracks:
   default:

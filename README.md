@@ -26,6 +26,11 @@ and the plan in
 [`docs/superpowers/plans/2026-09-10-sdd-orchestrator-v1.md`](docs/superpowers/plans/2026-09-10-sdd-orchestrator-v1.md).
 Host verification status is tracked in
 [`docs/verification/feature-matrix.md`](docs/verification/feature-matrix.md).
+Deployment characteristics (pool sizing against embedding latency, long-lived
+`GET /mcp` streams, migrations on CLI start-up) are in
+[`docs/operations.md`](docs/operations.md); what a host may and may not assume
+about a context pack is in
+[`docs/verification/host-integration.md`](docs/verification/host-integration.md).
 
 ## Development
 
@@ -263,6 +268,7 @@ sdd-admin reindex                       # after switching embedding model
 ## Repository layout
 
 ```
+docs/operations.md        deployment and operating notes
 docs/superpowers/specs/   design specifications
 docs/superpowers/plans/   implementation plans
 docs/verification/        host integration guide, feature matrix, walkthroughs, workspace-facts script
