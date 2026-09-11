@@ -26,6 +26,9 @@ export function renderPhaseInstructions(input: InstructionInput): string {
       ? `When done, call advance_phase with expected_phase: "${phase}", target_phase: "${next}" and artifacts: ${gate.artifacts.join(', ')}.`
       : `When done, call advance_phase with expected_phase: "${phase}", target_phase: "${next}".`,
     `Keep the feature id ${feature_id}; every later call needs it.`,
+    gate?.checks.some((c) => c.name === 'verify_evidence')
+      ? `This transition requires evidence: tests, lint, security, and files_changed (see the verify_evidence check).`
+      : null,
   ];
   return lines.filter((l): l is string => l !== null).join('\n');
 }
@@ -43,6 +46,8 @@ export function renderNextGate(track: TrackDecl, phase: Phase, highRisk: boolean
     `Artifacts: ${gate && gate.artifacts.length > 0 ? gate.artifacts.join(', ') : 'none'}`,
     `Checks: ${checks.length > 0 ? checks.join('; ') : 'none'}`,
     `Human approval: ${approval ? 'required' : 'not required'}`,
-    phase === 'verify' ? 'Evidence: required (tests, lint, security, files_changed)' : null,
+    (gate?.checks.some((c) => c.name === 'verify_evidence') ?? false)
+      ? 'Evidence: required (tests, lint, security, files_changed)'
+      : null,
   ].filter((l): l is string => l !== null).join('\n');
 }
