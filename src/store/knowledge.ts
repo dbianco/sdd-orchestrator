@@ -95,7 +95,7 @@ export async function nextProposalSequence(q: Queryable, appSlug: string, key: s
   const prefix = `${appSlug}.${key}.`;
   const r = await q.query<{ n: number | null }>(
     `SELECT max((substring(stable_id FROM length($1) + 1))::int) AS n FROM knowledge_items
-     WHERE stable_id LIKE $1 || '%' AND substring(stable_id FROM length($1) + 1) ~ '^[0-9]+$'`,
+     WHERE starts_with(stable_id, $1) AND substring(stable_id FROM length($1) + 1) ~ '^[0-9]+$'`,
     [prefix],
   );
   return (r.rows[0]?.n ?? 0) + 1;

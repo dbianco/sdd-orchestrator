@@ -62,6 +62,25 @@ describe.skipIf(!url)('knowledge items', () => {
     await insertItemVersion(pool, item({ stable_id: 'checkout.adr.0007', kind: 'app_memory', tier: 'retrieved', memory_type: 'adr', app_id: app.id, pack_name: 'proposals', pack_version: null }), 'cli');
     expect(await nextProposalSequence(pool, 'checkout', 'adr')).toBe(8);
   });
+
+  it('does not treat LIKE wildcard characters in the app slug as wildcards', async () => {
+    const pool = await getTestPool();
+    const app = await createApp(pool, { slug: 'check_out', name: 'Check Out' }, 'cli');
+    // Without escaping (or starts_with), '_' in the LIKE pattern would match any character, so
+    // this differently-spelled stable_id would incorrectly be counted toward check_out's sequence.
+    await insertItemVersion(
+      pool,
+      item({ stable_id: 'checkXout.adr.0009', kind: 'app_memory', tier: 'retrieved', memory_type: 'adr', app_id: null, pack_name: 'proposals', pack_version: null }),
+      'cli',
+    );
+    expect(await nextProposalSequence(pool, 'check_out', 'adr')).toBe(1);
+    await insertItemVersion(
+      pool,
+      item({ stable_id: 'check_out.adr.0001', kind: 'app_memory', tier: 'retrieved', memory_type: 'adr', app_id: app.id, pack_name: 'proposals', pack_version: null }),
+      'cli',
+    );
+    expect(await nextProposalSequence(pool, 'check_out', 'adr')).toBe(2);
+  });
 });
 
 describe.skipIf(!url)('chunks', () => {

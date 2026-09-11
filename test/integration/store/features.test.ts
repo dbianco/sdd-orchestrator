@@ -36,6 +36,48 @@ describe.skipIf(!url)('features', () => {
     await expect(requireFeature(pool, 'f_missing')).rejects.toMatchObject({ code: 'FEATURE_NOT_FOUND' } satisfies Partial<DomainError>);
   });
 
+  it('does not treat LIKE wildcard characters in a slug base as wildcards', async () => {
+    const pool = await getTestPool();
+    const app = await createApp(pool, { slug: 'checkout', name: 'Checkout' }, 'cli');
+    // Without escaping (or starts_with), '_' in the LIKE pattern used for collision detection
+    // matches any single character, so this differently-spelled slug could be mistaken for a
+    // "check_out-N" collision.
+    await createFeature(pool, newFeature(app.id, { slug: 'checkXout-2' }), 'daniel');
+    const f = await createFeature(pool, newFeature(app.id, { slug: 'check_out' }), 'daniel');
+    expect(f.slug).toBe('check_out');
+  });
+
+  it('forUpdate only holds a real row lock when used on a transaction client', async () => {
+    const pool = await getTestPool();
+    const app = await createApp(pool, { slug: 'checkout', name: 'Checkout' }, 'cli');
+    const f = await createFeature(pool, newFeature(app.id), 'daniel');
+
+    const clientA = await pool.connect();
+    const clientB = await pool.connect();
+    try {
+      await clientA.query('BEGIN');
+      await getFeature(clientA, f.id, { forUpdate: true });
+
+      // B cannot take the same lock while A holds it and hasn't committed/rolled back.
+      await clientB.query('BEGIN');
+      await expect(
+        clientB.query(`SELECT * FROM features WHERE id = $1 FOR UPDATE NOWAIT`, [f.id]),
+      ).rejects.toThrow(/could not obtain lock/i);
+      await clientB.query('ROLLBACK');
+
+      // Once A releases the lock, B can acquire it.
+      await clientA.query('COMMIT');
+      await clientB.query('BEGIN');
+      await expect(
+        clientB.query(`SELECT * FROM features WHERE id = $1 FOR UPDATE NOWAIT`, [f.id]),
+      ).resolves.toBeDefined();
+      await clientB.query('COMMIT');
+    } finally {
+      clientA.release();
+      clientB.release();
+    }
+  });
+
   it('updates state and lists by status and external ref', async () => {
     const pool = await getTestPool();
     const app = await createApp(pool, { slug: 'checkout', name: 'Checkout' }, 'cli');

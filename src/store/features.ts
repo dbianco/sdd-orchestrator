@@ -11,7 +11,10 @@ export interface NewFeature {
 }
 
 async function freeSlug(q: Queryable, appId: string, base: string): Promise<string> {
-  const r = await q.query<{ slug: string }>('SELECT slug FROM features WHERE app_id = $1 AND (slug = $2 OR slug LIKE $2 || \'-%\')', [appId, base]);
+  const r = await q.query<{ slug: string }>(
+    `SELECT slug FROM features WHERE app_id = $1 AND (slug = $2 OR starts_with(slug, $2 || '-'))`,
+    [appId, base],
+  );
   const taken = new Set(r.rows.map((x) => x.slug));
   if (!taken.has(base)) return base;
   for (let n = 2; ; n++) if (!taken.has(`${base}-${n}`)) return `${base}-${n}`;
@@ -29,6 +32,13 @@ export async function createFeature(q: Queryable, f: NewFeature, actor: string):
   return r.rows[0]!;
 }
 
+/**
+ * `opts.forUpdate: true` only provides real row locking when `q` is a transaction client
+ * (e.g. obtained via `withTransaction` or a manually-managed `pool.connect()` + `BEGIN`).
+ * Calling it with a bare `Pool` is a no-op: `pg` wraps the single query in its own implicit
+ * transaction that commits immediately after the query returns, so the `FOR UPDATE` lock is
+ * released before the caller can do anything with it.
+ */
 export async function getFeature(q: Queryable, id: string, opts: { forUpdate?: boolean } = {}): Promise<FeatureRow | null> {
   const r = await q.query<FeatureRow>(`SELECT * FROM features WHERE id = $1${opts.forUpdate ? ' FOR UPDATE' : ''}`, [id]);
   return r.rows[0] ?? null;
