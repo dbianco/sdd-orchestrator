@@ -23,9 +23,8 @@ const SELECT = `SELECT c.id AS chunk_id, c.item_id, i.stable_id, i.version, i.ap
 function filterSql(f: RetrievalFilter, params: unknown[]): string {
   const p = (v: unknown) => { params.push(v); return `$${params.length}`; };
   const clauses = [
-    `i.status = 'active'`,
-    `((i.kind <> 'framework_pack' AND i.superseded_by IS NULL) OR (i.kind = 'framework_pack' AND ` +
-      (f.framework ? `i.pack_name = ${p(f.framework)} AND i.pack_version = ${p(f.frameworkPackVersion)}` : `i.superseded_by IS NULL`) + `))`,
+    `((i.kind <> 'framework_pack' AND i.status = 'active' AND i.superseded_by IS NULL) OR (i.kind = 'framework_pack' AND ` +
+      (f.framework ? `i.pack_name = ${p(f.framework)} AND i.pack_version = ${p(f.frameworkPackVersion)}` : `i.status = 'active' AND i.superseded_by IS NULL`) + `))`,
     f.scope === 'company' ? `i.app_id IS NULL` : `(i.app_id IS NULL OR i.app_id = ANY(${p(f.scope.appIds)}))`,
     f.framework ? `(i.framework IS NULL OR i.framework = ${p(f.framework)})` : null,
     f.phase ? `(cardinality(i.phase_tags) = 0 OR ${p(f.phase)} = ANY(i.phase_tags))` : null,

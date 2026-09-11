@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { getTestPool, truncateAll, closeTestPool } from '../../helpers/db.js';
 import { createApp } from '../../../src/store/apps.js';
-import { insertItemVersion, type NewKnowledgeItem } from '../../../src/store/knowledge.js';
+import { insertItemVersion, deprecateItem, type NewKnowledgeItem } from '../../../src/store/knowledge.js';
 import { insertChunks } from '../../../src/store/chunks.js';
 import { vectorSearch, exactIdSearch, type RetrievalFilter } from '../../../src/store/retrieval.js';
 import { fakeEmbed } from '../../../src/embedding/fake.js';
@@ -65,5 +65,26 @@ describe.skipIf(!url)('retrieval', () => {
 
     const strict = await vectorSearch(pool, fakeEmbed('zzz qqq'), base, { candidates: 12, minSimilarity: 0.9 });
     expect(strict).toEqual([]);
+  });
+
+  it('keeps a pinned framework_pack version visible after deprecation, while other kinds still respect status = active', async () => {
+    const pool = await getTestPool();
+    const q = 'csv export streaming orders';
+    await seed(pool, { stable_id: 'openspec.pinned', kind: 'framework_pack', memory_type: null, framework: 'openspec', pack_name: 'openspec', pack_version: '1.0.0', title: 'openspec pinned' }, 'csv export streaming orders openspec pinned');
+    await seed(pool, { stable_id: 'company.deprecated-rule', kind: 'standard', memory_type: null, pack_name: 'company', pack_version: '1.0.0', title: 'deprecated rule' }, 'csv export streaming orders deprecated');
+
+    // Deprecating does not set superseded_by (no successor); status flips to 'deprecated'.
+    await deprecateItem(pool, 'openspec.pinned', null, 'framework version deprecated, pinned features continue', 'cli');
+    await deprecateItem(pool, 'company.deprecated-rule', null, 'rule deprecated', 'cli');
+
+    // A feature pinned to the exact deprecated framework_pack version must still see it.
+    const pinnedFilter: RetrievalFilter = { scope: 'company', framework: 'openspec', frameworkPackVersion: '1.0.0', phase: null, kinds: ['framework_pack'] };
+    const pinnedHits = await vectorSearch(pool, fakeEmbed(q), pinnedFilter, { candidates: 12, minSimilarity: 0.1 });
+    expect(pinnedHits.map((h) => h.stable_id)).toContain('openspec.pinned');
+
+    // A non-framework_pack item that is deprecated must still be excluded by the normal active/non-superseded rule.
+    const standardFilter: RetrievalFilter = { scope: 'company', framework: null, frameworkPackVersion: null, phase: null, kinds: ['standard'] };
+    const standardHits = await vectorSearch(pool, fakeEmbed(q), standardFilter, { candidates: 12, minSimilarity: 0.1 });
+    expect(standardHits.map((h) => h.stable_id)).not.toContain('company.deprecated-rule');
   });
 });
