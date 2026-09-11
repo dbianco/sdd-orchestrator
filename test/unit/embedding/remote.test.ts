@@ -33,6 +33,27 @@ describe('VoyageEmbeddingProvider', () => {
     expect(await p.embed(Array.from({ length: 200 }, (_, i) => `t${i}`), 'document')).toHaveLength(200);
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
+  it('reassembles embeddings by index even when the API returns them out of order', async () => {
+    // A distinguishable vector per index: fill value = index + 1 (e.g. index 0 -> all 1s, index 1 -> all 2s, index 2 -> all 3s).
+    const distinguishableVec = (i: number) => new Array(1024).fill(i + 1);
+    const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      // Return the data array in REVERSED order relative to the request's input order,
+      // but with each entry's own `index` field correctly identifying which input it corresponds to.
+      return new Response(JSON.stringify({
+        data: [
+          { embedding: distinguishableVec(2), index: 2 },
+          { embedding: distinguishableVec(0), index: 0 },
+          { embedding: distinguishableVec(1), index: 1 },
+        ],
+      }), { status: 200 });
+    });
+    const p = new VoyageEmbeddingProvider('voyage-3.5', 'key', fetchImpl as unknown as typeof fetch);
+    const out = await p.embed(['a', 'b', 'c'], 'document');
+    // out[0] must be the vector for input 'a' (index 0), regardless of the scrambled response array order.
+    expect(out[0]).toEqual(distinguishableVec(0));
+    expect(out[1]).toEqual(distinguishableVec(1));
+    expect(out[2]).toEqual(distinguishableVec(2));
+  });
 });
 
 describe('OllamaEmbeddingProvider', () => {
