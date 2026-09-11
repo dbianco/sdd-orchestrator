@@ -1,19 +1,35 @@
 export interface Line { n: number; text: string; inFence: boolean }
 export interface Section { heading: string; level: number; startLine: number; endLine: number; body: Line[] }
 
-const FENCE = /^\s*(```|~~~)/;
+const FENCE = /^\s*(`{3,}|~{3,})/;
 const HEADING = /^(#{1,6})\s+(.*?)\s*#*\s*$/;
 
 export function lines(md: string): Line[] {
   const out: Line[] = [];
-  let inFence = false;
+  let fenceChar: string | null = null;
+  let fenceLen = 0;
   md.split(/\r?\n/).forEach((text, i) => {
-    if (FENCE.test(text)) {
-      out.push({ n: i + 1, text, inFence: true });
-      inFence = !inFence;
+    const m = FENCE.exec(text);
+    if (fenceChar === null) {
+      // not currently in a fence
+      if (m) {
+        // opening a fence
+        fenceChar = m[1]![0]!;
+        fenceLen = m[1]!.length;
+        out.push({ n: i + 1, text, inFence: true });
+        return;
+      }
+      // regular line outside fence
+      out.push({ n: i + 1, text, inFence: false });
       return;
     }
-    out.push({ n: i + 1, text, inFence });
+    // currently in a fence
+    const closes = m && m[1]![0] === fenceChar && m[1]!.length >= fenceLen;
+    out.push({ n: i + 1, text, inFence: true });
+    if (closes) {
+      fenceChar = null;
+      fenceLen = 0;
+    }
   });
   return out;
 }

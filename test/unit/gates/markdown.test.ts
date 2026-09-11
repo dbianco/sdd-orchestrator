@@ -48,4 +48,42 @@ describe('parseSections', () => {
     expect(normalizeHeading('## 1. Goal ##')).toBe('goal');
     expect(normalizeHeading('ADDED Requirements')).toBe('added requirements');
   });
+  it('ignores mismatched fence delimiters (backticks inside tilde fence)', () => {
+    const mismatchedMd = `# Real
+
+~~~
+\`\`\`js
+## not a heading
+\`\`\`
+~~~
+
+## Also Real`;
+    const ls = lines(mismatchedMd);
+    const fakeHeading = ls.find((l) => l.text === '## not a heading');
+    expect(fakeHeading?.inFence).toBe(true);
+
+    const s = parseSections(mismatchedMd);
+    const headings = s.map((x) => x.heading);
+    expect(headings).toEqual(['Real', 'Also Real']);
+    expect(headings).not.toContain('not a heading');
+  });
+  it('ignores mismatched fence delimiters (tildes inside backtick fence)', () => {
+    const mismatchedMd = `# Real
+
+\`\`\`
+~~~js
+## not a heading
+~~~
+\`\`\`
+
+## Also Real`;
+    const ls = lines(mismatchedMd);
+    const fakeHeading = ls.find((l) => l.text === '## not a heading');
+    expect(fakeHeading?.inFence).toBe(true);
+
+    const s = parseSections(mismatchedMd);
+    const headings = s.map((x) => x.heading);
+    expect(headings).toEqual(['Real', 'Also Real']);
+    expect(headings).not.toContain('not a heading');
+  });
 });
