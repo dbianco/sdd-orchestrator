@@ -26,7 +26,7 @@ describe.skipIf(!url)('frameworks', () => {
     const row = await getFrameworkVersion(pool, 'x', '1.0.0');
     expect(Object.keys(row!.tracks)).toEqual(['default', 'hotfix']);
     expect(trackOf(row!, null).phases.plan).toBe('skipped');
-    expect(() => trackOf(row!, 'nope')).toThrow(/no track "nope"/);
+    expect(() => trackOf(row!, 'nope')).toThrow(expect.objectContaining({ code: 'UNKNOWN_FRAMEWORK' }));
   });
 
   it('deprecation removes a version or all versions from current', async () => {

@@ -1,5 +1,6 @@
 import type { Queryable } from '../db/pool.js';
 import type { TrackDecl } from '../domain/types.js';
+import { DomainError } from '../errors.js';
 import { newId } from '../ids.js';
 import { TrackDeclSchema } from '../lifecycle/track.js';
 import type { FrameworkRow } from './rows.js';
@@ -72,7 +73,11 @@ export async function deprecateFramework(q: Queryable, name: string, packVersion
 export function trackOf(row: FrameworkRow, track: string | null): TrackDecl {
   const key = track ?? 'default';
   const raw = row.tracks[key];
-  if (raw === undefined) throw new Error(`framework ${row.name}@${row.pack_version} has no track "${key}"`);
+  if (raw === undefined) {
+    throw new DomainError('UNKNOWN_FRAMEWORK', `framework ${row.name}@${row.pack_version} has no track "${key}"`, {
+      framework: row.name, pack_version: row.pack_version, track: key,
+    });
+  }
   return TrackDeclSchema.parse(raw) as TrackDecl;
 }
 
