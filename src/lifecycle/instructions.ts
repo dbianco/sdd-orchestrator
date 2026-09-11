@@ -21,7 +21,7 @@ export function renderPhaseInstructions(input: InstructionInput): string {
     `Framework: ${framework}${track ? ` (track ${track})` : ''}`,
     `Phase: ${phase} (${alias})`,
     mapping.command ? `Command: ${mapping.command}` : null,
-    `Produce the ${alias} artifacts following the phase template below.`,
+    `Produce the ${alias} artifacts for this phase.`,
     gate && gate.artifacts.length > 0
       ? `When done, call advance_phase with expected_phase: "${phase}", target_phase: "${next}" and artifacts: ${gate.artifacts.join(', ')}.`
       : `When done, call advance_phase with expected_phase: "${phase}", target_phase: "${next}".`,
