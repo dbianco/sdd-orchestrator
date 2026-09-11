@@ -1,0 +1,46 @@
+name: sdlc
+kind: framework_pack
+framework: sdlc
+version: 1.0.0
+source_url: https://github.com/TextraAI/ai-sdlc
+license: MIT
+tracks:
+  default:
+    spec_review: required
+    phases:
+      specify:   { alias: prd-and-scoping, command: "/sdlc:prd", template: sdlc.template.prd }
+      plan:      { alias: jot-down, command: "/sdlc:jot-down", template: sdlc.template.jot-down }
+      tasks:     { alias: task-breakdown, command: "/sdlc:task-breakdown", template: sdlc.template.tasks }
+      implement: { alias: implement-task, command: "/sdlc:implement-task", template: sdlc.template.implement }
+      verify:    { alias: implement-task, command: "/sdlc:implement-task", template: sdlc.template.verify }
+      integrate: { alias: pull-request, template: sdlc.template.integrate }
+      learn:     { alias: retrospective, template: sdlc.template.retrospective }
+    gates:
+      - transition: specify->plan
+        artifacts: [prd.md, scoping.md]
+        checks:
+          - { name: placeholder_scan }
+          - { name: required_sections, params: { artifact: prd.md, sections: [Problem, Users, Requirements, Success Metrics] } }
+          - { name: measurable_criteria, params: { artifact: prd.md, section: Success Metrics } }
+          - { name: required_sections, params: { artifact: scoping.md, sections: [In Scope, Out of Scope] } }
+      - transition: plan->tasks
+        artifacts: [jot-down.md]
+        checks:
+          - { name: placeholder_scan }
+          - { name: required_sections, params: { artifact: jot-down.md, sections: [Approach, Files] } }
+      - transition: tasks->implement
+        artifacts: [tasks.md]
+        checks:
+          - { name: placeholder_scan }
+          - { name: task_ordering, params: { artifact: tasks.md, task_regex: "^- \\[ \\] (?<id>T\\d+)", dep_regex: "depends on (?<id>T\\d+)" } }
+          - { name: task_done_checks, params: { artifact: tasks.md, task_regex: "^- \\[ \\] ", done_regex: "\\(AC: " } }
+      - transition: verify->integrate
+        artifacts: [jot-down.md]
+        checks:
+          - { name: verify_evidence }
+          - { name: scope_drift, params: { plan_artifact: jot-down.md, files_section: Files } }
+      - transition: learn->archived
+        artifacts: [retrospective.md]
+        checks:
+          - { name: placeholder_scan }
+          - { name: required_sections, params: { artifact: retrospective.md, sections: [Learnings, Memory Proposals] } }
