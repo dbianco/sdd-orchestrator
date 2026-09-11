@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeEach, afterAll } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { getTestPool, truncateAll, closeTestPool } from '../../helpers/db.js';
 import { seedAll, embedder } from '../../helpers/seed.js';
 import { routeTask } from '../../../src/services/routeTask.js';
 import { startFeature } from '../../../src/services/startFeature.js';
+import { updateApp } from '../../../src/store/apps.js';
 import type { ServiceDeps } from '../../../src/services/deps.js';
 import type { Decision } from '../../../src/domain/types.js';
 
@@ -78,5 +79,25 @@ describe.skipIf(!url)('routeTask and startFeature', () => {
     const s = await startFeature(deps, { app: 'checkout', actor: 'd', task_description: 'x', decision: dec });
     expect(s.feature.framework_pack_version).toBe('1.0.0');
     expect(s.warnings[0]).toMatch(/decision named pack version 0.9.0; pinned 1.0.0/);
+  });
+
+  it('retries once and succeeds twice when two concurrent starts collide on the same slug', async () => {
+    const decision: Decision = { intent: 'feature', framework: 'mini', track: 'default', confidence: 'high', rule: 'r', reasons: [], high_risk: false, policy_version: null, framework_pack_version: '1.0.0' };
+    const input = { app: 'checkout', actor: 'd', task_description: 'Add CSV export', decision };
+    const [a, b] = await Promise.all([startFeature(deps, input), startFeature(deps, input)]);
+    expect(a.feature_id).not.toBe(b.feature_id);
+    expect(a.feature.slug).not.toBe(b.feature.slug);
+    const rows = (await deps.pool.query('SELECT id, slug FROM features ORDER BY slug')).rows;
+    expect(rows).toHaveLength(2);
+    expect(new Set(rows.map((r) => r.slug)).size).toBe(2);
+  });
+
+  it('fires overBudgetPack for a lite pack whose always-on content alone exceeds the app budget', async () => {
+    await updateApp(deps.pool, 'checkout', { token_budget: 5 }, 'd');
+    const metrics = { routed: vi.fn(), gate: vi.fn(), degradedPack: vi.fn(), overBudgetPack: vi.fn(), failedCycle: vi.fn() };
+    const tightDeps: ServiceDeps = { ...deps, metrics };
+    const r = await routeTask(tightDeps, { task_description: 'Rename a label', app: 'checkout', workspace: { intent: 'trivial', estimated_files: 1, paths_touched: ['src/a.tsx'], stack: ['react'] } });
+    expect(r.lite_pack?.over_budget).toBe(true);
+    expect(metrics.overBudgetPack).toHaveBeenCalledTimes(1);
   });
 });

@@ -4,6 +4,7 @@ import { seedAll, embedder } from '../../helpers/seed.js';
 import { startFeature } from '../../../src/services/startFeature.js';
 import { advancePhase } from '../../../src/services/advancePhase.js';
 import { getContext } from '../../../src/services/getContext.js';
+import { getFeatureStatus } from '../../../src/services/featureStatus.js';
 import type { ServiceDeps } from '../../../src/services/deps.js';
 import type { Decision } from '../../../src/domain/types.js';
 
@@ -111,6 +112,43 @@ describe.skipIf(!url)('advancePhase', () => {
     const repinned = await advancePhase(deps, { feature_id: fid, actor: 'd', expected_phase: 'implement', target_phase: 'specify', reason: 'x', repin: true });
     expect(repinned.feature.framework_pack_version).toBe('1.1.0');
     await expect(advancePhase(deps, { feature_id: fid, actor: 'd', expected_phase: 'specify', target_phase: 'implement', repin: true, artifacts: { 'proposal.md': goodProposal }, human_approved: true })).rejects.toMatchObject({ code: 'VALIDATION_ERROR', message: expect.stringContaining('repin') });
+  });
+
+  it('persists artifacts on a backward move, not just their hashes', async () => {
+    await advancePhase(deps, { feature_id: fid, actor: 'd', expected_phase: 'specify', target_phase: 'implement', artifacts: { 'proposal.md': goodProposal }, human_approved: true });
+    await advancePhase(deps, { feature_id: fid, actor: 'd', expected_phase: 'implement', target_phase: 'verify' });
+    await advancePhase(deps, { feature_id: fid, actor: 'd', expected_phase: 'verify', target_phase: 'implement', cycle_failed: true, reason: 'red 1', artifacts: { 'notes.md': 'some content' } });
+    const t = (await deps.pool.query(
+      `SELECT id FROM phase_transitions WHERE feature_id = $1 AND direction = 'backward' ORDER BY created_at DESC LIMIT 1`,
+      [fid],
+    )).rows[0];
+    const a = (await deps.pool.query('SELECT name, content FROM feature_artifacts WHERE transition_id = $1', [t.id])).rows;
+    expect(a).toEqual([{ name: 'notes.md', content: 'some content' }]);
+  });
+
+  it('rejects with UNKNOWN_FRAMEWORK, not a bare error, when the pinned phase is no longer in the re-ingested track', async () => {
+    await deps.pool.query(
+      `UPDATE frameworks SET tracks = jsonb_set(tracks, '{default,phases,specify}', '"skipped"') WHERE name = 'mini' AND pack_version = '1.0.0'`,
+    );
+    await expect(getFeatureStatus(deps, fid)).rejects.toMatchObject({ code: 'UNKNOWN_FRAMEWORK' });
+    await expect(getContext(deps, { feature_id: fid, actor: 'd' })).rejects.toMatchObject({ code: 'UNKNOWN_FRAMEWORK' });
+    await expect(advancePhase(deps, { feature_id: fid, actor: 'd', expected_phase: 'specify', target_phase: 'implement' })).rejects.toMatchObject({ code: 'UNKNOWN_FRAMEWORK' });
+  });
+
+  it('pins error precedence: FEATURE_NOT_FOUND beats a would-be VALIDATION_ERROR (repin on an unclassifiable move)', async () => {
+    await expect(advancePhase(deps, { feature_id: 'f_nope', actor: 'd', expected_phase: 'specify', target_phase: 'implement', repin: true })).rejects.toMatchObject({ code: 'FEATURE_NOT_FOUND' });
+  });
+
+  it('pins error precedence: STALE_STATE beats a would-be VALIDATION_ERROR (backward move missing reason)', async () => {
+    await expect(advancePhase(deps, { feature_id: fid, actor: 'd', expected_phase: 'implement', target_phase: 'specify' })).rejects.toMatchObject({ code: 'STALE_STATE' });
+  });
+
+  it('pins error precedence: FEATURE_ARCHIVED beats a would-be VALIDATION_ERROR (repin on a forward move)', async () => {
+    await advancePhase(deps, { feature_id: fid, actor: 'd', expected_phase: 'specify', target_phase: 'implement', artifacts: { 'proposal.md': goodProposal }, human_approved: true });
+    await advancePhase(deps, { feature_id: fid, actor: 'd', expected_phase: 'implement', target_phase: 'verify' });
+    await advancePhase(deps, { feature_id: fid, actor: 'd', expected_phase: 'verify', target_phase: 'integrate', evidence });
+    await advancePhase(deps, { feature_id: fid, actor: 'd', expected_phase: 'integrate', target_phase: 'archived' });
+    await expect(advancePhase(deps, { feature_id: fid, actor: 'd', expected_phase: 'integrate', target_phase: 'archived', repin: true })).rejects.toMatchObject({ code: 'FEATURE_ARCHIVED' });
   });
 
   it('serialises concurrent transitions: one passes, the other gets STALE_STATE', async () => {

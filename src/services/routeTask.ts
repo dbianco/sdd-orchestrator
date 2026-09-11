@@ -32,6 +32,7 @@ export async function routeTask(deps: ServiceDeps, input: RouteTaskInput): Promi
     litePack = await buildLitePack({ q, embedder: deps.embedder, defaultBudget: deps.tokenBudget }, { app, taskDescription: input.task_description, stack });
     warnings.push(...litePack.warnings);
     if (litePack.degraded) deps.metrics?.degradedPack();
+    if (litePack.over_budget) deps.metrics?.overBudgetPack();
   }
   return { decision: out.decision, clarifying_questions: out.clarifying_questions, guidance: out.guidance, lite_pack: litePack, attached_layers: layers, warnings };
 }

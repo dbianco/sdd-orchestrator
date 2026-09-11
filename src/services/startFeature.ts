@@ -19,13 +19,28 @@ export interface StartFeatureInput {
 }
 export interface StartFeatureResult { feature_id: string; context_pack: string; pack_id: string; feature: FeatureState; next_instructions: string; warnings: string[] }
 
+/**
+ * Two concurrent `startFeature` calls that resolve to the same feature slug (e.g. the same
+ * task description started twice, or an MCP client retrying a timed-out call) collide on the
+ * `features_app_id_slug_key` unique constraint. Detect that specific collision so the caller
+ * can retry the whole transaction once and let `createFeature`'s `freeSlug` logic pick a fresh
+ * slug on the retry, instead of surfacing a raw `pg` `DatabaseError`.
+ */
+function isSlugCollision(e: unknown): boolean {
+  if (!e || typeof e !== 'object') return false;
+  const err = e as { code?: unknown; constraint?: unknown; message?: unknown };
+  if (err.code !== '23505') return false;
+  if (err.constraint === 'features_app_id_slug_key') return true;
+  return typeof err.message === 'string' && err.message.includes('features_app_id_slug_key');
+}
+
 export async function startFeature(deps: ServiceDeps, input: StartFeatureInput): Promise<StartFeatureResult> {
-  const warnings: string[] = [];
   const decision = input.decision;
   if (decision.framework === 'none') throw new DomainError('VALIDATION_ERROR', 'start_feature needs a framework; the decision names "none" (spike or trivial)', { field: 'decision.framework' });
   if (deps.embedder) await assertEmbeddingConfigMatches(deps.pool, deps.embedder);
 
-  return withTransaction(deps.pool, async (tx) => {
+  const attempt = (): Promise<StartFeatureResult> => withTransaction(deps.pool, async (tx) => {
+    const warnings: string[] = [];
     const app = await requireApp(tx, input.app);
     const fw = await currentFramework(tx, decision.framework);
     if (!fw) throw new DomainError('UNKNOWN_FRAMEWORK', `framework "${decision.framework}" has no current version`, { framework: decision.framework });
@@ -62,4 +77,11 @@ export async function startFeature(deps: ServiceDeps, input: StartFeatureInput):
     const nextInstructions = renderPhaseInstructions({ feature_id: feature.id, framework: feature.framework, track: feature.track, phase: 'specify', track_decl: trackOf(fw, track) });
     return { feature_id: feature.id, context_pack: pack.rendered, pack_id: pack.id, feature: state, next_instructions: nextInstructions, warnings };
   });
+
+  try {
+    return await attempt();
+  } catch (e) {
+    if (isSlugCollision(e)) return await attempt();
+    throw e;
+  }
 }

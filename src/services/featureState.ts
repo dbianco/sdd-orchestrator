@@ -1,7 +1,8 @@
 import type { Queryable } from '../db/pool.js';
 import type { TrackDecl } from '../domain/types.js';
+import { DomainError } from '../errors.js';
 import { allowedTargets } from '../lifecycle/reachability.js';
-import { phaseAlias } from '../lifecycle/track.js';
+import { phaseAlias, phaseOrder } from '../lifecycle/track.js';
 import { getFrameworkVersion, trackOf } from '../store/frameworks.js';
 import type { FeatureRow } from '../store/rows.js';
 
@@ -13,13 +14,24 @@ export interface FeatureState {
 
 export async function loadTrack(q: Queryable, feature: FeatureRow): Promise<TrackDecl> {
   const fw = await getFrameworkVersion(q, feature.framework, feature.framework_pack_version);
-  if (!fw) throw new Error(`pinned framework ${feature.framework}@${feature.framework_pack_version} is missing`);
+  if (!fw) throw new DomainError('UNKNOWN_FRAMEWORK', `pinned framework ${feature.framework}@${feature.framework_pack_version} is missing`, { framework: feature.framework, framework_pack_version: feature.framework_pack_version });
   return trackOf(fw, feature.track);
 }
 
 export async function featureState(q: Queryable, feature: FeatureRow): Promise<{ state: FeatureState; track: TrackDecl }> {
   const track = await loadTrack(q, feature);
   const app = (await q.query<{ slug: string }>('SELECT slug FROM apps WHERE id = $1', [feature.app_id])).rows[0]!;
+  // A framework pack can be re-ingested with an edited track declaration (e.g. a phase that used
+  // to be active gets marked `skipped`) while a feature is still pinned to that exact
+  // framework+pack_version and sitting in the now-skipped phase. `allowedTargets` throws a bare,
+  // uncoded Error in that case, so guard it with a structured DomainError instead.
+  if (feature.status !== 'archived' && !phaseOrder(track).includes(feature.current_phase)) {
+    throw new DomainError(
+      'UNKNOWN_FRAMEWORK',
+      `feature ${feature.id} is pinned to ${feature.framework}@${feature.framework_pack_version}, but phase "${feature.current_phase}" is no longer part of that track's phase order`,
+      { feature_id: feature.id, framework: feature.framework, framework_pack_version: feature.framework_pack_version, phase: feature.current_phase },
+    );
+  }
   const targets = feature.status === 'archived' ? { forward: [], backward: [] } : allowedTargets(track, feature.current_phase);
   return {
     track,

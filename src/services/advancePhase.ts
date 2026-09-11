@@ -12,7 +12,7 @@ import { currentFramework } from '../store/frameworks.js';
 import { getPack, latestPack } from '../store/packs.js';
 import { insertArtifacts, insertTransition, sha256 } from '../store/transitions.js';
 import type { ServiceDeps } from './deps.js';
-import { featureState, loadTrack, type FeatureState } from './featureState.js';
+import { featureState, type FeatureState } from './featureState.js';
 
 export interface AdvancePhaseInput {
   feature_id: string; actor: string; expected_phase: Phase; target_phase: string; artifacts?: Record<string, string>; evidence?: unknown;
@@ -23,6 +23,12 @@ export interface AdvancePhaseResult { result: 'pass' | 'fail'; findings: Finding
 export async function advancePhase(deps: ServiceDeps, input: AdvancePhaseInput): Promise<AdvancePhaseResult> {
   return withTransaction(deps.pool, async (tx) => {
     const feature = await requireFeature(tx, input.feature_id, { forUpdate: true });
+    // Evaluation order differs from the plan's numbered ERROR_PRECEDENCE list:
+    // FEATURE_NOT_FOUND/FEATURE_ARCHIVED/STALE_STATE are checked before any direction-dependent
+    // VALIDATION_ERROR, because classifying the move direction (needed for the
+    // reason/cycle_failed/repin checks) requires a non-stale, non-archived feature. This is
+    // deliberate, not a bug — proposeMemory.ts is the service that follows the plan's literal
+    // VALIDATION_ERROR-first ordering, since it has no such dependency.
     const errors: DomainError[] = [];
     if (feature.status === 'archived') errors.push(new DomainError('FEATURE_ARCHIVED', `feature ${feature.id} is archived`, { feature_id: feature.id }));
     if (feature.current_phase !== input.expected_phase) {
@@ -30,7 +36,7 @@ export async function advancePhase(deps: ServiceDeps, input: AdvancePhaseInput):
     }
     if (errors.length > 0) throw firstByPrecedence(errors);
 
-    const track = await loadTrack(tx, feature);
+    const { track } = await featureState(tx, feature);
     const direction = classifyMove(track, feature.current_phase, input.target_phase);
     if (!direction) {
       const targets = allowedTargets(track, feature.current_phase);
@@ -94,16 +100,16 @@ export async function advancePhase(deps: ServiceDeps, input: AdvancePhaseInput):
       if (current && current.pack_version !== packVersion) { packVersion = current.pack_version; warnings.push(`repinned to ${feature.framework}@${packVersion}`); }
       else warnings.push('repin requested but the feature is already on the current version');
     }
-    await insertTransition(tx, {
+    const transition = await insertTransition(tx, {
       feature_id: feature.id, from_phase: feature.current_phase, to_phase: to, direction, result: 'pass', findings: [], evidence: null, pack_id: packId,
       artifact_hashes: artifactHashes, human_approved: input.human_approved ?? false, reason: input.reason ?? null,
     }, input.actor);
+    await insertArtifacts(tx, transition.id, artifacts, input.actor);
     const updated = await updateFeature(tx, feature.id, {
       current_phase: to, status: cycle.status, failed_cycles: cycle.failed_cycles,
       blocked_reason: cycle.status === 'blocked' ? (cycle.blocked_reason ?? feature.blocked_reason) : null, framework_pack_version: packVersion,
     });
-    const trackNow = await loadTrack(tx, updated);
-    const { state } = await featureState(tx, updated);
+    const { state, track: trackNow } = await featureState(tx, updated);
     if (cycle.blocked_now) warnings.push('feature is now blocked after three failed cycles; any backward move unblocks it');
     return { result: 'pass', findings: [], next_instructions: renderPhaseInstructions({ feature_id: feature.id, framework: feature.framework, track: feature.track, phase: to, track_decl: trackNow }), feature: state, warnings };
   });
