@@ -23,6 +23,6 @@ export function registerProposeMemory(server: McpServer, deps: McpDeps): void {
     outputSchema: { proposal_id: z.string(), status: z.literal('pending') },
   }, async (args) => guarded(deps.logger, 'propose_memory', async () => {
     const r = await proposeMemory(deps, { ...args, memory_type: args.memory_type ?? null, supersedes: args.supersedes ?? null });
-    return { structured: { ...r }, text: JSON.stringify(r) };
+    return { structured: { ...r }, text: JSON.stringify(r, null, 2) };
   }));
 }

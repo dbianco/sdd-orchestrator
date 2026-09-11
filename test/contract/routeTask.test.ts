@@ -13,7 +13,15 @@ describe.skipIf(!url)('route_task over stdio', () => {
     await withClient('stdio', async (client) => {
       const { tools } = await client.listTools();
       expect(tools.map((t) => t.name).sort()).toEqual(['advance_phase', 'get_context', 'get_feature_status', 'list_features', 'propose_memory', 'route_task', 'search_memory', 'start_feature']);
-      for (const t of tools) { expect(t.description).toMatch(/Example:/); expect(t.outputSchema).toBeDefined(); }
+      for (const t of tools) {
+        expect(t.description).toMatch(/Example:/);
+        expect(t.outputSchema).toBeDefined();
+        // The Example: line is `Example: tool_name({...})`; the JSON payload is everything
+        // between the call's outer parens, i.e. the whole remainder minus the final `)`.
+        const m = /Example:\s*[a-z_]+\((.+)\)$/.exec(t.description!);
+        expect(m, `tool ${t.name} has no extractable Example: payload`).not.toBeNull();
+        expect(() => JSON.parse(m![1]!), `tool ${t.name}'s Example: payload is not valid JSON`).not.toThrow();
+      }
     });
   });
 

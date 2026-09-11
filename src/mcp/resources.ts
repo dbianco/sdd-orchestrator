@@ -51,7 +51,7 @@ export function registerResources(server: McpServer, deps: McpDeps): void {
     { title: 'Knowledge item version', description: 'A specific version of one knowledge item', mimeType: 'application/json' },
     async (uri, { stable_id, version }) => wrap(async () => {
       const item = await itemVersion(q, one(stable_id), Number(one(version)));
-      if (!item) throw new Error(`knowledge item "${one(stable_id)}" version ${one(version)} not found`);
+      if (!item) throw new Error(`KNOWLEDGE_NOT_FOUND: knowledge item "${one(stable_id)}" version ${one(version)} not found`);
       return jsonContent(uri, item);
     }));
 
@@ -59,7 +59,7 @@ export function registerResources(server: McpServer, deps: McpDeps): void {
     { title: 'Knowledge item', description: 'Current version of one knowledge item', mimeType: 'application/json' },
     async (uri, { stable_id }) => wrap(async () => {
       const item = await currentItem(q, one(stable_id));
-      if (!item) throw new Error(`knowledge item "${one(stable_id)}" not found or not current`);
+      if (!item) throw new Error(`KNOWLEDGE_NOT_FOUND: knowledge item "${one(stable_id)}" not found or not current`);
       return jsonContent(uri, item);
     }));
 }

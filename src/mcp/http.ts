@@ -1,5 +1,5 @@
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import express, { type Express, type Request, type Response } from 'express';
+import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import type { Config } from '../config.js';
 import type { Registry } from 'prom-client';
 import { createMcpServer, type McpDeps } from './server.js';
@@ -9,6 +9,13 @@ export interface HttpDeps extends McpDeps { registry: Registry }
 export function createHttpApp(deps: HttpDeps, config: Config): Express {
   const app = express();
   app.use(express.json({ limit: '4mb' }));
+  app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
+    if (err instanceof SyntaxError && 'body' in err) {
+      res.status(400).json({ jsonrpc: '2.0', error: { code: -32700, message: 'Parse error: invalid JSON body' }, id: null });
+      return;
+    }
+    next(err);
+  });
 
   const handle = async (req: Request, res: Response) => {
     const server = createMcpServer(deps);

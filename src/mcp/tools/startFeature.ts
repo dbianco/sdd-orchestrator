@@ -12,7 +12,7 @@ export function registerStartFeature(server: McpServer, deps: McpDeps): void {
       'Creates lifecycle state for a task after the user accepted the route_task decision, pins the current framework version and policy, and builds the first context pack for the specify phase.',
       'Use it once per unit of work; to resume later use get_context or get_feature_status with the feature id. Refused when decision.framework is "none".',
       'Returns feature_id (keep it), context_pack (also in the text block), pack_id, feature state and next_instructions.',
-      'Example: start_feature({"app":"checkout","actor":"daniel","task_description":"Add CSV export","decision":{...from route_task...},"workspace":{"estimated_files":4},"external_ref":"YAL-123"})',
+      'Example: start_feature({"app":"checkout","actor":"daniel","task_description":"Add CSV export","decision":{"intent":"feature","framework":"openspec","track":"default","confidence":"high","rule":"10-brownfield-small-medium","reasons":["brownfield"],"high_risk":false,"policy_version":1,"framework_pack_version":"1.4.0"},"workspace":{"estimated_files":4},"external_ref":"YAL-123"})',
     ].join(' '),
     inputSchema: {
       app: z.string().min(1), actor: ActorSchema, task_description: z.string().min(1),

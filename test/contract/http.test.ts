@@ -34,4 +34,19 @@ describe.skipIf(!url)('Streamable HTTP transport', () => {
       expect(m).toContain('sdd_routing_decisions_total{rule="2-preference"}');
     });
   });
+
+  it('returns a JSON-RPC parse error for a malformed JSON body', async () => {
+    await withClient('http', async (_client, info) => {
+      const origin = info.baseUrl!;
+      const r = await fetch(`${origin}/mcp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' },
+        body: '{not valid json',
+      });
+      expect(r.status).toBe(400);
+      expect(r.headers.get('content-type')).toMatch(/application\/json/);
+      const body = await r.json();
+      expect(body).toMatchObject({ jsonrpc: '2.0', error: { code: -32700 }, id: null });
+    });
+  });
 });

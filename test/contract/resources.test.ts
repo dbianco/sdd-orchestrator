@@ -34,7 +34,8 @@ describe.skipIf(!url)('resources over stdio', () => {
       const f = json(await client.readResource({ uri: `sdd://features/${fid}` }));
       expect(f).toMatchObject({ feature_id: fid, current_phase: 'specify' });
       await expect(client.readResource({ uri: 'sdd://apps/nope' })).rejects.toThrow(/APP_NOT_FOUND/);
-      await expect(client.readResource({ uri: 'sdd://knowledge/nope/v/3' })).rejects.toThrow(/not found/i);
+      await expect(client.readResource({ uri: 'sdd://knowledge/nope/v/3' })).rejects.toThrow(/KNOWLEDGE_NOT_FOUND/);
+      await expect(client.readResource({ uri: 'sdd://knowledge/nope' })).rejects.toThrow(/KNOWLEDGE_NOT_FOUND/);
     });
   });
 });
