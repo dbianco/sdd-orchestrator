@@ -27,4 +27,12 @@ describe('delta_markers', () => {
     expect(run('## REMOVED Requirements\n- old thing\n**Reason**: x\n**Migration**: y')).toEqual([]);
     expect(run('## REMOVED Requirements\n- old thing')).toHaveLength(2);
   });
+  it('treats nested sub-headings under removed entries (3-level nesting)', () => {
+    const md = '## REMOVED Requirements\n### Requirement: Legacy export\n**Reason**: replaced by new module\n**Migration**: use new export instead\n#### Scenario: CommonJS users\nsome migration guide';
+    const f = run(md);
+    expect(f.map((x) => [x.location, x.message])).toEqual([
+      ['spec.md:5', 'removed requirement "Scenario: CommonJS users" lacks **Reason**'],
+      ['spec.md:5', 'removed requirement "Scenario: CommonJS users" lacks **Migration**'],
+    ]);
+  });
 });
