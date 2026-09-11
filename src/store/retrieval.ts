@@ -1,6 +1,7 @@
 import pgvector from 'pgvector/pg';
 import type { Queryable } from '../db/pool.js';
 import type { KnowledgeKind, MemoryType, Phase, Tier } from '../domain/types.js';
+import { assertDimension } from '../embedding/provider.js';
 
 export interface RetrievalFilter {
   scope: 'company' | { appIds: string[] };
@@ -39,6 +40,7 @@ function filterSql(f: RetrievalFilter, params: unknown[]): string {
 export async function vectorSearch(
   q: Queryable, embedding: number[], filter: RetrievalFilter, opts: { candidates: number; minSimilarity: number },
 ): Promise<RetrievedChunk[]> {
+  assertDimension([embedding], 'query embedding');
   await q.query(`SET LOCAL hnsw.iterative_scan = relaxed_order`).catch(() => undefined);
   const params: unknown[] = [pgvector.toSql(embedding)];
   const where = filterSql(filter, params);
@@ -63,7 +65,11 @@ export async function exactIdSearch(q: Queryable, ids: string[], filter: Retriev
      FROM knowledge_chunks c JOIN knowledge_items i ON i.id = c.item_id
      WHERE ${where} AND (
        i.human_id = ANY($1) OR i.stable_id = ANY($1)
-       OR EXISTS (SELECT 1 FROM unnest($1::text[]) AS id WHERE i.title ILIKE '%' || id || '%' OR c.text ILIKE '%' || id || '%')
+       OR EXISTS (
+         SELECT 1 FROM unnest($1::text[]) AS id
+         WHERE (i.title ILIKE '%' || id || '%' AND i.title ~* ('\\y' || id || '\\y'))
+            OR (c.text ILIKE '%' || id || '%' AND c.text ~* ('\\y' || id || '\\y'))
+       )
      )
      ORDER BY i.stable_id, c.ordinal`,
     params,

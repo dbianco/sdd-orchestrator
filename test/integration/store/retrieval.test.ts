@@ -87,4 +87,21 @@ describe.skipIf(!url)('retrieval', () => {
     const standardHits = await vectorSearch(pool, fakeEmbed(q), standardFilter, { candidates: 12, minSimilarity: 0.1 });
     expect(standardHits.map((h) => h.stable_id)).not.toContain('company.deprecated-rule');
   });
+
+  it('exactIdSearch matches ids on word boundaries, not as substrings', async () => {
+    const pool = await getTestPool();
+    await seed(pool, { stable_id: 'adr.1', title: 'ADR-1 streaming exports' }, 'streaming export design');
+    await seed(pool, { stable_id: 'adr.10', title: 'ADR-10 unrelated topic' }, 'unrelated topic body');
+    await seed(pool, { stable_id: 'adr.other', title: 'some other decision' }, 'this text merely mentions ADR-100 in passing');
+
+    const base: RetrievalFilter = { scope: 'company', framework: null, frameworkPackVersion: null, phase: null, kinds: ['app_memory'] };
+    const hits = await exactIdSearch(pool, ['ADR-1'], base);
+    expect(hits.map((h) => h.stable_id)).toEqual(['adr.1']);
+  });
+
+  it('vectorSearch throws a clear error for a wrong-dimension query embedding rather than hitting the database', async () => {
+    const pool = await getTestPool();
+    const base: RetrievalFilter = { scope: 'company', framework: null, frameworkPackVersion: null, phase: null, kinds: ['app_memory'] };
+    await expect(vectorSearch(pool, [0.1, 0.2, 0.3], base, { candidates: 12, minSimilarity: 0.1 })).rejects.toThrow(/dimension 3, expected 1024/);
+  });
 });
