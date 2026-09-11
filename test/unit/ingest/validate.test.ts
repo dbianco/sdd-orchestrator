@@ -45,6 +45,25 @@ describe('validatePack', () => {
     delete noTracks.manifest.tracks;
     expect(validatePack(noTracks, ctx).errors).toContain('framework packs must declare tracks');
   });
+  it('rejects a framework pack whose framework differs from its name', async () => {
+    const p = clone(await loadPack(`${fixtures}mini-framework`));
+    p.manifest.framework = 'other';
+    const { errors } = validatePack(p, ctx);
+    expect(errors).toContain('framework pack declares framework "other" but pack name "mini"; retrieval pins framework items by pack name, so they must match');
+  });
+  it('rejects an item that supersedes another item still present in the same pack', async () => {
+    const p = clone(await loadPack(`${fixtures}mini-framework`));
+    const target = p.items[0]!;
+    p.items.push({ ...structuredClone(target), frontMatter: { ...structuredClone(target.frontMatter), id: 'mini.guide.proposals-v2', supersedes: target.frontMatter.id }, sourcePath: 'guides/writing-proposals-v2.md' });
+    const { errors } = validatePack(p, ctx);
+    expect(errors).toContain(`mini.guide.proposals-v2: supersedes "mini.guide.proposals", which is still present in this pack (guides/writing-proposals.md); remove that file or drop the supersedes`);
+  });
+  it('rejects an item with an empty or whitespace-only body', async () => {
+    const p = clone(await loadPack(`${fixtures}mini-framework`));
+    p.items[0]!.body = '   \n\n  ';
+    const { errors } = validatePack(p, ctx);
+    expect(errors).toContain('mini.guide.proposals: has no body');
+  });
   it('warns on oversized always-on standards and templates', async () => {
     const p = clone(await loadPack(`${fixtures}mini-company`));
     p.items[0]!.body = 'word '.repeat(1300);

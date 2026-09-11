@@ -44,4 +44,18 @@ describe.skipIf(!url)('sdd-admin', () => {
   it('fails with exit code 1 and a message on an invalid pack', async () => {
     await expect(admin('ingest', `${fixtures}does-not-exist`)).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining('pack.yaml') });
   });
+
+  it('rejects invalid app update values instead of silently persisting them', async () => {
+    await admin('app', 'register', 'checkout', '--name', 'Checkout', '--actor', 'daniel');
+    await expect(admin('app', 'update', 'checkout', '--min-similarity', 'abc')).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining('--min-similarity') });
+    await expect(admin('app', 'update', 'checkout', '--budget', '-9')).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining('--budget') });
+  });
+
+  it('rejects a policy file with a typo\'d key instead of installing a silently-empty policy', async () => {
+    await admin('app', 'register', 'checkout', '--name', 'Checkout', '--actor', 'daniel');
+    const dir = await mkdtemp(join(tmpdir(), 'sdd-'));
+    const file = join(dir, 'typo-policy.json');
+    await writeFile(file, JSON.stringify({ path_rule: [{ glob: '**/payments/**', framework: 'bmad' }] }));
+    await expect(admin('app', 'set-policy', 'checkout', file, '--reason', 'PCI')).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining(file) });
+  });
 });

@@ -68,6 +68,6 @@ export function chunkMarkdown(body: string, cap = CHUNK_TOKEN_CAP): Chunk[] {
   return texts.map((t, i) => ({ ordinal: i, heading_path: t.path, text: t.text, token_count: countTokens(t.text) }));
 }
 
-export function embedText(title: string, chunk: Chunk): string {
+export function embedText(title: string, chunk: Pick<Chunk, 'heading_path' | 'text'>): string {
   return chunk.heading_path ? `${title} > ${chunk.heading_path}\n\n${chunk.text}` : `${title}\n\n${chunk.text}`;
 }

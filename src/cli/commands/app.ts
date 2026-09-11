@@ -19,8 +19,16 @@ export function appCommand(actorOption: (c: Command) => Command): Command {
       try {
         const patch: Parameters<typeof updateApp>[2] = {};
         if (o.stack !== undefined) patch.default_stack = o.stack.split(',').map((s) => s.trim()).filter(Boolean);
-        if (o.budget !== undefined) patch.token_budget = Number(o.budget);
-        if (o.minSimilarity !== undefined) patch.min_similarity = Number(o.minSimilarity);
+        if (o.budget !== undefined) {
+          const n = Number(o.budget);
+          if (!Number.isInteger(n) || n <= 0) throw new Error(`--budget must be a positive integer, got "${o.budget}"`);
+          patch.token_budget = n;
+        }
+        if (o.minSimilarity !== undefined) {
+          const n = Number(o.minSimilarity);
+          if (!Number.isFinite(n) || n < 0 || n > 1) throw new Error(`--min-similarity must be between 0 and 1, got "${o.minSimilarity}"`);
+          patch.min_similarity = n;
+        }
         print(await updateApp(ctx.pool, slug, patch, o.actor));
       } finally { await ctx.close(); }
     });
@@ -30,7 +38,9 @@ export function appCommand(actorOption: (c: Command) => Command): Command {
       const ctx = await openCli({ needEmbedder: false });
       try {
         const row = await requireApp(ctx.pool, slug);
-        const policy = PolicySchema.parse(JSON.parse(await readFile(file, 'utf8')));
+        let policy;
+        try { policy = PolicySchema.parse(JSON.parse(await readFile(file, 'utf8'))); }
+        catch (e) { throw new Error(`policy file "${file}" is invalid: ${e instanceof Error ? e.message : String(e)}`); }
         print(await appendPolicy(ctx.pool, row.id, policy, o.reason, o.actor));
       } finally { await ctx.close(); }
     });

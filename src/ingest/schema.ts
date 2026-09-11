@@ -14,7 +14,7 @@ export const PackManifestSchema = z.object({
   license: z.string().nullable().default(null),
   app: z.string().min(1).nullable().default(null),
   tracks: TracksSchema.optional(),
-});
+}).strict();
 export type PackManifest = z.infer<typeof PackManifestSchema>;
 
 export const FrontMatterSchema = z.object({
@@ -29,5 +29,5 @@ export const FrontMatterSchema = z.object({
   stack_tags: z.array(z.string().min(1)).default([]),
   title: z.string().min(1),
   supersedes: z.string().min(1).nullable().optional(),
-});
+}).strict();
 export type FrontMatter = z.infer<typeof FrontMatterSchema>;

@@ -8,7 +8,7 @@ export const PolicySchema: z.ZodType<Policy, z.ZodTypeDef, unknown> = z.object({
   framework: z.string().min(1).nullable().default(null),
   path_rules: z.array(z.object({ glob: z.string().min(1), framework: z.string().min(1) })).default([]),
   risk_paths: z.array(z.string().min(1)).default([]),
-});
+}).strict();
 
 export async function currentPolicy(q: Queryable, appId: string): Promise<PolicyRow | null> {
   const r = await q.query<PolicyRow>('SELECT * FROM app_policies WHERE app_id = $1 ORDER BY version DESC LIMIT 1', [appId]);

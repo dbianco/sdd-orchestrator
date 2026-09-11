@@ -2,6 +2,7 @@ import { withTransaction } from '../db/pool.js';
 import { EMBEDDING_DIMENSION } from '../embedding/provider.js';
 import { listChunkTexts, updateChunkEmbedding } from '../store/chunks.js';
 import { setEmbeddingConfig } from '../store/embeddingConfig.js';
+import { embedText } from './chunk.js';
 import type { IngestDeps } from './ingest.js';
 
 const BATCH = 64;
@@ -10,7 +11,7 @@ export async function reindexAll(deps: IngestDeps, actor: string): Promise<{ chu
   const rows = await listChunkTexts(deps.pool);
   const vectors: number[][] = [];
   for (let i = 0; i < rows.length; i += BATCH) {
-    const batch = rows.slice(i, i + BATCH).map((r) => (r.heading_path ? `${r.title} > ${r.heading_path}\n\n${r.text}` : `${r.title}\n\n${r.text}`));
+    const batch = rows.slice(i, i + BATCH).map((r) => embedText(r.title, r));
     vectors.push(...(await deps.embedder.embed(batch, 'document')));
   }
   await withTransaction(deps.pool, async (tx) => {

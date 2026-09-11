@@ -8,7 +8,7 @@ import { listApps } from '../store/apps.js';
 import { insertChunks, type NewChunk } from '../store/chunks.js';
 import { getEmbeddingConfig, setEmbeddingConfig } from '../store/embeddingConfig.js';
 import { upsertFramework } from '../store/frameworks.js';
-import { currentItem, insertItemVersion, listActivePackItems, markSuperseded, type NewKnowledgeItem } from '../store/knowledge.js';
+import { currentItem, insertItemVersion, latestItem, listActivePackItems, markSuperseded, type NewKnowledgeItem } from '../store/knowledge.js';
 import { TOKENIZER } from '../tokens.js';
 import { chunkMarkdown, embedText, type Chunk } from './chunk.js';
 import { effectiveApp, effectiveFramework, effectiveKind, type LoadedItem, type LoadedPack } from './load.js';
@@ -31,7 +31,16 @@ export async function ingestPack(deps: IngestDeps, pack: LoadedPack, actor: stri
   const skipped: string[] = [];
   for (const item of pack.items) {
     const kind = effectiveKind(pack, item);
+    const latest = await latestItem(pool, item.frontMatter.id);
+    if (latest?.status === 'deprecated') {
+      warnings.push(`${item.frontMatter.id} is deprecated in the database; leaving it deprecated (remove it from the pack, or re-activate explicitly)`);
+      skipped.push(item.frontMatter.id);
+      continue;
+    }
     const current = await currentItem(pool, item.frontMatter.id);
+    if (current && current.pack_name !== pack.manifest.name) {
+      warnings.push(`${item.frontMatter.id} is currently owned by pack "${current.pack_name}"; ingesting moves it to "${pack.manifest.name}"`);
+    }
     const unchanged = current?.source_hash === item.sourceHash && (kind !== 'framework_pack' || current.pack_version === pack.manifest.version);
     if (unchanged) { skipped.push(item.frontMatter.id); continue; }
     const appSlug = effectiveApp(pack, item);

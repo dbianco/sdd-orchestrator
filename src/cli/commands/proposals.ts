@@ -1,11 +1,11 @@
-import { Command } from 'commander';
+import { Command, Option } from 'commander';
 import { approveProposal } from '../../services/approveProposal.js';
 import { listProposals, reviewProposal } from '../../store/proposals.js';
 import { openCli, print } from '../context.js';
 
 export function proposalsCommand(actorOption: (c: Command) => Command): Command {
   const cmd = new Command('proposals').description('Review agent proposals');
-  cmd.command('list').option('--status <s>', 'pending, approved or rejected', 'pending').action(async (o: { status: string }) => {
+  cmd.command('list').addOption(new Option('--status <s>', 'pending, approved or rejected').choices(['pending', 'approved', 'rejected']).default('pending')).action(async (o: { status: string }) => {
     const ctx = await openCli({ needEmbedder: false });
     try { print({ proposals: await listProposals(ctx.pool, o.status as 'pending') }); } finally { await ctx.close(); }
   });

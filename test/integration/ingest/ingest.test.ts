@@ -8,7 +8,7 @@ import { approveProposal } from '../../../src/services/approveProposal.js';
 import { FakeEmbeddingProvider } from '../../../src/embedding/fake.js';
 import { createApp } from '../../../src/store/apps.js';
 import { createFeature } from '../../../src/store/features.js';
-import { currentItem, itemVersion, insertItemVersion } from '../../../src/store/knowledge.js';
+import { currentItem, itemVersion, insertItemVersion, deprecateItem } from '../../../src/store/knowledge.js';
 import { currentFramework } from '../../../src/store/frameworks.js';
 import { getEmbeddingConfig, setEmbeddingConfig } from '../../../src/store/embeddingConfig.js';
 import { insertProposal } from '../../../src/store/proposals.js';
@@ -95,6 +95,18 @@ describe.skipIf(!url)('ingestPack', () => {
     expect(old).toBeNull();
     expect((await itemVersion(pool, 'checkout.steering', 1))?.superseded_by).toBe((await currentItem(pool, 'checkout.steering-v2'))?.id);
     expect((await currentItem(pool, 'checkout.steering-v2'))?.app_id).not.toBeNull();
+  });
+
+  it('does not resurrect an item that was explicitly deprecated when the pack is re-ingested unchanged', async () => {
+    const pool = await getTestPool();
+    const pack = await loadPack(`${fixtures}mini-framework`);
+    await ingestPack({ pool, embedder }, pack, 'cli');
+    await deprecateItem(pool, 'mini.guide.proposals', null, 'obsolete', 'admin');
+    expect(await currentItem(pool, 'mini.guide.proposals')).toBeNull();
+    const r = await ingestPack({ pool, embedder }, pack, 'cli');
+    expect(await currentItem(pool, 'mini.guide.proposals')).toBeNull();
+    expect(r.skipped).toContain('mini.guide.proposals');
+    expect(r.warnings).toContain('mini.guide.proposals is deprecated in the database; leaving it deprecated (remove it from the pack, or re-activate explicitly)');
   });
 
   it('refuses ingestion on embedding mismatch', async () => {

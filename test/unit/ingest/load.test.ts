@@ -25,6 +25,11 @@ describe('loadPack', () => {
   it('rejects a manifest without a semver version', () => {
     expect(PackManifestSchema.safeParse({ name: 'x', kind: 'standard', version: 'v1' }).success).toBe(false);
   });
+  it('rejects front matter with an unrecognized key (e.g. a typo like "phase" instead of "phases")', () => {
+    const result = FrontMatterSchema.safeParse({ id: 'x', title: 'X', phase: ['specify'] });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.issues.map((i) => i.message).join('; ')).toMatch(/phase/);
+  });
   it('fails clearly when pack.yaml is missing', async () => {
     await expect(loadPack(`${fixtures}nope`)).rejects.toThrow(/pack\.yaml/);
   });

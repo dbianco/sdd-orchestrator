@@ -33,6 +33,12 @@ export async function approveProposal(deps: IngestDeps, proposalId: string, revi
   const vectors = chunks.length > 0 ? await deps.embedder.embed(chunks.map((c) => embedText(payload.title, c)), 'document') : [];
 
   return withTransaction(deps.pool, async (tx) => {
+    // Re-check under a row lock: the pre-transaction read above is only an optimistic
+    // check. Lock and re-read the proposal row now that we're inside the transaction, in
+    // case another approval of the same proposal is racing us.
+    const locked = await tx.query<{ status: string }>('SELECT status FROM proposals WHERE id = $1 FOR UPDATE', [proposal.id]);
+    const lockedStatus = locked.rows[0]?.status;
+    if (lockedStatus !== 'pending') throw new Error(`proposal ${proposalId} is already ${lockedStatus}`);
     const seq = await nextProposalSequence(tx, app.slug, seqKey);
     const stableId = `${app.slug}.${seqKey}.${String(seq).padStart(4, '0')}`;
     const row = await insertItemVersion(tx, {
