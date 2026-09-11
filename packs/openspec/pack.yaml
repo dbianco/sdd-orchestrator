@@ -1,0 +1,76 @@
+name: openspec
+kind: framework_pack
+framework: openspec
+version: 1.0.0
+source_url: https://github.com/Fission-AI/OpenSpec
+license: MIT
+tracks:
+  default:
+    spec_review: required
+    phases:
+      specify:   { alias: proposal, command: "/openspec:proposal", template: openspec.template.proposal }
+      plan:      skipped
+      tasks:     skipped
+      implement: { alias: apply, command: "/openspec:apply", template: openspec.template.apply }
+      verify:    { alias: verify, command: "/openspec:verify", template: openspec.template.verify }
+      integrate: { alias: archive, command: "/openspec:archive", template: openspec.template.archive }
+      learn:     skipped
+    gates:
+      - transition: specify->implement
+        artifacts: [proposal.md, spec.md, tasks.md]
+        checks:
+          - { name: placeholder_scan }
+          - { name: required_sections, params: { artifact: proposal.md, sections: [Why, What Changes, Impact] } }
+          - { name: delta_markers, params: { artifact: spec.md } }
+          - { name: measurable_criteria, params: { artifact: spec.md, section: ADDED Requirements } }
+          - { name: required_sections, params: { artifact: tasks.md, sections: [Tasks] } }
+      - transition: verify->integrate
+        artifacts: []
+        checks:
+          - { name: verify_evidence }
+  hotfix:
+    spec_review: deferred
+    phases:
+      specify:   { alias: proposal, command: "/openspec:proposal", template: openspec.template.hotfix-proposal }
+      plan:      skipped
+      tasks:     skipped
+      implement: { alias: apply, command: "/openspec:apply", template: openspec.template.apply }
+      verify:    { alias: verify, command: "/openspec:verify", template: openspec.template.verify }
+      integrate: { alias: archive, command: "/openspec:archive", template: openspec.template.archive }
+      learn:     { alias: learn, template: openspec.template.hotfix-learn }
+    gates:
+      - transition: specify->implement
+        artifacts: [proposal.md]
+        checks:
+          - { name: placeholder_scan }
+          - { name: required_sections, params: { artifact: proposal.md, sections: [Reproduction, Expected Behaviour, Regression Test] } }
+      - transition: verify->integrate
+        artifacts: []
+        checks:
+          - { name: verify_evidence }
+      - transition: learn->archived
+        artifacts: [learn.md]
+        checks:
+          - { name: placeholder_scan }
+          - { name: required_sections, params: { artifact: learn.md, sections: [Incident Memory Proposal] } }
+  refactor:
+    spec_review: required
+    phases:
+      specify:   { alias: proposal, command: "/openspec:proposal", template: openspec.template.refactor-proposal }
+      plan:      skipped
+      tasks:     skipped
+      implement: { alias: apply, command: "/openspec:apply", template: openspec.template.apply }
+      verify:    { alias: verify, command: "/openspec:verify", template: openspec.template.verify }
+      integrate: { alias: archive, command: "/openspec:archive", template: openspec.template.archive }
+      learn:     skipped
+    gates:
+      - transition: specify->implement
+        artifacts: [proposal.md, spec.md]
+        checks:
+          - { name: placeholder_scan }
+          - { name: required_sections, params: { artifact: proposal.md, sections: [Observed Behaviors, Assumed Contracts, Characterization Tests] } }
+          - { name: delta_markers, params: { artifact: spec.md } }
+      - transition: verify->integrate
+        artifacts: []
+        checks:
+          - { name: verify_evidence, params: { max_existing_tests_modified: 0 } }

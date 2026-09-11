@@ -5,6 +5,13 @@ import { createEmbeddingProvider } from '../../../src/embedding/index.js';
 
 const vec = () => new Array(1024).fill(0.1);
 
+// Stands in for a blackholed endpoint: answers nothing, and only settles when the request's own
+// AbortSignal fires, exactly as fetch does when AbortSignal.timeout aborts it.
+const stalledFetch = (_url: unknown, init?: RequestInit) =>
+  new Promise<Response>((_resolve, reject) => {
+    init?.signal?.addEventListener('abort', () => reject(init.signal?.reason));
+  });
+
 describe('VoyageEmbeddingProvider', () => {
   it('posts the documented payload with input_type and output_dimension', async () => {
     const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
@@ -59,6 +66,10 @@ describe('VoyageEmbeddingProvider', () => {
     const p = new VoyageEmbeddingProvider('voyage-3.5', 'key', fetchImpl as unknown as typeof fetch);
     await expect(p.embed(['a', 'b', 'c'], 'document')).rejects.toThrow(/voyage returned 1 embeddings, expected 3/);
   });
+  it('aborts a request that never answers, so the caller does not hold its connection forever', async () => {
+    const p = new VoyageEmbeddingProvider('voyage-3.5', 'key', stalledFetch as unknown as typeof fetch, 20);
+    await expect(p.embed(['a'], 'query')).rejects.toThrow('voyage embeddings request timed out after 20ms');
+  });
 });
 
 describe('OllamaEmbeddingProvider', () => {
@@ -80,6 +91,10 @@ describe('OllamaEmbeddingProvider', () => {
     const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ embeddings: [vec()] }), { status: 200 }));
     const p = new OllamaEmbeddingProvider('bge-m3', 'http://ollama:11434', fetchImpl as unknown as typeof fetch);
     await expect(p.embed(['a', 'b'], 'document')).rejects.toThrow(/ollama returned 1 embeddings, expected 2/);
+  });
+  it('aborts a request that never answers', async () => {
+    const p = new OllamaEmbeddingProvider('bge-m3', 'http://ollama:11434', stalledFetch as unknown as typeof fetch, 20);
+    await expect(p.embed(['a'], 'document')).rejects.toThrow('ollama embed request timed out after 20ms');
   });
 });
 

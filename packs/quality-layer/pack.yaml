@@ -1,0 +1,6 @@
+name: quality-layer
+kind: standard
+framework: null
+version: 1.0.0
+source_url: https://github.com/addyosmani/agent-skills
+license: MIT

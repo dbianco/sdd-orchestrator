@@ -1,0 +1,41 @@
+name: kiro
+kind: framework_pack
+framework: kiro
+version: 1.0.0
+# No source_url: nothing in this pack is derived word-for-word from Kiro's own
+# documentation (see README.md), and stamping the AWS-proprietary docs URL onto
+# every ingested row alongside `license: MIT` would misstate the provenance of
+# the row. The license below covers this project's originals only.
+source_url: null
+license: MIT
+tracks:
+  default:
+    spec_review: required
+    phases:
+      specify:   { alias: requirements, template: kiro.template.requirements }
+      plan:      { alias: design, template: kiro.template.design }
+      tasks:     { alias: tasks, template: kiro.template.tasks }
+      implement: { alias: implement, template: kiro.template.implement }
+      verify:    { alias: verify, template: kiro.template.verify }
+      integrate: { alias: pull-request, template: kiro.template.integrate }
+      learn:     skipped
+    gates:
+      - transition: specify->plan
+        artifacts: [requirements.md]
+        checks:
+          - { name: placeholder_scan }
+          - { name: required_sections, params: { artifact: requirements.md, sections: [Introduction, Requirements] } }
+      - transition: plan->tasks
+        artifacts: [design.md]
+        checks:
+          - { name: placeholder_scan }
+          - { name: required_sections, params: { artifact: design.md, sections: [Overview, Architecture] } }
+      - transition: tasks->implement
+        artifacts: [tasks.md]
+        checks:
+          - { name: placeholder_scan }
+          - { name: required_sections, params: { artifact: tasks.md, sections: [Implementation Plan] } }
+      - transition: verify->integrate
+        artifacts: []
+        checks:
+          - { name: verify_evidence }

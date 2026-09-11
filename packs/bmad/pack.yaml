@@ -1,0 +1,65 @@
+name: bmad
+kind: framework_pack
+framework: bmad
+version: 1.0.0
+source_url: https://github.com/bmad-code-org/BMAD-METHOD
+license: MIT
+tracks:
+  quick:
+    spec_review: required
+    phases:
+      specify:   { alias: quick-spec, command: "/bmad-bmm-quick-spec", template: bmad.template.quick-spec }
+      plan:      skipped
+      tasks:     skipped
+      implement: { alias: quick-dev, command: "/bmad-bmm-quick-dev", template: bmad.template.quick-dev }
+      verify:    { alias: code-review, command: "/bmad-bmm-code-review", template: bmad.template.code-review }
+      integrate: { alias: pull-request, template: bmad.template.integrate }
+      learn:     skipped
+    gates:
+      - transition: specify->implement
+        artifacts: [quick-spec.md]
+        checks:
+          - { name: placeholder_scan }
+          - { name: required_sections, params: { artifact: quick-spec.md, sections: [Goal, Acceptance Criteria, Tasks] } }
+          - { name: task_done_checks, params: { artifact: quick-spec.md, task_regex: "^- \\[ \\] ", done_regex: "\\(AC: \\d" } }
+      - transition: verify->integrate
+        artifacts: []
+        checks:
+          - { name: verify_evidence }
+  full:
+    spec_review: required
+    phases:
+      specify:   { alias: prd-and-architecture, command: "/bmad-bmm-prd", template: bmad.template.prd }
+      plan:      { alias: epics, command: "/bmad-bmm-epics", template: bmad.template.epics }
+      tasks:     { alias: stories, command: "/bmad-bmm-stories", template: bmad.template.stories }
+      implement: { alias: dev-story, command: "/bmad-bmm-dev-story", template: bmad.template.dev-story }
+      verify:    { alias: code-review, command: "/bmad-bmm-code-review", template: bmad.template.code-review }
+      integrate: { alias: pull-request, template: bmad.template.integrate }
+      learn:     { alias: retrospective, command: "/bmad-bmm-retrospective", template: bmad.template.retrospective }
+    gates:
+      - transition: specify->plan
+        artifacts: [prd.md, architecture.md]
+        checks:
+          - { name: placeholder_scan }
+          - { name: required_sections, params: { artifact: prd.md, sections: [Goals, Requirements, Success Metrics] } }
+          - { name: measurable_criteria, params: { artifact: prd.md, section: Success Metrics } }
+          - { name: required_sections, params: { artifact: architecture.md, sections: [Decisions, Components] } }
+      - transition: plan->tasks
+        artifacts: [epics.md]
+        checks:
+          - { name: placeholder_scan }
+          - { name: required_sections, params: { artifact: epics.md, sections: [Epics] } }
+      - transition: tasks->implement
+        artifacts: [stories.md]
+        checks:
+          - { name: placeholder_scan }
+          - { name: task_done_checks, params: { artifact: stories.md, task_regex: "^### Story ", done_regex: "Acceptance Criteria" } }
+      - transition: verify->integrate
+        artifacts: []
+        checks:
+          - { name: verify_evidence }
+      - transition: learn->archived
+        artifacts: [retrospective.md]
+        checks:
+          - { name: placeholder_scan }
+          - { name: required_sections, params: { artifact: retrospective.md, sections: [What Went Well, What To Change] } }

@@ -1,0 +1,18 @@
+# Keep the build context small and platform-independent. The image installs its
+# own dependencies with `npm ci` inside node:22-alpine, so a host node_modules
+# (macOS-native binaries, ~115MB) must never enter the context.
+node_modules
+dist
+coverage
+.git
+.gitignore
+.worktrees
+.env
+.DS_Store
+test
+docs
+.superpowers
+docker-compose.yml
+docker-compose.test.yml
+Dockerfile
+.dockerignore
