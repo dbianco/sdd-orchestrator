@@ -4,16 +4,18 @@ import { createPool } from './db/pool.js';
 import { runMigrations } from './db/migrate.js';
 import { createEmbeddingProvider } from './embedding/index.js';
 import { createLogger } from './logging.js';
+import { createMetrics } from './metrics.js';
 import { runStdio } from './mcp/stdio.js';
-import type { McpDeps } from './mcp/server.js';
+import type { HttpDeps } from './mcp/http.js';
 
-export async function buildDeps(): Promise<McpDeps> {
+export async function buildDeps(): Promise<HttpDeps> {
   const config = loadConfig(process.env);
   const logger = createLogger();
   await runMigrations(config.databaseUrl, (m) => logger.debug(m));
   const pool = createPool(config.databaseUrl);
   const embedder = createEmbeddingProvider(config.embedding);
-  return { pool, embedder, tokenBudget: config.tokenBudget, logger };
+  const { registry, hooks } = createMetrics();
+  return { pool, embedder, tokenBudget: config.tokenBudget, logger, metrics: hooks, registry };
 }
 
 async function main(): Promise<void> {
