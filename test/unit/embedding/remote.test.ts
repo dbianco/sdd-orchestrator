@@ -54,6 +54,11 @@ describe('VoyageEmbeddingProvider', () => {
     expect(out[1]).toEqual(distinguishableVec(1));
     expect(out[2]).toEqual(distinguishableVec(2));
   });
+  it('rejects when the API returns fewer embeddings than inputs sent', async () => {
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ data: [{ embedding: vec(), index: 0 }] }), { status: 200 }));
+    const p = new VoyageEmbeddingProvider('voyage-3.5', 'key', fetchImpl as unknown as typeof fetch);
+    await expect(p.embed(['a', 'b', 'c'], 'document')).rejects.toThrow(/voyage returned 1 embeddings, expected 3/);
+  });
 });
 
 describe('OllamaEmbeddingProvider', () => {
@@ -70,6 +75,11 @@ describe('OllamaEmbeddingProvider', () => {
     const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ embeddings: [[1, 2, 3]] }), { status: 200 }));
     const p = new OllamaEmbeddingProvider('bge-m3', 'http://ollama:11434', fetchImpl as unknown as typeof fetch);
     await expect(p.embed(['a'], 'document')).rejects.toThrow(/dimension 3, expected 1024/);
+  });
+  it('rejects when the API returns fewer embeddings than inputs sent', async () => {
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ embeddings: [vec()] }), { status: 200 }));
+    const p = new OllamaEmbeddingProvider('bge-m3', 'http://ollama:11434', fetchImpl as unknown as typeof fetch);
+    await expect(p.embed(['a', 'b'], 'document')).rejects.toThrow(/ollama returned 1 embeddings, expected 2/);
   });
 });
 

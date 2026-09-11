@@ -1,4 +1,4 @@
-import { assertDimension, type EmbeddingProvider, type InputType } from './provider.js';
+import { assertCount, assertDimension, type EmbeddingProvider, type InputType } from './provider.js';
 
 export class OllamaEmbeddingProvider implements EmbeddingProvider {
   readonly provider = 'ollama' as const;
@@ -13,6 +13,7 @@ export class OllamaEmbeddingProvider implements EmbeddingProvider {
     if (!res.ok) throw new Error(`ollama embed request failed with status ${res.status}`);
     const json = (await res.json()) as { embeddings: number[][] };
     assertDimension(json.embeddings, 'ollama');
+    assertCount(json.embeddings, texts.length, 'ollama');
     return json.embeddings;
   }
 

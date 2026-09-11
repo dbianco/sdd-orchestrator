@@ -1,4 +1,4 @@
-import { assertDimension, EMBEDDING_DIMENSION, type EmbeddingProvider, type InputType } from './provider.js';
+import { assertCount, assertDimension, EMBEDDING_DIMENSION, type EmbeddingProvider, type InputType } from './provider.js';
 
 const BATCH = 128;
 const SUPPORTS_OUTPUT_DIMENSION = new Set(['voyage-3-large', 'voyage-3.5', 'voyage-3.5-lite', 'voyage-code-3']);
@@ -22,6 +22,7 @@ export class VoyageEmbeddingProvider implements EmbeddingProvider {
       const json = (await res.json()) as { data: { embedding: number[]; index: number }[] };
       const sorted = [...json.data].sort((a, b) => a.index - b.index).map((d) => d.embedding);
       assertDimension(sorted, 'voyage');
+      assertCount(sorted, input.length, 'voyage');
       out.push(...sorted);
     }
     return out;

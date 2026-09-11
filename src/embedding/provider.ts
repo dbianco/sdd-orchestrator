@@ -13,3 +13,7 @@ export function assertDimension(vectors: number[][], provider: string): void {
     if (v.length !== EMBEDDING_DIMENSION) throw new Error(`${provider} returned an embedding of dimension ${v.length}, expected ${EMBEDDING_DIMENSION}`);
   }
 }
+
+export function assertCount(vectors: number[][], expected: number, provider: string): void {
+  if (vectors.length !== expected) throw new Error(`${provider} returned ${vectors.length} embeddings, expected ${expected}`);
+}
