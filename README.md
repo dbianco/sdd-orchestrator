@@ -67,6 +67,9 @@ Deployment characteristics (pool sizing against embedding latency, long-lived
 [`docs/operations.md`](docs/operations.md); what a host may and may not assume
 about a context pack is in
 [`docs/verification/host-integration.md`](docs/verification/host-integration.md).
+An interactive runtime architecture diagram (core components, primary path,
+external dependencies, trust boundaries) is published at
+[dbianco.github.io/sdd-orchestrator/architecture/sdd-orchestrator.architecture.html](https://dbianco.github.io/sdd-orchestrator/architecture/sdd-orchestrator.architecture.html).
 
 ## Development
 
