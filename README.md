@@ -18,6 +18,42 @@ The host agent (Claude Code, Cursor, or any MCP client) remains the only thing
 that edits files, runs tests or spawns sub-agents. The server reads and writes
 only its own database.
 
+## Why
+
+Coding agents tend to follow whatever process was in the prompt last, forget
+why a past decision was made once the conversation that made it is gone, and
+start writing code before checking whether a spec is actually complete. None
+of that is a model problem; it is a missing place to keep process state
+outside the agent's own context window. This server is that place: one
+explainable choice of framework per task, phase gates that block on the
+artifact's own text rather than on trust, and a knowledge base that survives
+across sessions, branches and hosts.
+
+## Use cases
+
+- **Brownfield feature work.** "Add CSV export to the orders page" against a
+  service with an existing `openspec/` directory routes to OpenSpec's
+  `default` track: a proposal and delta spec gated on measurable acceptance
+  criteria before `implement` starts.
+- **Production incidents.** A hotfix routes to OpenSpec's `hotfix` track,
+  which defers spec review until after the fix ships and adds a mandatory
+  `learn` phase whose gate requires an `Incident Memory Proposal` section, so
+  the agent has to write up the incident before the feature can archive.
+- **Compliance-sensitive paths.** An app's policy can pin a framework by path
+  glob (`**/payments/**` → BMAD) regardless of what `route_task` would
+  otherwise pick; overriding that pin needs an explicit
+  `policy_override_reason` recorded on `start_feature`.
+- **Greenfield services.** A repository with no spec library and fewer than
+  20 commits routes to Spec Kit's `default` track — the full seven-phase
+  lifecycle from `specify` through `learn`.
+- **Behaviour-preserving refactors.** OpenSpec and Spec Kit both ship a
+  `refactor` track that requires characterization tests before any change and
+  blocks the move out of `verify` if the evidence shows an existing test was
+  modified (`max_existing_tests_modified: 0`).
+- **Cross-app knowledge reuse.** `search_memory` with `scope: "company"` or a
+  list of app slugs answers "how do other apps handle X" without pulling in
+  every other app's private decisions by default.
+
 ## Status
 
 v1 implemented per
