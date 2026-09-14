@@ -37,6 +37,17 @@ export async function loadPack(dir: string): Promise<LoadedPack> {
   return { dir, manifest, items: items.sort((a, b) => a.frontMatter.id.localeCompare(b.frontMatter.id)) };
 }
 
+/** Every directory under `root` that has its own `pack.yaml`, recursed into otherwise. */
+export async function packDirs(root: string): Promise<string[]> {
+  const out: string[] = [];
+  for (const entry of await readdir(root)) {
+    const full = join(root, entry);
+    if (!(await stat(full)).isDirectory()) continue;
+    try { await stat(join(full, 'pack.yaml')); out.push(full); } catch { out.push(...(await packDirs(full))); }
+  }
+  return out.sort();
+}
+
 export function effectiveKind(pack: LoadedPack, item: LoadedItem): KnowledgeKind {
   return item.frontMatter.kind ?? pack.manifest.kind;
 }

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { writeFile, mkdtemp } from 'node:fs/promises';
+import { writeFile, mkdtemp, mkdir, cp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { getTestPool, truncateAll, closeTestPool } from '../../helpers/db.js';
@@ -43,6 +43,26 @@ describe.skipIf(!url)('sdd-admin', () => {
 
   it('fails with exit code 1 and a message on an invalid pack', async () => {
     await expect(admin('ingest', `${fixtures}does-not-exist`)).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining('pack.yaml') });
+  });
+
+  it('ingests every pack under a directory in one call', async () => {
+    const r = await admin('ingest-all', fixtures) as { ingested: { pack: string; created: string[] }[]; failed: unknown[] };
+    expect(r.failed).toEqual([]);
+    expect(r.ingested.map((p) => p.pack).sort()).toEqual(['mini', 'mini-company']);
+    expect(r.ingested.find((p) => p.pack === 'mini')?.created).toHaveLength(3);
+  });
+
+  it('keeps ingesting after one pack fails and reports it, with a nonzero exit code', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'sdd-batch-'));
+    await cp(`${fixtures}mini-company`, join(dir, 'good'), { recursive: true });
+    await mkdir(join(dir, 'broken'));
+    await writeFile(join(dir, 'broken', 'pack.yaml'), 'name: broken\nkind: standard\nversion: not-a-semver\n');
+    const err = await admin('ingest-all', dir).catch((e: Error & { code?: number; stdout?: string }) => e);
+    expect(err).toMatchObject({ code: 1 });
+    const body = JSON.parse((err as { stdout: string }).stdout.trim().split('\n').pop()!) as { ingested: { pack: string }[]; failed: { dir: string; error: string }[] };
+    expect(body.ingested.map((p) => p.pack)).toEqual(['mini-company']);
+    expect(body.failed).toHaveLength(1);
+    expect(body.failed[0]).toMatchObject({ dir: join(dir, 'broken') });
   });
 
   it('rejects invalid app update values instead of silently persisting them', async () => {

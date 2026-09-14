@@ -1,21 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadPack } from '../../../src/ingest/load.js';
+import { loadPack, packDirs } from '../../../src/ingest/load.js';
 import { validatePack } from '../../../src/ingest/validate.js';
 
 const root = fileURLToPath(new URL('../../../packs/', import.meta.url));
-
-async function packDirs(dir: string): Promise<string[]> {
-  const out: string[] = [];
-  for (const entry of await readdir(dir)) {
-    const full = join(dir, entry);
-    if (!(await stat(full)).isDirectory()) continue;
-    try { await stat(join(full, 'pack.yaml')); out.push(full); } catch { out.push(...(await packDirs(full))); }
-  }
-  return out.sort();
-}
 
 describe('seed packs', () => {
   it('every pack under packs/ loads and validates with no errors', async () => {
