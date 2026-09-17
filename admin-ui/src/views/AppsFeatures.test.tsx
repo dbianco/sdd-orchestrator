@@ -13,6 +13,12 @@ describe('AppsFeatures', () => {
       if (url === '/admin/api/apps/checkout/features') {
         return Promise.resolve({ ok: true, json: () => Promise.resolve({ features: [{ feature_id: 'f_1', slug: 'add-csv', intent: 'feature', framework: 'mini', track: 'default', current_phase: 'verify', status: 'active', external_ref: null, trigger_ref: null, updated_at: '2026-09-17T00:00:00.000Z' }] }) });
       }
+      if (url === '/admin/api/features/f_1') {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({
+          feature: { feature_id: 'f_1', slug: 'add-csv', app_id: 'a_1', framework: 'mini', track: 'default', current_phase: 'verify', status: 'active', blocked_reason: null, updated_at: '2026-09-17T00:00:00.000Z' },
+          transitions: [],
+        }) });
+      }
       throw new Error(`unexpected fetch: ${url}`);
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -21,9 +27,10 @@ describe('AppsFeatures', () => {
     fireEvent.click(screen.getByText('checkout'));
     expect(await screen.findByText('add-csv')).toBeInTheDocument();
     // Detail drill-down itself is covered by FeatureDetail.test.tsx; here we only confirm the
-    // click navigates away from the features table.
+    // click navigates to the feature detail view (awaited so FeatureDetail's fetch settles
+    // inside act() before the test ends).
     fireEvent.click(screen.getByText('add-csv'));
-    expect(screen.queryByText('add-csv')).not.toBeInTheDocument();
+    expect(await screen.findByText('No transitions recorded yet.')).toBeInTheDocument();
   });
 
   it('shows an empty state when there are no apps yet', async () => {
