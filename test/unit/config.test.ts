@@ -13,6 +13,11 @@ describe('loadConfig', () => {
     expect(c.tokenBudget).toBe(6000);
   });
 
+  it('leaves adminToken null by default and passes it through when set', () => {
+    expect(loadConfig({ ...base, VOYAGE_API_KEY: 'k' }).adminToken).toBeNull();
+    expect(loadConfig({ ...base, VOYAGE_API_KEY: 'k', SDD_ADMIN_TOKEN: 's3cret' }).adminToken).toBe('s3cret');
+  });
+
   it('refuses an unknown model for the provider', () => {
     expect(() => loadConfig({ ...base, SDD_EMBEDDING_PROVIDER: 'ollama', SDD_EMBEDDING_MODEL: 'voyage-3' }))
       .toThrow(/model "voyage-3" is not accepted for provider "ollama"/);
