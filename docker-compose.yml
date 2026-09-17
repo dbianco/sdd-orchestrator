@@ -31,7 +31,7 @@ services:
       SDD_TOKEN_BUDGET: ${SDD_TOKEN_BUDGET:-6000}
       SDD_ADMIN_TOKEN: ${SDD_ADMIN_TOKEN:-}
     ports:
-      - "8080:8080"
+      - "${SDD_APP_PORT:-8080}:8080"
 
 volumes:
   sdd-pgdata: {}
