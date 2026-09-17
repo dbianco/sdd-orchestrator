@@ -1,0 +1,18 @@
+:root { color-scheme: light dark; }
+body { margin: 0; font-family: system-ui, sans-serif; }
+.app { display: flex; flex-direction: column; height: 100vh; }
+.tabs { display: flex; gap: 0.5rem; padding: 0.75rem 1rem; border-bottom: 1px solid #ccc; }
+.tab { padding: 0.5rem 1rem; border: 1px solid #ccc; border-radius: 4px; background: transparent; cursor: pointer; }
+.tab-active { background: #2563eb; color: white; border-color: #2563eb; }
+.content { padding: 1rem; overflow: auto; }
+.tiles { display: flex; gap: 1rem; flex-wrap: wrap; }
+.tile { border: 1px solid #ccc; border-radius: 8px; padding: 1rem; min-width: 100px; text-align: center; }
+.tile-value { display: block; font-size: 2rem; font-weight: bold; }
+.tile-label { display: block; color: #666; }
+.error { color: #b91c1c; }
+.link { background: none; border: none; color: #2563eb; cursor: pointer; padding: 0; text-decoration: underline; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid #ccc; padding: 0.4rem 0.6rem; text-align: left; }
+.flow-matrix th, .flow-matrix td { text-align: center; min-width: 2.5rem; }
+.apps-list { list-style: none; padding: 0; }
+.apps-list li { padding: 0.25rem 0; }
