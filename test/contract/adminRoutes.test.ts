@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest';
+import { existsSync } from 'node:fs';
 import type { Server } from 'node:http';
+import { fileURLToPath } from 'node:url';
 import { getTestPool, truncateAll, closeTestPool } from '../helpers/db.js';
 import { seedAll, embedder } from '../helpers/seed.js';
 import { startFeature } from '../../src/services/startFeature.js';
@@ -10,6 +12,9 @@ import type { Config } from '../../src/config.js';
 import type { Decision } from '../../src/domain/types.js';
 
 const url = process.env.SDD_TEST_DATABASE_URL;
+// admin-ui/dist is gitignored and only exists after `npm --prefix admin-ui run build`,
+// so the static-serving test skips itself rather than failing a fresh checkout.
+const adminUiIndexPath = fileURLToPath(new URL('../../admin-ui/dist/index.html', import.meta.url));
 const decision: Decision = { intent: 'feature', framework: 'mini', track: 'default', confidence: 'high', rule: 'r', reasons: [], high_risk: false, policy_version: null, framework_pack_version: '1.0.0' };
 const baseConfig: Omit<Config, 'adminToken'> = {
   databaseUrl: 'unused', embedding: { provider: 'fake', model: 'fake-1024', ollamaUrl: 'unused' },
@@ -104,5 +109,16 @@ describe.skipIf(!url)('admin routes', () => {
     const headers = { Authorization: authHeader('s3cret') };
     const res = await fetch(`${listening.origin}/admin/api/proposals?status=bogus`, { headers });
     expect(res.status).toBe(400);
+  });
+
+  it.skipIf(!existsSync(adminUiIndexPath))('serves the built admin-ui index.html under auth, and 401s without it', async () => {
+    const app = createHttpApp(deps, { ...baseConfig, adminToken: 's3cret' });
+    const listening = await listen(app);
+    server = listening.server;
+    const unauth = await fetch(`${listening.origin}/admin/`);
+    expect(unauth.status).toBe(401);
+    const res = await fetch(`${listening.origin}/admin/`, { headers: { Authorization: authHeader('s3cret') } });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toMatch(/text\/html/);
   });
 });
