@@ -18,6 +18,8 @@
     "test:unit": "vitest run test/unit",
     "test:integration": "vitest run test/integration",
     "test:contract": "vitest run test/contract",
+    "build:admin-ui": "npm --prefix admin-ui run build",
+    "test:admin-ui": "npm --prefix admin-ui test",
     "db:test:up": "docker compose -f docker-compose.test.yml up -d --wait",
     "db:test:down": "docker compose -f docker-compose.test.yml down -v"
   },

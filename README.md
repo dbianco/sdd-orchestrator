@@ -304,6 +304,19 @@ sdd-admin deprecate-framework kiro --reason "no longer used"
 sdd-admin reindex                       # after switching embedding model
 ```
 
+### 8. Browse adoption and flow metrics (optional)
+
+Set `SDD_ADMIN_TOKEN` and restart the server to turn on a read-only admin
+page at `/admin` — feature counts, gate pass/fail rates by check, a
+phase-to-phase flow heatmap, and the memory-proposal queue. It is absent
+entirely (a plain 404) when the token is unset.
+
+```bash
+export SDD_ADMIN_TOKEN=s3cret   # or set it in .env / docker-compose.yml
+docker compose up -d
+open http://localhost:8080/admin   # any username, password = SDD_ADMIN_TOKEN
+```
+
 ## Repository layout
 
 ```

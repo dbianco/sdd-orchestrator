@@ -29,6 +29,7 @@ services:
       SDD_LISTEN: 0.0.0.0:8080
       SDD_ALLOWED_HOSTS: ${SDD_ALLOWED_HOSTS:-localhost:8080,127.0.0.1:8080,sdd.internal:8080}
       SDD_TOKEN_BUDGET: ${SDD_TOKEN_BUDGET:-6000}
+      SDD_ADMIN_TOKEN: ${SDD_ADMIN_TOKEN:-}
     ports:
       - "8080:8080"
 
