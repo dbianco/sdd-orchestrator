@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Overview } from './views/Overview';
 import { AppsFeatures } from './views/AppsFeatures';
 import { Flow } from './views/Flow';
+import { Proposals } from './views/Proposals';
 
 type Tab = 'overview' | 'apps' | 'flow' | 'proposals';
 
@@ -27,7 +28,7 @@ export function App() {
         {tab === 'overview' && <Overview />}
         {tab === 'apps' && <AppsFeatures />}
         {tab === 'flow' && <Flow />}
-        {tab === 'proposals' && <p>Proposals coming soon.</p>}
+        {tab === 'proposals' && <Proposals />}
       </main>
     </div>
   );
