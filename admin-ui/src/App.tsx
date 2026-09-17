@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Overview } from './views/Overview';
+import { AppsFeatures } from './views/AppsFeatures';
 
 type Tab = 'overview' | 'apps' | 'flow' | 'proposals';
 
@@ -23,7 +24,7 @@ export function App() {
       </nav>
       <main className="content">
         {tab === 'overview' && <Overview />}
-        {tab === 'apps' && <p>Apps & Features coming soon.</p>}
+        {tab === 'apps' && <AppsFeatures />}
         {tab === 'flow' && <p>Flow coming soon.</p>}
         {tab === 'proposals' && <p>Proposals coming soon.</p>}
       </main>
