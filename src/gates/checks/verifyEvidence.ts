@@ -1,11 +1,7 @@
-import { z } from 'zod';
-import { VerifyEvidenceSchema } from '../evidence.js';
+import { VerifyEvidenceParamsSchema, VerifyEvidenceSchema } from '../evidence.js';
 import { finding, type CheckDefinition } from '../types.js';
 
-const Params = z.object({
-  max_new_high: z.number().int().nonnegative().default(0),
-  max_existing_tests_modified: z.number().int().nonnegative().nullable().default(null),
-});
+const Params = VerifyEvidenceParamsSchema;
 
 export const verifyEvidence: CheckDefinition = {
   name: 'verify_evidence',

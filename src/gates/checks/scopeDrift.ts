@@ -1,10 +1,16 @@
+import picomatch from 'picomatch';
 import { z } from 'zod';
 import { findSection, parseSections } from '../markdown.js';
 import { finding, type CheckDefinition } from '../types.js';
 
-const Params = z.object({ plan_artifact: z.string(), files_section: z.string() });
+const Params = z.object({ plan_artifact: z.string(), files_section: z.string(), ignore: z.array(z.string()).default([]) });
 const BACKTICKED = /`([^`]+)`/g;
 const BARE = /[\w./-]+\.\w+/g;
+
+// Paths a real plan.md never enumerates: generated/derived, not authored deliverables.
+export const DEFAULT_SCOPE_DRIFT_IGNORE: string[] = [
+  '**/test/**', '**/tests/**', '**/*.test.*', '**/test_*.*', '**/*_test.*', '**/migrations/**', '**/.*', 'specs/**',
+];
 
 export function extractPaths(text: string): Set<string> {
   const out = new Set<string>();
@@ -25,8 +31,9 @@ export const scopeDrift: CheckDefinition = {
     const section = findSection(parseSections(plan), p.files_section);
     if (!section) return [];
     const listed = extractPaths(section.body.map((l) => l.text).join('\n'));
+    const isIgnored = picomatch([...DEFAULT_SCOPE_DRIFT_IGNORE, ...p.ignore], { dot: true });
     return files
-      .filter((f): f is string => typeof f === 'string' && !listed.has(f))
+      .filter((f): f is string => typeof f === 'string' && !listed.has(f) && !isIgnored(f))
       .map((f) => finding('scope_drift', severity, f, `${f} is not listed in ${p.plan_artifact} section "${p.files_section}"`));
   },
 };

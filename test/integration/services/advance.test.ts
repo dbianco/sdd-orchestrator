@@ -72,6 +72,30 @@ describe.skipIf(!url)('advancePhase', () => {
     expect(ctx.context_pack).toContain('Phase: integrate');
   });
 
+  it('dry_run reports gate findings without recording a transition or moving the phase', async () => {
+    await advancePhase(deps, { feature_id: fid, actor: 'd', expected_phase: 'specify', target_phase: 'implement', artifacts: { 'proposal.md': goodProposal }, human_approved: true });
+    await advancePhase(deps, { feature_id: fid, actor: 'd', expected_phase: 'implement', target_phase: 'verify' });
+    const bad = await advancePhase(deps, { feature_id: fid, actor: 'd', expected_phase: 'verify', target_phase: 'integrate', evidence: { ...evidence, lint: 'nope' }, dry_run: true });
+    expect(bad.result).toBe('fail');
+    expect(bad.findings.map((f) => f.check)).toContain('verify_evidence');
+    expect(bad.feature.current_phase).toBe('verify');
+    const good = await advancePhase(deps, { feature_id: fid, actor: 'd', expected_phase: 'verify', target_phase: 'integrate', evidence, dry_run: true });
+    expect(good.result).toBe('pass');
+    expect(good.feature.current_phase).toBe('verify');
+    expect(good.next_instructions).toBeNull();
+    const t = (await deps.pool.query('SELECT * FROM phase_transitions WHERE feature_id = $1', [fid])).rows;
+    expect(t).toHaveLength(2); // specify->implement and implement->verify only; the two dry runs recorded nothing
+    const real = await advancePhase(deps, { feature_id: fid, actor: 'd', expected_phase: 'verify', target_phase: 'integrate', evidence });
+    expect(real.result).toBe('pass');
+  });
+
+  it('rejects dry_run on a backward move', async () => {
+    await advancePhase(deps, { feature_id: fid, actor: 'd', expected_phase: 'specify', target_phase: 'implement', artifacts: { 'proposal.md': goodProposal }, human_approved: true });
+    await advancePhase(deps, { feature_id: fid, actor: 'd', expected_phase: 'implement', target_phase: 'verify' });
+    await expect(advancePhase(deps, { feature_id: fid, actor: 'd', expected_phase: 'verify', target_phase: 'implement', reason: 'x', dry_run: true }))
+      .rejects.toMatchObject({ code: 'VALIDATION_ERROR', message: expect.stringContaining('dry_run') });
+  });
+
   it('requires evidence out of verify and mandates approval there for high risk', async () => {
     const risky = await startFeature(deps, { app: 'checkout', actor: 'd', task_description: 'Fix auth', decision: { ...decision, high_risk: true } });
     const id = risky.feature_id;

@@ -1,4 +1,5 @@
 import type { Phase, TrackDecl } from '../domain/types.js';
+import { renderVerifyEvidenceHint } from '../gates/evidence.js';
 import { allowedTargets, mandatesApproval } from './reachability.js';
 import { gateFor, phaseAlias, phaseMapping } from './track.js';
 
@@ -41,13 +42,12 @@ export function renderNextGate(track: TrackDecl, phase: Phase, highRisk: boolean
     const params = Object.entries(c.params ?? {}).map(([k, v]) => `${k}=${Array.isArray(v) ? v.join('|') : String(v)}`);
     return params.length > 0 ? `${c.name} (${params.join(', ')})` : c.name;
   });
+  const verifyEvidenceCheck = gate?.checks.find((c) => c.name === 'verify_evidence');
   return [
     `Next gate: ${phase} -> ${next}`,
     `Artifacts: ${gate && gate.artifacts.length > 0 ? gate.artifacts.join(', ') : 'none'}`,
     `Checks: ${checks.length > 0 ? checks.join('; ') : 'none'}`,
     `Human approval: ${approval ? 'required' : 'not required'}`,
-    (gate?.checks.some((c) => c.name === 'verify_evidence') ?? false)
-      ? 'Evidence: required (tests, lint, security, files_changed)'
-      : null,
+    verifyEvidenceCheck ? renderVerifyEvidenceHint(verifyEvidenceCheck.params ?? {}) : null,
   ].filter((l): l is string => l !== null).join('\n');
 }

@@ -16,7 +16,7 @@ import { featureState, type FeatureState } from './featureState.js';
 
 export interface AdvancePhaseInput {
   feature_id: string; actor: string; expected_phase: Phase; target_phase: string; artifacts?: Record<string, string>; evidence?: unknown;
-  human_approved?: boolean; cycle_failed?: boolean; pack_id?: string | null; reason?: string | null; repin?: boolean;
+  human_approved?: boolean; cycle_failed?: boolean; pack_id?: string | null; reason?: string | null; repin?: boolean; dry_run?: boolean;
 }
 export interface AdvancePhaseResult { result: 'pass' | 'fail'; findings: Finding[]; next_instructions: string | null; feature: FeatureState; warnings: string[] }
 
@@ -49,6 +49,7 @@ export async function advancePhase(deps: ServiceDeps, input: AdvancePhaseInput):
       errors.push(validation('cycle_failed is accepted only on the backward move from verify to implement', 'cycle_failed'));
     }
     if (input.repin && direction === 'forward') errors.push(validation('repin is accepted only on backward moves', 'repin'));
+    if (input.dry_run && direction !== 'forward') errors.push(validation('dry_run is accepted only on forward moves', 'dry_run'));
     let packId: string | null = null;
     if (input.pack_id) {
       const pack = await getPack(tx, input.pack_id);
@@ -70,6 +71,10 @@ export async function advancePhase(deps: ServiceDeps, input: AdvancePhaseInput):
       const gate = gateFor(track, feature.current_phase, target);
       const mandated = mandatesApproval(track, feature.current_phase, target, feature.high_risk);
       const outcome = runGate(gate, { artifacts, evidence: input.evidence ?? null, human_approved: input.human_approved ?? false }, mandated);
+      if (input.dry_run) {
+        const { state } = await featureState(tx, feature);
+        return { result: outcome.result, findings: outcome.findings, next_instructions: null, feature: state, warnings };
+      }
       for (const f of outcome.findings) deps.metrics?.gate(f.check, f.severity === 'blocker' ? 'fail' : 'pass');
       const transition = await insertTransition(tx, {
         feature_id: feature.id, from_phase: feature.current_phase, to_phase: target, direction, result: outcome.result, findings: outcome.findings,

@@ -118,3 +118,12 @@ carries `details.forward` and `details.backward`; `FEATURE_BLOCKED` carries
 `details.blocked_reason` and needs a human; `EMBEDDING_MODEL_MISMATCH` needs an
 admin to run `sdd-admin reindex`. Gate failures are not errors: read
 `findings`, fix the artifacts, call `advance_phase` again.
+
+**Check evidence before spending a real attempt.** The move out of `verify`
+requires an evidence object whose exact shape (field names, enum values,
+track-specific extras) is spelled out in the `verify->integrate` gate's
+context-pack footer. Before submitting for real, an agent can pass
+`dry_run: true` on `advance_phase` to run the same gate checks against a
+candidate `evidence`/`artifacts` payload; the call returns `result` and
+`findings` but records no transition and leaves `current_phase` unchanged, so
+it can be retried freely while iterating on the evidence shape.

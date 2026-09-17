@@ -43,6 +43,19 @@ describe.skipIf(!url)('lifecycle tools over stdio', () => {
     });
   });
 
+  it('dry_run checks the verify->integrate gate over stdio without recording a transition', async () => {
+    await withClient('stdio', async (client) => {
+      const fid = structuredOf<{ feature_id: string }>(await client.callTool({ name: 'start_feature', arguments: { app: 'checkout', actor: 'd', task_description: 'Add CSV export', decision } })).feature_id;
+      await client.callTool({ name: 'advance_phase', arguments: { feature_id: fid, actor: 'd', expected_phase: 'specify', target_phase: 'implement', artifacts: { 'proposal.md': proposal }, human_approved: true } });
+      await client.callTool({ name: 'advance_phase', arguments: { feature_id: fid, actor: 'd', expected_phase: 'implement', target_phase: 'verify' } });
+      const dry = structuredOf<{ result: string; feature: { current_phase: string } }>(await client.callTool({ name: 'advance_phase', arguments: { feature_id: fid, actor: 'd', expected_phase: 'verify', target_phase: 'integrate', dry_run: true } }));
+      expect(dry.result).toBe('fail');
+      expect(dry.feature.current_phase).toBe('verify');
+      const status = structuredOf<{ transitions: unknown[] }>(await client.callTool({ name: 'get_feature_status', arguments: { feature_id: fid } }));
+      expect(status.transitions).toHaveLength(2);
+    });
+  });
+
   it('encodes precedence errors: STALE_STATE, PHASE_ORDER_VIOLATION with targets, VALIDATION_ERROR', async () => {
     await withClient('stdio', async (client) => {
       const fid = structuredOf<{ feature_id: string }>(await client.callTool({ name: 'start_feature', arguments: { app: 'checkout', actor: 'd', task_description: 'x', decision } })).feature_id;

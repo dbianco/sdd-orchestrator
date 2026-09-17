@@ -69,21 +69,32 @@ describe('renderNextGate', () => {
   it('describes the archive edge', () => {
     expect(renderNextGate(track, 'integrate', false)).toContain('Next gate: integrate -> archived');
   });
-  it('includes the evidence line when the gate declares verify_evidence, regardless of phase name', () => {
+  it('includes the evidence schema hint when the gate declares verify_evidence, regardless of phase name', () => {
     const text = renderNextGate(trackWithVerifyEvidence, 'verify', false);
-    expect(text).toContain('Evidence: required (tests, lint, security, files_changed)');
+    expect(text).toContain('Evidence object shape:');
+    expect(text).toContain('tests.command');
+    expect(text).toContain("lint: 'pass' | 'fail'");
   });
-  it('omits the evidence line on a verify-phase gate that does not declare verify_evidence', () => {
+  it('omits the evidence hint on a verify-phase gate that does not declare verify_evidence', () => {
     const text = renderNextGate(trackWithoutVerifyEvidence, 'verify', false);
-    expect(text).not.toContain('Evidence:');
+    expect(text).not.toContain('Evidence object shape:');
   });
-  it('includes the evidence line on a non-verify phase whose gate declares verify_evidence', () => {
+  it('includes the evidence hint on a non-verify phase whose gate declares verify_evidence', () => {
     const trackNonVerifyEvidence: TrackDecl = {
       ...track,
       gates: [{ transition: 'specify->implement', artifacts: [], checks: [{ name: 'verify_evidence' }] }],
     };
     const text = renderNextGate(trackNonVerifyEvidence, 'specify', false);
     expect(text).toContain('Next gate: specify -> implement');
-    expect(text).toContain('Evidence: required (tests, lint, security, files_changed)');
+    expect(text).toContain('Evidence object shape:');
+  });
+  it('threads the verify_evidence check params into the hint (refactor track extras)', () => {
+    const refactorTrack: TrackDecl = {
+      ...track,
+      gates: [{ transition: 'verify->integrate', artifacts: [], checks: [{ name: 'verify_evidence', params: { max_existing_tests_modified: 0 } }] }],
+    };
+    const text = renderNextGate(refactorTrack, 'verify', false);
+    expect(text).toContain('characterization_tests (must be non-empty)');
+    expect(text).toContain('max 0 existing test file(s) modified');
   });
 });
