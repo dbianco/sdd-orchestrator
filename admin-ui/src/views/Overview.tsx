@@ -17,6 +17,8 @@ export function Overview() {
   for (const row of data.features) byStatus.set(row.status, (byStatus.get(row.status) ?? 0) + row.count);
   const proposalsByStatus = new Map(data.proposals.map((p) => [p.status, p.count]));
   const worstChecks = [...data.checks].filter((c) => c.blocker_count > 0).sort((a, b) => b.blocker_count - a.blocker_count).slice(0, 5);
+  const knowledgeByKind = new Map<string, number>();
+  for (const row of data.knowledge) knowledgeByKind.set(row.kind, (knowledgeByKind.get(row.kind) ?? 0) + row.count);
 
   return (
     <section>
@@ -49,6 +51,19 @@ export function Overview() {
           <tbody>
             {worstChecks.map((c) => (
               <tr key={c.check}><td>{c.check}</td><td>{c.blocker_count}</td><td>{c.warning_count}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <h3>Knowledge base</h3>
+      {knowledgeByKind.size === 0 ? (
+        <p>No knowledge items yet.</p>
+      ) : (
+        <table>
+          <thead><tr><th>Kind</th><th>Count</th></tr></thead>
+          <tbody>
+            {[...knowledgeByKind].map(([kind, count]) => (
+              <tr key={kind}><td>{kind}</td><td>{count}</td></tr>
             ))}
           </tbody>
         </table>
