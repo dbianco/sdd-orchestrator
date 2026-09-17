@@ -1,7 +1,8 @@
 import { fileURLToPath } from 'node:url';
 import express, { Router, type Request, type Response } from 'express';
-import { z } from 'zod';
+import { z, ZodError } from 'zod';
 import { isDomainError } from '../errors.js';
+import type { Logger } from '../logging.js';
 import type { ServiceDeps } from '../services/deps.js';
 import { listFeaturesService } from '../services/listFeatures.js';
 import { featureCounts, flowCounts, gateCheckStats, knowledgeCounts, proposalsSummary } from '../store/analytics.js';
@@ -16,27 +17,33 @@ const adminUiDist = fileURLToPath(new URL('../../admin-ui/dist', import.meta.url
 const AppQuery = z.object({ app: z.string().optional() });
 const ProposalsQuery = z.object({ status: z.enum(['pending', 'approved', 'rejected']).optional() });
 
-function handle(fn: (req: Request, res: Response) => Promise<void>) {
-  return async (req: Request, res: Response): Promise<void> => {
-    try {
-      await fn(req, res);
-    } catch (e) {
-      if (isDomainError(e) && (e.code === 'APP_NOT_FOUND' || e.code === 'FEATURE_NOT_FOUND')) {
-        res.status(404).json({ error: e.message });
-        return;
-      }
-      res.status(503).json({ error: 'unreachable' });
-    }
-  };
-}
-
 async function resolveAppId(deps: ServiceDeps, slug: string | undefined): Promise<string | null> {
   if (!slug) return null;
   return (await requireApp(deps.pool, slug)).id;
 }
 
-export function createAdminRouter(deps: ServiceDeps, token: string): Router {
+export function createAdminRouter(deps: ServiceDeps & { logger?: Logger }, token: string): Router {
   const router = Router();
+
+  function handle(fn: (req: Request, res: Response) => Promise<void>) {
+    return async (req: Request, res: Response): Promise<void> => {
+      try {
+        await fn(req, res);
+      } catch (e) {
+        if (isDomainError(e) && (e.code === 'APP_NOT_FOUND' || e.code === 'FEATURE_NOT_FOUND')) {
+          res.status(404).json({ error: e.message });
+          return;
+        }
+        if (e instanceof ZodError) {
+          res.status(400).json({ error: e.message });
+          return;
+        }
+        deps.logger?.error({ err: e }, 'admin route failed');
+        res.status(503).json({ error: 'unreachable' });
+      }
+    };
+  }
+
   router.use(adminAuth(token));
 
   router.get('/api/overview', handle(async (req, res) => {

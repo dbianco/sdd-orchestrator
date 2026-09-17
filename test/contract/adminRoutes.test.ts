@@ -96,4 +96,13 @@ describe.skipIf(!url)('admin routes', () => {
     const proposals = (await (await fetch(`${listening.origin}/admin/api/proposals`, { headers })).json()) as any;
     expect(proposals.proposals).toEqual([]);
   });
+
+  it('rejects an invalid query param with 400, not 503', async () => {
+    const app = createHttpApp(deps, { ...baseConfig, adminToken: 's3cret' });
+    const listening = await listen(app);
+    server = listening.server;
+    const headers = { Authorization: authHeader('s3cret') };
+    const res = await fetch(`${listening.origin}/admin/api/proposals?status=bogus`, { headers });
+    expect(res.status).toBe(400);
+  });
 });
