@@ -2,6 +2,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import type { Config } from '../config.js';
 import type { Registry } from 'prom-client';
+import { createAdminRouter } from '../web/adminRoutes.js';
 import { createMcpServer, type McpDeps } from './server.js';
 
 export interface HttpDeps extends McpDeps { registry: Registry }
@@ -49,6 +50,8 @@ export function createHttpApp(deps: HttpDeps, config: Config): Express {
     res.setHeader('Content-Type', deps.registry.contentType);
     res.send(await deps.registry.metrics());
   });
+
+  if (config.adminToken) app.use('/admin', createAdminRouter(deps, config.adminToken));
 
   return app;
 }
