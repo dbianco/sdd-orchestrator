@@ -16,6 +16,7 @@ describe('loadConfig', () => {
   it('leaves adminToken null by default and passes it through when set', () => {
     expect(loadConfig({ ...base, VOYAGE_API_KEY: 'k' }).adminToken).toBeNull();
     expect(loadConfig({ ...base, VOYAGE_API_KEY: 'k', SDD_ADMIN_TOKEN: 's3cret' }).adminToken).toBe('s3cret');
+    expect(loadConfig({ ...base, VOYAGE_API_KEY: 'k', SDD_ADMIN_TOKEN: '' }).adminToken).toBeNull();
   });
 
   it('refuses an unknown model for the provider', () => {

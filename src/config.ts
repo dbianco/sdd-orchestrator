@@ -31,7 +31,7 @@ const EnvSchema = z.object({
   SDD_LISTEN: z.string().default('127.0.0.1:8080'),
   SDD_ALLOWED_HOSTS: z.string().default('localhost,127.0.0.1'),
   SDD_TOKEN_BUDGET: z.coerce.number().int().positive().default(6000),
-  SDD_ADMIN_TOKEN: z.string().min(1).optional(),
+  SDD_ADMIN_TOKEN: z.string().optional(),
 });
 
 const DEFAULT_MODEL: Record<EmbeddingProviderName, string> = {
@@ -59,6 +59,6 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     listen: { host, port },
     allowedHosts: e.SDD_ALLOWED_HOSTS.split(',').map((s) => s.trim()).filter(Boolean),
     tokenBudget: e.SDD_TOKEN_BUDGET,
-    adminToken: e.SDD_ADMIN_TOKEN ?? null,
+    adminToken: e.SDD_ADMIN_TOKEN?.trim() ? e.SDD_ADMIN_TOKEN : null,
   };
 }
