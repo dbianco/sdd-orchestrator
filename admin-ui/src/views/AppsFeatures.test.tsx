@@ -20,8 +20,10 @@ describe('AppsFeatures', () => {
     expect(await screen.findByText('checkout')).toBeInTheDocument();
     fireEvent.click(screen.getByText('checkout'));
     expect(await screen.findByText('add-csv')).toBeInTheDocument();
+    // Detail drill-down itself is covered by FeatureDetail.test.tsx; here we only confirm the
+    // click navigates away from the features table.
     fireEvent.click(screen.getByText('add-csv'));
-    expect(await screen.findByText('Feature detail coming soon.')).toBeInTheDocument();
+    expect(screen.queryByText('add-csv')).not.toBeInTheDocument();
   });
 
   it('shows an empty state when there are no apps yet', async () => {

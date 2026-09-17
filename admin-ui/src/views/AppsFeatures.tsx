@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getAppFeatures, getApps } from '../api';
 import type { AppSummary, FeatureSummary } from '../types';
+import { FeatureDetail } from './FeatureDetail';
 
 export function AppsFeatures() {
   const [apps, setApps] = useState<AppSummary[] | null>(null);
@@ -21,12 +22,7 @@ export function AppsFeatures() {
   if (error) return <p className="error">Could not load apps: {error}</p>;
 
   if (selectedFeatureId) {
-    return (
-      <section>
-        <button className="link" onClick={() => setSelectedFeatureId(null)}>&larr; Back</button>
-        <p>Feature detail coming soon.</p>
-      </section>
-    );
+    return <FeatureDetail featureId={selectedFeatureId} onBack={() => setSelectedFeatureId(null)} />;
   }
 
   return (
