@@ -15,8 +15,8 @@ export interface GateCheckStatRow { check: string; blocker_count: number; warnin
 export async function gateCheckStats(q: Queryable, appId: string | null = null): Promise<GateCheckStatRow[]> {
   const r = await q.query<GateCheckStatRow>(
     `SELECT finding->>'check' AS "check",
-       count(*) FILTER (WHERE finding->>'severity' = 'blocker')::int AS blocker_count,
-       count(*) FILTER (WHERE finding->>'severity' = 'warning')::int AS warning_count
+       count(DISTINCT pt.id) FILTER (WHERE finding->>'severity' = 'blocker')::int AS blocker_count,
+       count(DISTINCT pt.id) FILTER (WHERE finding->>'severity' = 'warning')::int AS warning_count
      FROM phase_transitions pt
      JOIN features f ON f.id = pt.feature_id
      CROSS JOIN LATERAL jsonb_array_elements(pt.findings) AS finding

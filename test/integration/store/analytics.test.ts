@@ -43,6 +43,20 @@ describe.skipIf(!url)('analytics store', () => {
     ]));
   });
 
+  it('counts distinct transitions per check, not individual findings', async () => {
+    const fid = (await startFeature(deps, { app: 'checkout', actor: 'd', task_description: 'Add CSV export', decision })).feature_id;
+    // Three placeholder markers on three separate lines => three placeholder_scan
+    // blocker findings, all from the same check inside a single transition.
+    const artifacts = { 'proposal.md': '## Why\nTBD\n\n## What Changes\nTODO\n\nNEEDS HUMAN INPUT\n' };
+    const advanced = await advancePhase(deps, { feature_id: fid, actor: 'd', expected_phase: 'specify', target_phase: 'implement', artifacts, human_approved: true });
+    const placeholderFindings = advanced.findings.filter((f) => f.check === 'placeholder_scan' && f.severity === 'blocker');
+    expect(placeholderFindings.length).toBeGreaterThanOrEqual(2);
+
+    const stats = await gateCheckStats(deps.pool);
+    const placeholder = stats.find((s) => s.check === 'placeholder_scan');
+    expect(placeholder).toEqual({ check: 'placeholder_scan', blocker_count: 1, warning_count: 0 });
+  });
+
   it('counts forward transitions by from/to/result, excluding backward moves', async () => {
     const fid = (await startFeature(deps, { app: 'checkout', actor: 'd', task_description: 'Add CSV export', decision })).feature_id;
     await advancePhase(deps, { feature_id: fid, actor: 'd', expected_phase: 'specify', target_phase: 'implement', artifacts: { 'proposal.md': goodProposal }, human_approved: true });
