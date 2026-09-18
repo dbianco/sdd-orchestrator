@@ -60,8 +60,12 @@ export async function findRoutingEventByFeature(q: Queryable, featureId: string)
 }
 
 export async function linkRoutingEventToFeature(q: Queryable, routingId: string, featureId: string): Promise<RoutingEventRow> {
-  const r = await q.query<RoutingEventRow>('UPDATE routing_events SET feature_id = $2, updated_at = now() WHERE id = $1 RETURNING *', [routingId, featureId]);
-  return r.rows[0]!;
+  const r = await q.query<RoutingEventRow>(
+    'UPDATE routing_events SET feature_id = $2, updated_at = now() WHERE id = $1 AND feature_id IS NULL RETURNING *',
+    [routingId, featureId],
+  );
+  if (!r.rows[0]) throw new DomainError('VALIDATION_ERROR', `routing event ${routingId} already belongs to another feature`, { field: 'routing_id' });
+  return r.rows[0];
 }
 
 export interface RoutingFilter { appId: string | null; from: Date | null; to: Date | null }

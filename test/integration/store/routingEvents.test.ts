@@ -95,6 +95,8 @@ describe.skipIf(!url)('routing events store', () => {
     const f = await newFeature('something-else');
     const linked = await linkRoutingEventToFeature(pool, e.id, f.id);
     expect(linked.feature_id).toBe(f.id);
+    const second = await newFeature('something-else-2');
+    await expect(linkRoutingEventToFeature(pool, e.id, second.id)).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
     await expect(requireRoutingEvent(pool, 'r_nope')).rejects.toMatchObject({ code: 'ROUTING_EVENT_NOT_FOUND' });
   });
 });

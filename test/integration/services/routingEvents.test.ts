@@ -70,6 +70,20 @@ describe.skipIf(!url)('routing events through the services', () => {
     expect((await deps.pool.query('SELECT count(*)::int AS n FROM features')).rows[0].n).toBe(1);
   });
 
+  it('serialises concurrent start_feature calls on one routing event: one wins, the other is rejected, one feature exists', async () => {
+    const routed = await routeTask(deps, { task_description: 'Add CSV export', app: 'checkout', workspace: { estimated_files: 4 }, framework_preference: 'mini' });
+    const call = (slug: string) => startFeature(deps, { app: 'checkout', actor: 'd', task_description: 'Add CSV export', decision: routed.decision, routing_id: routed.routing_id, feature_slug: slug });
+    const results = await Promise.allSettled([call('csv-a'), call('csv-b')]);
+    const ok = results.filter((r) => r.status === 'fulfilled');
+    const failed = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+    expect(ok).toHaveLength(1);
+    expect(failed).toHaveLength(1);
+    expect(failed[0]?.reason).toMatchObject({ code: 'VALIDATION_ERROR' });
+    expect((await deps.pool.query('SELECT count(*)::int AS n FROM features')).rows[0].n).toBe(1);
+    const event = await getRoutingEvent(deps.pool, routed.routing_id);
+    expect(event?.feature_id).toBe((ok[0] as PromiseFulfilledResult<{ feature_id: string }>).value.feature_id);
+  });
+
   it('record_commit anchors by routing_id, feature_id or external_ref, dedups by sha, and lower-cases the sha', async () => {
     const routed = await routeTask(deps, { task_description: 'Rename a label', app: 'checkout', workspace: { intent: 'trivial', estimated_files: 1 }, external_ref: 'YAL-5' });
     const byRouting = await recordCommit(deps, { app: 'checkout', actor: 'd', sha: 'ABC1234', message: 'fix: label', files_changed: ['src/a.tsx'], routing_id: routed.routing_id });
