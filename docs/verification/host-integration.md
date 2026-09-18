@@ -64,6 +64,9 @@ the server as a host assertion (spec section 8.3).
    lite pack is the whole context: do the change, then go to step 6.
    For everything else call `start_feature` with the accepted decision and
    the `routing_id`, and write the returned feature id to `.sdd/feature.json`.
+   If `start_feature` reports that the routing event already belongs to a
+   feature (for example on a retry after a timeout), that id is your feature:
+   write it to `.sdd/feature.json` and call `get_context`; do not start again.
 3. Work from the context pack. Before `advance_phase`, read `current_phase`
    from `.sdd/feature.json` and pass it as `expected_phase`. On `STALE_STATE`,
    call `get_feature_status`, update the cache, and retry once.
