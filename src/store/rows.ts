@@ -46,3 +46,12 @@ export interface ProposalRow extends Audit {
   id: string; app_id: string; feature_id: string; payload: Record<string, unknown>; supersedes: string | null;
   status: 'pending' | 'approved' | 'rejected'; reviewed_by: string | null; review_reason: string | null;
 }
+export interface RoutingEventRow extends Audit {
+  id: string; app_id: string; identity_key: string; external_ref: string | null; trigger_ref: string | null; task_description: string;
+  decision: Decision; intent: string; framework: string; lite: boolean; workspace: Workspace | null; route_count: number;
+  first_routed_at: Date; last_routed_at: Date; feature_id: string | null;
+}
+export interface CommitRow extends Audit {
+  id: string; app_id: string; sha: string; branch: string | null; message: string; files_changed: string[]; committed_at: Date | null;
+  routing_id: string | null; feature_id: string | null; source: 'host' | 'webhook';
+}
