@@ -4,8 +4,9 @@ import { seedAll, embedder } from '../../helpers/seed.js';
 import { createApp } from '../../../src/store/apps.js';
 import { routeTask } from '../../../src/services/routeTask.js';
 import { startFeature } from '../../../src/services/startFeature.js';
-import { getRoutingEvent } from '../../../src/store/routingEvents.js';
+import { findRoutingEventByIdentity, identityKey, getRoutingEvent } from '../../../src/store/routingEvents.js';
 import { recordCommit } from '../../../src/services/recordCommit.js';
+import { setEmbeddingConfig } from '../../../src/store/embeddingConfig.js';
 import type { ServiceDeps } from '../../../src/services/deps.js';
 import type { Decision } from '../../../src/domain/types.js';
 
@@ -33,6 +34,14 @@ describe.skipIf(!url)('routing events through the services', () => {
     const row = await getRoutingEvent(deps.pool, a.routing_id);
     expect(row).toMatchObject({ app_id: appId, intent: 'trivial', framework: 'none', lite: true, route_count: 2, created_by: 'd', feature_id: null });
     expect((await deps.pool.query('SELECT count(*)::int AS n FROM features')).rows[0].n).toBe(0);
+  });
+
+  it('leaves no routing event behind when the embedding config check rejects a lite route', async () => {
+    await setEmbeddingConfig(deps.pool, { provider: 'voyage', model: 'voyage-3.5', dimension: 1024 }, 'cli');
+    const key = identityKey(null, 'Fix the date picker');
+    await expect(routeTask(deps, { task_description: 'Fix the date picker', app: 'checkout', workspace: { intent: 'trivial', estimated_files: 1 } }))
+      .rejects.toMatchObject({ code: 'EMBEDDING_MODEL_MISMATCH' });
+    expect(await findRoutingEventByIdentity(deps.pool, appId, key)).toBeNull();
   });
 
   it('keeps the ticket on the event and tells the lite pack how to report commits', async () => {

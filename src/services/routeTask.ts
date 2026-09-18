@@ -27,6 +27,7 @@ export async function routeTask(deps: ServiceDeps, input: RouteTaskInput): Promi
     task_description: input.task_description, workspace: input.workspace, framework_preference: input.framework_preference ?? null,
     policy: policy?.policy ?? null, policy_version: policy?.version ?? null, app: { compliance: app.compliance, default_stack: app.default_stack }, frameworks,
   });
+  if (out.lite && deps.embedder) await assertEmbeddingConfigMatches(q, deps.embedder);
   const event = await upsertRoutingEvent(q, {
     app_id: app.id, external_ref: input.external_ref ?? null, trigger_ref: input.trigger_ref ?? null, task_description: input.task_description,
     decision: out.decision, lite: out.lite, workspace: input.workspace,
@@ -37,7 +38,6 @@ export async function routeTask(deps: ServiceDeps, input: RouteTaskInput): Promi
   const warnings = [...out.warnings, ...layerWarnings];
   let litePack: LitePack | null = null;
   if (out.lite) {
-    if (deps.embedder) await assertEmbeddingConfigMatches(q, deps.embedder);
     litePack = await buildLitePack({ q, embedder: deps.embedder, defaultBudget: deps.tokenBudget }, { app, taskDescription: input.task_description, stack, routingId: event.id });
     warnings.push(...litePack.warnings);
     if (litePack.degraded) deps.metrics?.degradedPack();
