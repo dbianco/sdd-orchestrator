@@ -29,6 +29,7 @@ walkthroughs. A blank cell means not yet verified.
 | Tool: propose_memory | | | |
 | Tool: get_feature_status | | | |
 | Tool: list_features | | | |
+| Tool: record_commit | | | after a route_task, call it with `external_ref` and a sha: expect `commit_id` and `deduplicated: false`; call again with the same sha for `deduplicated: true` |
 | Error results (`isError`) rendered readably | | | code, message, details |
 | Resource: sdd://apps/{slug} | | | Cursor resource browsing lags Tools |
 | Resource: sdd://features/{id} | | | |
