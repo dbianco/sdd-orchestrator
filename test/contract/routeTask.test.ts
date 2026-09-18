@@ -9,10 +9,10 @@ describe.skipIf(!url)('route_task over stdio', () => {
   beforeEach(async () => { const pool = await getTestPool(); await truncateAll(pool); await seedAll(pool); });
   afterAll(closeTestPool);
 
-  it('lists exactly the eight tools with output schemas', async () => {
+  it('lists exactly the nine tools with output schemas', async () => {
     await withClient('stdio', async (client) => {
       const { tools } = await client.listTools();
-      expect(tools.map((t) => t.name).sort()).toEqual(['advance_phase', 'get_context', 'get_feature_status', 'list_features', 'propose_memory', 'route_task', 'search_memory', 'start_feature']);
+      expect(tools.map((t) => t.name).sort()).toEqual(['advance_phase', 'get_context', 'get_feature_status', 'list_features', 'propose_memory', 'record_commit', 'route_task', 'search_memory', 'start_feature']);
       for (const t of tools) {
         expect(t.description).toMatch(/Example:/);
         expect(t.outputSchema).toBeDefined();
@@ -50,6 +50,15 @@ describe.skipIf(!url)('route_task over stdio', () => {
       expect(errorOf(err)).toMatchObject({ code: 'APP_NOT_FOUND' });
       const unknown = await client.callTool({ name: 'route_task', arguments: { task_description: 'x', app: 'checkout', workspace: {}, framework_preference: 'aiup' } });
       expect(errorOf(unknown).code).toBe('UNKNOWN_FRAMEWORK');
+    });
+  });
+
+  it('record_commit links a host-reported commit to routed work over stdio', async () => {
+    await withClient('stdio', async (client) => {
+      const routed = structuredOf<{ routing_id: string }>(await client.callTool({ name: 'route_task', arguments: { task_description: 'Rename', app: 'checkout', workspace: { intent: 'trivial', estimated_files: 1 }, external_ref: 'YAL-8' } }));
+      const r = await client.callTool({ name: 'record_commit', arguments: { app: 'checkout', actor: 'd', sha: 'abc1234', message: 'fix: rename', files_changed: ['src/a.tsx'], external_ref: 'yal-8' } });
+      expect(structuredOf<{ routing_id: string; deduplicated: boolean }>(r)).toMatchObject({ routing_id: routed.routing_id, deduplicated: false });
+      expect(errorOf(await client.callTool({ name: 'record_commit', arguments: { app: 'checkout', actor: 'd', sha: 'abc1234', message: 'x' } })).code).toBe('VALIDATION_ERROR');
     });
   });
 });

@@ -12,7 +12,7 @@ describe.skipIf(!url)('Streamable HTTP transport', () => {
 
   it('serves the same tools, resources and prompts as stdio, statelessly', async () => {
     await withClient('http', async (client) => {
-      expect((await client.listTools()).tools).toHaveLength(8);
+      expect((await client.listTools()).tools).toHaveLength(9);
       expect((await client.listResourceTemplates()).resourceTemplates).toHaveLength(5);
       expect((await client.listPrompts()).prompts).toHaveLength(7);
       const s = structuredOf<{ feature_id: string }>(await client.callTool({ name: 'start_feature', arguments: { app: 'checkout', actor: 'd', task_description: 'Add CSV export', decision } }));

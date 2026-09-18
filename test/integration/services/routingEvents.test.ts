@@ -5,6 +5,7 @@ import { createApp } from '../../../src/store/apps.js';
 import { routeTask } from '../../../src/services/routeTask.js';
 import { startFeature } from '../../../src/services/startFeature.js';
 import { getRoutingEvent } from '../../../src/store/routingEvents.js';
+import { recordCommit } from '../../../src/services/recordCommit.js';
 import type { ServiceDeps } from '../../../src/services/deps.js';
 import type { Decision } from '../../../src/domain/types.js';
 
@@ -67,5 +68,30 @@ describe.skipIf(!url)('routing events through the services', () => {
     await expect(startFeature(deps, { app: 'checkout', actor: 'd', task_description: 'Add CSV export', decision: routed.decision, routing_id: routed.routing_id }))
       .rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
     expect((await deps.pool.query('SELECT count(*)::int AS n FROM features')).rows[0].n).toBe(1);
+  });
+
+  it('record_commit anchors by routing_id, feature_id or external_ref, dedups by sha, and lower-cases the sha', async () => {
+    const routed = await routeTask(deps, { task_description: 'Rename a label', app: 'checkout', workspace: { intent: 'trivial', estimated_files: 1 }, external_ref: 'YAL-5' });
+    const byRouting = await recordCommit(deps, { app: 'checkout', actor: 'd', sha: 'ABC1234', message: 'fix: label', files_changed: ['src/a.tsx'], routing_id: routed.routing_id });
+    expect(byRouting).toMatchObject({ routing_id: routed.routing_id, feature_id: null, deduplicated: false });
+    expect(byRouting.commit_id).toMatch(/^cm_/);
+    const byTicket = await recordCommit(deps, { app: 'checkout', actor: 'd', sha: 'abc1234', message: 'fix: label (amend)', external_ref: 'yal-5' });
+    expect(byTicket).toMatchObject({ commit_id: byRouting.commit_id, deduplicated: true });
+    expect((await deps.pool.query('SELECT sha FROM commits')).rows).toEqual([{ sha: 'abc1234' }]);
+
+    const fresh = await startFeature(deps, { app: 'checkout', actor: 'd', task_description: 'Add CSV export', decision: feature });
+    const byFeature = await recordCommit(deps, { app: 'checkout', actor: 'd', sha: 'feed123', message: 'feat: csv', feature_id: fresh.feature_id });
+    expect(byFeature).toMatchObject({ feature_id: fresh.feature_id, routing_id: fresh.routing_id, deduplicated: false });
+  });
+
+  it('record_commit rejects missing, ambiguous, unknown and cross-app anchors', async () => {
+    await expect(recordCommit(deps, { app: 'checkout', actor: 'd', sha: 'abc1234', message: 'x' })).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+    await expect(recordCommit(deps, { app: 'checkout', actor: 'd', sha: 'abc1234', message: 'x', routing_id: 'r_a', feature_id: 'f_b' })).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+    await expect(recordCommit(deps, { app: 'checkout', actor: 'd', sha: 'abc1234', message: 'x', external_ref: 'YAL-404' }))
+      .rejects.toMatchObject({ code: 'VALIDATION_ERROR', message: expect.stringContaining('call route_task first') });
+    await expect(recordCommit(deps, { app: 'checkout', actor: 'd', sha: 'abc1234', message: 'x', routing_id: 'r_nope' })).rejects.toMatchObject({ code: 'ROUTING_EVENT_NOT_FOUND' });
+    const other = await routeTask(deps, { task_description: 'Billing thing', app: 'billing', workspace: { intent: 'trivial', estimated_files: 1 } });
+    await expect(recordCommit(deps, { app: 'checkout', actor: 'd', sha: 'abc1234', message: 'x', routing_id: other.routing_id })).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+    expect((await deps.pool.query('SELECT count(*)::int AS n FROM commits')).rows[0].n).toBe(0);
   });
 });
