@@ -17,7 +17,7 @@ export function registerStartFeature(server: McpServer, deps: McpDeps): void {
     inputSchema: {
       app: z.string().min(1), actor: ActorSchema, task_description: z.string().min(1),
       decision: DecisionShape.describe('The decision object returned by route_task, possibly with framework or track overridden by the user'),
-      workspace: WorkspaceShape.optional(), feature_slug: z.string().min(1).optional(), external_ref: z.string().min(1).optional(),
+      workspace: WorkspaceShape.optional(), feature_slug: z.string().min(1).optional(), external_ref: z.string().trim().min(1).optional(),
       trigger_ref: z.string().min(1).optional(), policy_override_reason: z.string().min(1).optional(),
       routing_id: z.string().min(1).optional().describe('The routing_id returned by route_task; when omitted the event is found by external_ref or task text, or created'),
     },

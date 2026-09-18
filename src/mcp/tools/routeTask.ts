@@ -21,7 +21,7 @@ export function registerRouteTask(server: McpServer, deps: McpDeps): void {
       workspace: WorkspaceShape,
       framework_preference: z.string().min(1).optional().describe('Framework name, optionally with a track: "bmad:quick"'),
       actor: ActorSchema.optional(),
-      external_ref: z.string().min(1).optional().describe('Ticket id (Linear, Jira); becomes the dedup identity for this work'),
+      external_ref: z.string().trim().min(1).optional().describe('Ticket id (Linear, Jira); becomes the dedup identity for this work'),
       trigger_ref: z.string().min(1).optional().describe('What caused the work: incident id, CVE, alert'),
     },
     outputSchema: {

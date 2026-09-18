@@ -59,6 +59,11 @@ describe.skipIf(!url)('route_task over stdio', () => {
       const r = await client.callTool({ name: 'record_commit', arguments: { app: 'checkout', actor: 'd', sha: 'abc1234', message: 'fix: rename', files_changed: ['src/a.tsx'], external_ref: 'yal-8' } });
       expect(structuredOf<{ routing_id: string; deduplicated: boolean }>(r)).toMatchObject({ routing_id: routed.routing_id, deduplicated: false });
       expect(errorOf(await client.callTool({ name: 'record_commit', arguments: { app: 'checkout', actor: 'd', sha: 'abc1234', message: 'x' } })).code).toBe('VALIDATION_ERROR');
+      // A whitespace-only external_ref is rejected by the trimmed schema. Like the `expected_phase: 'nope'`
+      // case in lifecycle.test.ts, an SDK-validated rejection never reaches `guarded()`, so accept any shape.
+      const blank = await client.callTool({ name: 'record_commit', arguments: { app: 'checkout', actor: 'd', sha: 'abc1234', message: 'x', external_ref: '   ' } }).catch((e: Error) => e);
+      const code = blank instanceof Error ? blank.message : (() => { try { return errorOf(blank).code; } catch { return textOf(blank); } })();
+      expect(code).toMatch(/VALIDATION_ERROR|external_ref|Invalid/);
     });
   });
 });
