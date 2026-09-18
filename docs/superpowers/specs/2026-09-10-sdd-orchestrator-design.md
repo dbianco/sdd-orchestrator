@@ -246,7 +246,7 @@ persists a pack.
 
 ### 7.1 Tools
 
-**`route_task`** (read-only)
+**`route_task`** (read-only in v1; since `docs/superpowers/specs/2026-09-18-routing-events-and-commits-design.md` it records one routing event per unit of work)
 
 | Input | Type | Notes |
 |---|---|---|

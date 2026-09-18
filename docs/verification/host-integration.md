@@ -57,16 +57,24 @@ the server as a host assertion (spec section 8.3).
 
 1. New work: run `list_features` with the ticket id as `external_ref`. If a
    feature exists, write its id to `.sdd/feature.json` and call `get_context`.
-2. Otherwise call `route_task`. Show the decision. If there are clarifying
-   questions, answer them and call `route_task` again. Then call
-   `start_feature` with the accepted decision and write the returned id to
-   `.sdd/feature.json`.
+2. Otherwise call `route_task` with the ticket as `external_ref` and your
+   name as `actor`. It returns a `routing_id`; the same task routed again
+   returns the same id. Show the decision. If there are clarifying
+   questions, answer them and call `route_task` again. For trivial work the
+   lite pack is the whole context: do the change, then go to step 6.
+   For everything else call `start_feature` with the accepted decision and
+   the `routing_id`, and write the returned feature id to `.sdd/feature.json`.
 3. Work from the context pack. Before `advance_phase`, read `current_phase`
    from `.sdd/feature.json` and pass it as `expected_phase`. On `STALE_STATE`,
    call `get_feature_status`, update the cache, and retry once.
 4. After every successful `advance_phase`, update `.sdd/feature.json` from the
    returned `feature` state.
 5. When the feature is archived, delete `.sdd/feature.json`.
+6. After every commit — trivial fix or feature — call `record_commit` with
+   the sha, message, `files_changed` (from `git show --name-only`) and the
+   `routing_id` or `feature_id`. Add a trailer `SDD-Ref: <that id>` to the
+   commit message so the history is self-describing; the server does not
+   parse it, but a future forge webhook can.
 
 ## Known limitations of a v1 context pack
 

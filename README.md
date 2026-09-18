@@ -217,6 +217,12 @@ constitution, the OpenSpec proposal template, retrieved app memory such as
 `ADR-7 Exports go through the reporting service`, React guide sections, and
 the stop conditions plus the checks the next gate will run.
 
+`route_task` also returns a `routing_id`: the server records one routing
+event per unit of work (deduplicated by `external_ref` or by task text), so
+trivial fixes that never become features still show up in the admin. Pass
+the `routing_id` to `start_feature`, and call `record_commit` after each
+commit to link it to the work.
+
 ### 5. Advance through the gates
 
 After the agent writes the proposal and the developer reviews it:
@@ -307,9 +313,11 @@ sdd-admin reindex                       # after switching embedding model
 ### 8. Browse adoption and flow metrics (optional)
 
 Set `SDD_ADMIN_TOKEN` and restart the server to turn on a read-only admin
-page at `/admin` — feature counts, gate pass/fail rates by check, a
-phase-to-phase flow heatmap, and the memory-proposal queue. It is absent
-entirely (a plain 404) when the token is unset.
+page at `/admin` — feature counts, gate blocker counts by check, a
+phase-to-phase flow heatmap, the memory-proposal queue, and a **Work** tab
+listing everything routed (features and trivial fixes alike) with linked
+commits, filterable by app and date range. It is absent entirely (a plain
+404) when the token is unset.
 
 ```bash
 export SDD_ADMIN_TOKEN=s3cret   # or set it in .env / docker-compose.yml
