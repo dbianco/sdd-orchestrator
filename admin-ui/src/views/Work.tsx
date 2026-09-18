@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { getApps, getRouting, type RoutingParams } from '../api';
 import type { AppSummary, RoutingEvent, RoutingSummary } from '../types';
 import { typeBadge } from './badge';
+import { RoutingDetail } from './RoutingDetail';
 
 export function Work() {
   const [apps, setApps] = useState<AppSummary[]>([]);
@@ -25,14 +26,7 @@ export function Work() {
 
   if (error) return <p className="error">Could not load routed work: {error}</p>;
 
-  if (selectedId) {
-    return (
-      <section>
-        <button className="link" onClick={() => setSelectedId(null)}>&larr; Back</button>
-        <p>Routing detail coming soon.</p>
-      </section>
-    );
-  }
+  if (selectedId) return <RoutingDetail routingId={selectedId} onBack={() => setSelectedId(null)} />;
 
   return (
     <section>

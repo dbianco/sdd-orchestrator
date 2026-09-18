@@ -14,6 +14,7 @@ function stubFetch(calls: string[]) {
   vi.stubGlobal('fetch', vi.fn((url: string) => {
     calls.push(url);
     if (url === '/admin/api/apps') return Promise.resolve({ ok: true, json: () => Promise.resolve({ apps: [{ id: 'a_1', slug: 'checkout', name: 'Checkout', features: [] }] }) });
+    if (url === '/admin/api/routing/r_2') return Promise.resolve({ ok: true, json: () => Promise.resolve({ event: featureEvent, commits: [] }) });
     if (url.startsWith('/admin/api/routing')) return Promise.resolve({ ok: true, json: () => Promise.resolve({ events: [event, featureEvent, unstarted], summary: [{ intent: 'trivial', count: 1 }, { intent: 'feature', count: 2 }] }) });
     throw new Error(`unexpected fetch: ${url}`);
   }));
@@ -60,11 +61,11 @@ describe('Work', () => {
     expect(await screen.findByText('No routed work in this range.')).toBeInTheDocument();
   });
 
-  it('opens the detail placeholder on row click', async () => {
+  it('opens the routing detail on row click', async () => {
     const calls: string[] = [];
     stubFetch(calls);
     render(<Work />);
     fireEvent.click(await screen.findByText('Add CSV export'));
-    expect(await screen.findByText('Routing detail coming soon.')).toBeInTheDocument();
+    expect(await screen.findByText('No commits reported yet.')).toBeInTheDocument();
   });
 });
