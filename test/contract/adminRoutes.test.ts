@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { getTestPool, truncateAll, closeTestPool } from '../helpers/db.js';
 import { seedAll, embedder } from '../helpers/seed.js';
 import { startFeature } from '../../src/services/startFeature.js';
+import { routeTask } from '../../src/services/routeTask.js';
+import { recordCommit } from '../../src/services/recordCommit.js';
 import { createHttpApp, type HttpDeps } from '../../src/mcp/http.js';
 import { createLogger } from '../../src/logging.js';
 import { createMetrics } from '../../src/metrics.js';
@@ -120,5 +122,47 @@ describe.skipIf(!url)('admin routes', () => {
     const res = await fetch(`${listening.origin}/admin/`, { headers: { Authorization: authHeader('s3cret') } });
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toMatch(/text\/html/);
+  });
+
+  it('lists routed work with app/date filters, summarises by intent, and serves one event with its commits', async () => {
+    const app = createHttpApp(deps, { ...baseConfig, adminToken: 's3cret' });
+    const listening = await listen(app);
+    server = listening.server;
+    const headers = { Authorization: authHeader('s3cret') };
+    const trivial = await routeTask(deps, { task_description: 'Fix the date picker', app: 'checkout', workspace: { intent: 'trivial', estimated_files: 1 }, external_ref: 'YAL-1' });
+    await recordCommit(deps, { app: 'checkout', actor: 'd', sha: 'abc1234', message: 'fix: date picker', files_changed: ['src/dates.ts'], routing_id: trivial.routing_id });
+    const started = await startFeature(deps, { app: 'checkout', actor: 'd', task_description: 'Add CSV export', decision });
+
+    const all = (await (await fetch(`${listening.origin}/admin/api/routing`, { headers })).json()) as any;
+    expect(all.events.map((e: { id: string }) => e.id).sort()).toEqual([trivial.routing_id, started.routing_id].sort());
+    const t = all.events.find((e: { id: string }) => e.id === trivial.routing_id);
+    expect(t).toMatchObject({ app_slug: 'checkout', intent: 'trivial', lite: true, external_ref: 'YAL-1', commit_count: 1, feature_id: null });
+    const f = all.events.find((e: { id: string }) => e.id === started.routing_id);
+    expect(f).toMatchObject({ feature_id: started.feature_id, feature_status: 'active', feature_phase: 'specify', commit_count: 0 });
+    expect(all.summary).toEqual(expect.arrayContaining([{ intent: 'trivial', count: 1 }, { intent: 'feature', count: 1 }]));
+
+    const scoped = (await (await fetch(`${listening.origin}/admin/api/routing?app=checkout&from=2000-01-01&to=2099-12-31`, { headers })).json()) as any;
+    expect(scoped.events).toHaveLength(2);
+    const none = (await (await fetch(`${listening.origin}/admin/api/routing?from=2099-01-01`, { headers })).json()) as any;
+    expect(none.events).toEqual([]);
+    expect(none.summary).toEqual([]);
+
+    const detail = (await (await fetch(`${listening.origin}/admin/api/routing/${trivial.routing_id}`, { headers })).json()) as any;
+    expect(detail.event.id).toBe(trivial.routing_id);
+    expect(detail.commits).toEqual([expect.objectContaining({ sha: 'abc1234', files_changed: ['src/dates.ts'] })]);
+
+    expect((await fetch(`${listening.origin}/admin/api/routing/r_nope`, { headers })).status).toBe(404);
+    expect((await fetch(`${listening.origin}/admin/api/routing?app=nope`, { headers })).status).toBe(404);
+  });
+
+  it('rejects an inverted or malformed date range with 400', async () => {
+    const app = createHttpApp(deps, { ...baseConfig, adminToken: 's3cret' });
+    const listening = await listen(app);
+    server = listening.server;
+    const headers = { Authorization: authHeader('s3cret') };
+    const inverted = await fetch(`${listening.origin}/admin/api/routing?from=2026-02-02&to=2026-01-01`, { headers });
+    expect(inverted.status).toBe(400);
+    expect(((await inverted.json()) as any).error).toContain('from must be on or before to');
+    expect((await fetch(`${listening.origin}/admin/api/routing?from=yesterday`, { headers })).status).toBe(400);
   });
 });

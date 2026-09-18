@@ -7,8 +7,10 @@ import type { ServiceDeps } from '../services/deps.js';
 import { listFeaturesService } from '../services/listFeatures.js';
 import { featureCounts, flowCounts, gateCheckStats, knowledgeCounts, proposalsSummary } from '../store/analytics.js';
 import { listApps, requireApp } from '../store/apps.js';
+import { listCommitsForRouting } from '../store/commits.js';
 import { requireFeature } from '../store/features.js';
 import { listProposals } from '../store/proposals.js';
+import { listRoutingEvents, requireRoutingEvent, routingSummary } from '../store/routingEvents.js';
 import { listTransitions } from '../store/transitions.js';
 import { adminAuth } from './adminAuth.js';
 
@@ -16,6 +18,17 @@ const adminUiDist = fileURLToPath(new URL('../../admin-ui/dist', import.meta.url
 
 const AppQuery = z.object({ app: z.string().optional() });
 const ProposalsQuery = z.object({ status: z.enum(['pending', 'approved', 'rejected']).optional() });
+const DateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'expected YYYY-MM-DD');
+const RoutingQuery = z.object({
+  app: z.string().optional(),
+  from: DateOnly.optional(),
+  to: DateOnly.optional(),
+  limit: z.coerce.number().int().min(1).max(500).default(200),
+}).refine((v) => !v.from || !v.to || v.from <= v.to, { message: 'from must be on or before to', path: ['from'] });
+
+function dayRange(from: string | undefined, to: string | undefined): { from: Date | null; to: Date | null } {
+  return { from: from ? new Date(`${from}T00:00:00.000Z`) : null, to: to ? new Date(`${to}T23:59:59.999Z`) : null };
+}
 
 async function resolveAppId(deps: ServiceDeps, slug: string | undefined): Promise<string | null> {
   if (!slug) return null;
@@ -30,7 +43,7 @@ export function createAdminRouter(deps: ServiceDeps & { logger?: Logger }, token
       try {
         await fn(req, res);
       } catch (e) {
-        if (isDomainError(e) && (e.code === 'APP_NOT_FOUND' || e.code === 'FEATURE_NOT_FOUND')) {
+        if (isDomainError(e) && (e.code === 'APP_NOT_FOUND' || e.code === 'FEATURE_NOT_FOUND' || e.code === 'ROUTING_EVENT_NOT_FOUND')) {
           res.status(404).json({ error: e.message });
           return;
         }
@@ -90,6 +103,23 @@ export function createAdminRouter(deps: ServiceDeps & { logger?: Logger }, token
   router.get('/api/proposals', handle(async (req, res) => {
     const { status } = ProposalsQuery.parse(req.query);
     res.json({ proposals: await listProposals(deps.pool, status ?? null) });
+  }));
+
+  router.get('/api/routing', handle(async (req, res) => {
+    const { app, from, to, limit } = RoutingQuery.parse(req.query);
+    const appId = await resolveAppId(deps, app);
+    const range = dayRange(from, to);
+    const [events, summary] = await Promise.all([
+      listRoutingEvents(deps.pool, { appId, ...range, limit }),
+      routingSummary(deps.pool, { appId, ...range }),
+    ]);
+    res.json({ events, summary });
+  }));
+
+  router.get('/api/routing/:id', handle(async (req, res) => {
+    const event = await requireRoutingEvent(deps.pool, req.params.id as string);
+    const commits = await listCommitsForRouting(deps.pool, event);
+    res.json({ event, commits });
   }));
 
   router.use(express.static(adminUiDist));
