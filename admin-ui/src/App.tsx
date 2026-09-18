@@ -3,14 +3,16 @@ import { Overview } from './views/Overview';
 import { AppsFeatures } from './views/AppsFeatures';
 import { Flow } from './views/Flow';
 import { Proposals } from './views/Proposals';
+import { Work } from './views/Work';
 
-type Tab = 'overview' | 'apps' | 'flow' | 'proposals';
+type Tab = 'overview' | 'apps' | 'flow' | 'proposals' | 'work';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'apps', label: 'Apps & Features' },
   { id: 'flow', label: 'Flow' },
   { id: 'proposals', label: 'Proposals' },
+  { id: 'work', label: 'Work' },
 ];
 
 export function App() {
@@ -29,6 +31,7 @@ export function App() {
         {tab === 'apps' && <AppsFeatures />}
         {tab === 'flow' && <Flow />}
         {tab === 'proposals' && <Proposals />}
+        {tab === 'work' && <Work />}
       </main>
     </div>
   );

@@ -68,3 +68,37 @@ export interface Proposal {
   created_at: string;
   created_by: string;
 }
+
+export interface RoutingEvent {
+  id: string;
+  app_id: string;
+  app_slug: string;
+  external_ref: string | null;
+  trigger_ref: string | null;
+  task_description: string;
+  intent: string;
+  framework: string;
+  lite: boolean;
+  route_count: number;
+  first_routed_at: string;
+  last_routed_at: string;
+  feature_id: string | null;
+  feature_slug: string | null;
+  feature_status: string | null;
+  feature_phase: string | null;
+  commit_count: number;
+  decision: { track: string | null; rule: string; reasons: string[] };
+  workspace: { paths_touched?: string[] | null } | null;
+}
+
+export interface RoutingSummary { intent: string; count: number }
+
+export interface Commit {
+  id: string;
+  sha: string;
+  branch: string | null;
+  message: string;
+  files_changed: string[];
+  committed_at: string | null;
+  created_at: string;
+}

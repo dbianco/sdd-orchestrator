@@ -16,3 +16,8 @@ th, td { border: 1px solid #ccc; padding: 0.4rem 0.6rem; text-align: left; }
 .flow-matrix th, .flow-matrix td { text-align: center; min-width: 2.5rem; }
 .apps-list { list-style: none; padding: 0; }
 .apps-list li { padding: 0.25rem 0; }
+.filters { display: flex; gap: 0.75rem; align-items: flex-end; flex-wrap: wrap; margin-bottom: 1rem; }
+.filter { display: flex; flex-direction: column; font-size: 0.85rem; gap: 0.2rem; }
+.badge { display: inline-block; padding: 0.1rem 0.45rem; border-radius: 4px; background: #e5e7eb; font-size: 0.85em; white-space: nowrap; }
+.row-link { cursor: pointer; }
+.row-link:hover { background: #f3f4f6; }
