@@ -10,7 +10,7 @@ import { listApps, requireApp } from '../store/apps.js';
 import { listCommitsForRouting } from '../store/commits.js';
 import { requireFeature } from '../store/features.js';
 import { listProposals } from '../store/proposals.js';
-import { listRoutingEvents, requireRoutingEvent, routingSummary } from '../store/routingEvents.js';
+import { listRoutingEvents, requireRoutingEventDetail, routingSummary } from '../store/routingEvents.js';
 import { listTransitions } from '../store/transitions.js';
 import { adminAuth } from './adminAuth.js';
 
@@ -117,7 +117,7 @@ export function createAdminRouter(deps: ServiceDeps & { logger?: Logger }, token
   }));
 
   router.get('/api/routing/:id', handle(async (req, res) => {
-    const event = await requireRoutingEvent(deps.pool, req.params.id as string);
+    const event = await requireRoutingEventDetail(deps.pool, req.params.id as string);
     const commits = await listCommitsForRouting(deps.pool, event);
     res.json({ event, commits });
   }));

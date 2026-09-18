@@ -148,8 +148,13 @@ describe.skipIf(!url)('admin routes', () => {
     expect(none.summary).toEqual([]);
 
     const detail = (await (await fetch(`${listening.origin}/admin/api/routing/${trivial.routing_id}`, { headers })).json()) as any;
-    expect(detail.event.id).toBe(trivial.routing_id);
+    expect(detail.event).toMatchObject({ id: trivial.routing_id, app_slug: 'checkout', commit_count: 1, feature_id: null });
     expect(detail.commits).toEqual([expect.objectContaining({ sha: 'abc1234', files_changed: ['src/dates.ts'] })]);
+
+    const featureDetail = (await (await fetch(`${listening.origin}/admin/api/routing/${started.routing_id}`, { headers })).json()) as any;
+    expect(featureDetail.event).toMatchObject({
+      id: started.routing_id, app_slug: 'checkout', feature_id: started.feature_id, feature_slug: started.feature.slug, feature_status: 'active', feature_phase: 'specify', commit_count: 0,
+    });
 
     expect((await fetch(`${listening.origin}/admin/api/routing/r_nope`, { headers })).status).toBe(404);
     expect((await fetch(`${listening.origin}/admin/api/routing?app=nope`, { headers })).status).toBe(404);

@@ -89,6 +89,20 @@ export async function listRoutingEvents(q: Queryable, f: RoutingFilter & { limit
   return r.rows;
 }
 
+export async function requireRoutingEventDetail(q: Queryable, id: string): Promise<RoutingEventListRow> {
+  const r = await q.query<RoutingEventListRow>(
+    `SELECT e.*, a.slug AS app_slug, f.slug AS feature_slug, f.status AS feature_status, f.current_phase AS feature_phase,
+       (SELECT count(*)::int FROM commits c WHERE c.routing_id = e.id OR (e.feature_id IS NOT NULL AND c.feature_id = e.feature_id)) AS commit_count
+     FROM routing_events e
+     JOIN apps a ON a.id = e.app_id
+     LEFT JOIN features f ON f.id = e.feature_id
+     WHERE e.id = $1`,
+    [id],
+  );
+  if (!r.rows[0]) throw new DomainError('ROUTING_EVENT_NOT_FOUND', `no routing event with id "${id}"`, { routing_id: id });
+  return r.rows[0];
+}
+
 export async function routingSummary(q: Queryable, f: RoutingFilter): Promise<{ intent: string; count: number }[]> {
   const r = await q.query<{ intent: string; count: number }>(
     `SELECT e.intent, count(*)::int AS count FROM routing_events e WHERE ${FILTER} GROUP BY e.intent ORDER BY count DESC, e.intent`,
