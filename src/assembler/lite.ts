@@ -14,7 +14,7 @@ export interface LitePack {
   items: { stable_id: string; version: number }[]; warnings: string[];
 }
 
-export async function buildLitePack(deps: AssemblerDeps, input: { app: AppRow; taskDescription: string; stack: string[] }): Promise<LitePack> {
+export async function buildLitePack(deps: AssemblerDeps, input: { app: AppRow; taskDescription: string; stack: string[]; routingId?: string }): Promise<LitePack> {
   const { app } = input;
   const warnings: string[] = [];
   const budget = app.token_budget ?? deps.defaultBudget;
@@ -23,7 +23,8 @@ export async function buildLitePack(deps: AssemblerDeps, input: { app: AppRow; t
   warnings.push(...lw);
   const stackPacks = layers.filter((l) => l.kind === 'stack_guide').map((l) => l.pack_name);
   const fixed = `# Lite pack\n\n## Always-on standards\n\n${renderAlwaysOn(alwaysOn) || '(none)'}\n\n## Stack guides\n\n`;
-  const footer = `\n\n## Stop conditions\n\n${renderStopConditions(app.stop_conditions)}`;
+  const footer = `\n\n## Stop conditions\n\n${renderStopConditions(app.stop_conditions)}`
+    + (input.routingId ? `\n\nWhen you commit, call record_commit with routing_id "${input.routingId}".` : '');
   const fixedTokens = countTokens(fixed + footer);
   // degraded reflects whether the embedder itself is unavailable, not whether retrieval happened to
   // run: a missing embedder must report degraded even when no stack pack matched and retrieve() was

@@ -27,6 +27,7 @@ export function renderPhaseInstructions(input: InstructionInput): string {
       ? `When done, call advance_phase with expected_phase: "${phase}", target_phase: "${next}" and artifacts: ${gate.artifacts.join(', ')}.`
       : `When done, call advance_phase with expected_phase: "${phase}", target_phase: "${next}".`,
     `Keep the feature id ${feature_id}; every later call needs it.`,
+    `After each commit, call record_commit with feature_id "${feature_id}".`,
     gate?.checks.some((c) => c.name === 'verify_evidence')
       ? `This transition requires evidence: tests, lint, security, and files_changed (see the verify_evidence check).`
       : null,

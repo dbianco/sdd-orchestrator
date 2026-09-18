@@ -82,9 +82,12 @@ describe.skipIf(!url)('routeTask and startFeature', () => {
   });
 
   it('retries once and succeeds twice when two concurrent starts collide on the same slug', async () => {
+    // Distinct task_description (and hence distinct routing-event identity) per call, but the
+    // same explicit feature_slug, so the collision is on the features table's slug uniqueness,
+    // not on the routing_events identity that startFeature now resolves per call.
     const decision: Decision = { intent: 'feature', framework: 'mini', track: 'default', confidence: 'high', rule: 'r', reasons: [], high_risk: false, policy_version: null, framework_pack_version: '1.0.0' };
-    const input = { app: 'checkout', actor: 'd', task_description: 'Add CSV export', decision };
-    const [a, b] = await Promise.all([startFeature(deps, input), startFeature(deps, input)]);
+    const input = (n: number) => ({ app: 'checkout', actor: 'd', task_description: `Add CSV export ${n}`, decision, feature_slug: 'dup-slug' });
+    const [a, b] = await Promise.all([startFeature(deps, input(1)), startFeature(deps, input(2))]);
     expect(a.feature_id).not.toBe(b.feature_id);
     expect(a.feature.slug).not.toBe(b.feature.slug);
     const rows = (await deps.pool.query('SELECT id, slug FROM features ORDER BY slug')).rows;

@@ -25,15 +25,20 @@ describe.skipIf(!url)('route_task over stdio', () => {
     });
   });
 
-  it('routes, returns structuredContent, and writes nothing', async () => {
+  it('routes, returns structuredContent and a stable routing_id, and creates no feature', async () => {
     await withClient('stdio', async (client) => {
-      const r = await client.callTool({ name: 'route_task', arguments: { task_description: 'Add CSV export', app: 'checkout', workspace: { estimated_files: 4, is_greenfield: false }, framework_preference: 'mini' } });
-      const s = structuredOf<{ decision: { framework: string }; attached_layers: unknown[] }>(r);
+      const args = { task_description: 'Add CSV export', app: 'checkout', workspace: { estimated_files: 4, is_greenfield: false }, framework_preference: 'mini' };
+      const r = await client.callTool({ name: 'route_task', arguments: args });
+      const s = structuredOf<{ decision: { framework: string }; attached_layers: unknown[]; routing_id: string }>(r);
       expect(s.decision.framework).toBe('mini');
       expect(s.attached_layers).toHaveLength(2);
+      expect(s.routing_id).toMatch(/^r_/);
       expect(JSON.parse(textOf(r)).decision.framework).toBe('mini');
+      const again = structuredOf<{ routing_id: string }>(await client.callTool({ name: 'route_task', arguments: args }));
+      expect(again.routing_id).toBe(s.routing_id);
       const pool = await getTestPool();
       expect((await pool.query('SELECT count(*)::int AS n FROM features')).rows[0].n).toBe(0);
+      expect((await pool.query('SELECT count(*)::int AS n FROM routing_events')).rows[0].n).toBe(1);
     });
   });
 

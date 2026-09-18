@@ -10,14 +10,16 @@ import { requireApp } from '../store/apps.js';
 import { createFeature } from '../store/features.js';
 import { currentFramework, trackNames, trackOf } from '../store/frameworks.js';
 import { currentPolicy } from '../store/policies.js';
+import { findRoutingEventByIdentity, identityKey, linkRoutingEventToFeature, requireRoutingEvent, upsertRoutingEvent } from '../store/routingEvents.js';
+import type { RoutingEventRow } from '../store/rows.js';
 import type { ServiceDeps } from './deps.js';
 import { featureState, type FeatureState } from './featureState.js';
 
 export interface StartFeatureInput {
   app: string; actor: string; task_description: string; decision: Decision; workspace?: Workspace | null; feature_slug?: string | null;
-  external_ref?: string | null; trigger_ref?: string | null; policy_override_reason?: string | null;
+  external_ref?: string | null; trigger_ref?: string | null; policy_override_reason?: string | null; routing_id?: string | null;
 }
-export interface StartFeatureResult { feature_id: string; context_pack: string; pack_id: string; feature: FeatureState; next_instructions: string; warnings: string[] }
+export interface StartFeatureResult { feature_id: string; routing_id: string; context_pack: string; pack_id: string; feature: FeatureState; next_instructions: string; warnings: string[] }
 
 /**
  * Two concurrent `startFeature` calls that resolve to the same feature slug (e.g. the same
@@ -62,6 +64,18 @@ export async function startFeature(deps: ServiceDeps, input: StartFeatureInput):
     if (decision.framework_pack_version && decision.framework_pack_version !== fw.pack_version) {
       warnings.push(`decision named pack version ${decision.framework_pack_version}; pinned ${fw.pack_version}`);
     }
+    let routingEvent: RoutingEventRow;
+    if (input.routing_id) {
+      routingEvent = await requireRoutingEvent(tx, input.routing_id);
+      if (routingEvent.app_id !== app.id) throw new DomainError('VALIDATION_ERROR', `routing event ${routingEvent.id} belongs to another app`, { field: 'routing_id' });
+    } else {
+      const key = identityKey(input.external_ref ?? null, input.task_description);
+      routingEvent = (await findRoutingEventByIdentity(tx, app.id, key)) ?? await upsertRoutingEvent(tx, {
+        app_id: app.id, external_ref: input.external_ref ?? null, trigger_ref: input.trigger_ref ?? null, task_description: input.task_description,
+        decision, lite: false, workspace: input.workspace ?? null,
+      }, input.actor, { countRoute: false });
+    }
+    if (routingEvent.feature_id) throw new DomainError('VALIDATION_ERROR', `routing event ${routingEvent.id} already belongs to feature ${routingEvent.feature_id}`, { field: 'routing_id' });
     const feature = await createFeature(tx, {
       app_id: app.id,
       slug: input.feature_slug ? slugify(input.feature_slug) : defaultFeatureSlug(input.task_description, input.external_ref ?? null),
@@ -69,13 +83,14 @@ export async function startFeature(deps: ServiceDeps, input: StartFeatureInput):
       policy_version: policy?.version ?? null, policy_override_reason: input.policy_override_reason ?? null, source_task: input.task_description,
       external_ref: input.external_ref ?? null, trigger_ref: input.trigger_ref ?? null, decision, workspace: input.workspace ?? null,
     }, input.actor);
+    await linkRoutingEventToFeature(tx, routingEvent.id, feature.id);
     const { pack, warnings: packWarnings } = await assembleContextPack({ q: tx, embedder: deps.embedder, defaultBudget: deps.tokenBudget }, { feature, app, phase: 'specify', focus: null, scope: 'app', createdBy: input.actor });
     warnings.push(...packWarnings);
     if (pack.degraded) deps.metrics?.degradedPack();
     if (pack.over_budget) deps.metrics?.overBudgetPack();
     const { state } = await featureState(tx, feature);
     const nextInstructions = renderPhaseInstructions({ feature_id: feature.id, framework: feature.framework, track: feature.track, phase: 'specify', track_decl: trackOf(fw, track) });
-    return { feature_id: feature.id, context_pack: pack.rendered, pack_id: pack.id, feature: state, next_instructions: nextInstructions, warnings };
+    return { feature_id: feature.id, routing_id: routingEvent.id, context_pack: pack.rendered, pack_id: pack.id, feature: state, next_instructions: nextInstructions, warnings };
   });
 
   try {

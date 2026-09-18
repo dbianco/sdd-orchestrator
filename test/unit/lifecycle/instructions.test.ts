@@ -41,6 +41,7 @@ describe('renderPhaseInstructions', () => {
     expect(text).toContain('Keep the feature id f_1');
     expect(text).toContain('expected_phase: "specify"');
     expect(text).toContain('target_phase: "implement"');
+    expect(text).toContain('After each commit, call record_commit with feature_id "f_1".');
   });
   it('hints that evidence is required when the forward gate declares verify_evidence', () => {
     const text = renderPhaseInstructions({ feature_id: 'f_1', framework: 'openspec', track: 'default', phase: 'verify', track_decl: trackWithVerifyEvidence });
