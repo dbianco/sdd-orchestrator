@@ -27,11 +27,11 @@ export async function routeTask(deps: ServiceDeps, input: RouteTaskInput): Promi
     task_description: input.task_description, workspace: input.workspace, framework_preference: input.framework_preference ?? null,
     policy: policy?.policy ?? null, policy_version: policy?.version ?? null, app: { compliance: app.compliance, default_stack: app.default_stack }, frameworks,
   });
-  deps.metrics?.routed(out.decision.rule);
   const event = await upsertRoutingEvent(q, {
     app_id: app.id, external_ref: input.external_ref ?? null, trigger_ref: input.trigger_ref ?? null, task_description: input.task_description,
     decision: out.decision, lite: out.lite, workspace: input.workspace,
   }, input.actor ?? 'host', { countRoute: true });
+  deps.metrics?.routed(out.decision.rule);
   const stack = resolveStack(input.workspace.stack, app.default_stack);
   const { layers, warnings: layerWarnings } = await attachedLayers(q, stack);
   const warnings = [...out.warnings, ...layerWarnings];

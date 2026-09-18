@@ -2,6 +2,7 @@ import type { Queryable } from '../db/pool.js';
 import { newId } from '../ids.js';
 import type { CommitRow } from './rows.js';
 
+// Size limits (message, files_changed, branch) are enforced by the record_commit tool schema; a future webhook entry point must re-apply them.
 export interface NewCommit {
   app_id: string; sha: string; branch: string | null; message: string; files_changed: string[]; committed_at: Date | null;
   routing_id: string | null; feature_id: string | null;
