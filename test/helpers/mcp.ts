@@ -7,7 +7,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 export const TRANSPORTS = ['stdio', 'http'] as const;
 export type TransportMode = (typeof TRANSPORTS)[number];
 
-const env = { ...process.env, SDD_DATABASE_URL: process.env.SDD_TEST_DATABASE_URL!, SDD_EMBEDDING_PROVIDER: 'fake', SDD_LOG_LEVEL: 'warn' };
+const env = { ...process.env, SDD_DATABASE_URL: process.env.SDD_TEST_DATABASE_URL!, SDD_EMBEDDING_PROVIDER: 'fake', SDD_LOG_LEVEL: 'warn', SDD_AUTH_MODE: 'off' };
 
 async function waitForHealth(url: string, ms = 20_000): Promise<void> {
   const deadline = Date.now() + ms;
@@ -30,7 +30,7 @@ export async function withClient(mode: TransportMode, fn: (client: Client, info:
       await client.connect(new StdioClientTransport({ command: 'npx', args: ['tsx', 'src/index.ts', '--stdio'], env: { ...env, ...opts.env }, stderr: 'ignore' }));
     } else {
       const port = 18_000 + Math.floor(Math.random() * 1000);
-      child = spawn('npx', ['tsx', 'src/index.ts'], { env: { ...env, ...opts.env, SDD_LISTEN: `127.0.0.1:${port}`, SDD_ALLOWED_HOSTS: `127.0.0.1:${port},localhost:${port}` }, stdio: 'ignore' });
+      child = spawn('npx', ['tsx', 'src/index.ts'], { env: { ...env, ...opts.env, SDD_LISTEN: `127.0.0.1:${port}`, SDD_ALLOWED_HOSTS: `127.0.0.1:${port},localhost:${port}` }, stdio: 'ignore', detached: true });
       info.baseUrl = `http://127.0.0.1:${port}`;
       await waitForHealth(`${info.baseUrl}/healthz`);
       await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp`), { requestInit: { headers: opts.headers ?? {} } }));
@@ -38,7 +38,8 @@ export async function withClient(mode: TransportMode, fn: (client: Client, info:
     await fn(client, info);
   } finally {
     await client.close().catch(() => undefined);
-    child?.kill('SIGTERM');
+    // npx starts tsx which starts node; killing only npx would orphan the server, so end the whole group.
+    if (child?.pid) { try { process.kill(-child.pid, 'SIGTERM'); } catch { /* already gone */ } }
   }
 }
 
