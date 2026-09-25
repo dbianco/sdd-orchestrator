@@ -1,3 +1,4 @@
+import { GATE_LIBRARY_VERSION } from '../../../src/gates/library.js';
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { fileURLToPath } from 'node:url';
 import { getTestPool, truncateAll, closeTestPool } from '../../helpers/db.js';
@@ -30,7 +31,7 @@ describe.skipIf(!url)('ingestPack', () => {
     expect(report.skipped).toEqual([]);
     const fw = await currentFramework(pool, 'mini');
     expect(fw?.pack_version).toBe('1.0.0');
-    expect(fw?.gate_library_version).toBe('1');
+    expect(fw?.gate_library_version).toBe(GATE_LIBRARY_VERSION);
     const item = await currentItem(pool, 'mini.template.proposal');
     expect(item).toMatchObject({ kind: 'framework_pack', framework: 'mini', pack_name: 'mini', pack_version: '1.0.0', phase_tags: ['specify'], license: 'MIT', source_url: 'https://example.com/mini' });
     const chunks = await pool.query('SELECT count(*)::int AS n FROM knowledge_chunks c JOIN knowledge_items i ON i.id = c.item_id WHERE i.stable_id = $1', ['mini.guide.proposals']);

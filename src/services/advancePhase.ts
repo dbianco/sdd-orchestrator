@@ -13,6 +13,7 @@ import { getPack, latestPack } from '../store/packs.js';
 import { insertArtifacts, insertTransition, sha256 } from '../store/transitions.js';
 import type { ServiceDeps } from './deps.js';
 import { featureState, type FeatureState } from './featureState.js';
+import { captureRequirements, requirementIdsFor } from './requirements.js';
 
 export interface AdvancePhaseInput {
   feature_id: string; actor: string; expected_phase: Phase; target_phase: string; artifacts?: Record<string, string>; evidence?: unknown;
@@ -70,7 +71,8 @@ export async function advancePhase(deps: ServiceDeps, input: AdvancePhaseInput):
     if (direction === 'forward') {
       const gate = gateFor(track, feature.current_phase, target);
       const mandated = mandatesApproval(track, feature.current_phase, target, feature.high_risk);
-      const outcome = runGate(gate, { artifacts, evidence: input.evidence ?? null, human_approved: input.human_approved ?? false }, mandated);
+      const requirements = await requirementIdsFor(tx, feature.id);
+      const outcome = runGate(gate, { artifacts, evidence: input.evidence ?? null, human_approved: input.human_approved ?? false, requirements }, mandated);
       if (input.dry_run) {
         const { state } = await featureState(tx, feature);
         return { result: outcome.result, findings: outcome.findings, next_instructions: null, feature: state, warnings };
@@ -85,6 +87,7 @@ export async function advancePhase(deps: ServiceDeps, input: AdvancePhaseInput):
         const { state } = await featureState(tx, feature);
         return { result: 'fail', findings: outcome.findings, next_instructions: null, feature: state, warnings };
       }
+      await captureRequirements(tx, gate, artifacts, feature.id, transition.id, input.actor);
       const updated = target === 'archived'
         ? await updateFeature(tx, feature.id, { status: 'archived' })
         : await updateFeature(tx, feature.id, { current_phase: target });
