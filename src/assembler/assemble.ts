@@ -1,7 +1,7 @@
 import type { Phase, Scope } from '../domain/types.js';
 import { DomainError } from '../errors.js';
 import { renderNextGate, renderPhaseInstructions } from '../lifecycle/instructions.js';
-import { phaseMapping } from '../lifecycle/track.js';
+import { phaseMapping, phaseTemplates } from '../lifecycle/track.js';
 import { currentItem, listAlwaysOn } from '../store/knowledge.js';
 import { insertPack } from '../store/packs.js';
 import { getFrameworkVersion, trackOf } from '../store/frameworks.js';
@@ -20,8 +20,7 @@ export interface AssembledPack { pack: ContextPackRow; warnings: string[] }
 
 interface Scored { chunk: RetrievedChunk; tokens: number; score: number }
 
-async function pinnedTemplate(deps: AssemblerDeps, feature: FeatureRow, templateId: string | undefined, warnings: string[]): Promise<KnowledgeItemRow | null> {
-  if (!templateId) return null;
+async function pinnedTemplate(deps: AssemblerDeps, feature: FeatureRow, templateId: string, warnings: string[]): Promise<KnowledgeItemRow | null> {
   const r = await deps.q.query<KnowledgeItemRow>(
     `SELECT * FROM knowledge_items WHERE stable_id = $1 AND pack_name = $2 AND pack_version = $3 ORDER BY version DESC LIMIT 1`,
     [templateId, feature.framework, feature.framework_pack_version],
@@ -53,13 +52,21 @@ export async function assembleContextPack(deps: AssemblerDeps, input: AssembleIn
   const alwaysOn = await listAlwaysOn(deps.q, app.id);
   items.push(...alwaysOn.map((i) => ({ stable_id: i.stable_id, version: i.version })));
   // Position 3
-  const template = await pinnedTemplate(deps, feature, mapping.template, warnings);
-  if (mapping.template && !template) warnings.push(`phase template "${mapping.template}" not found for ${feature.framework}@${feature.framework_pack_version}`);
-  if (template) items.push({ stable_id: template.stable_id, version: template.version });
+  const templates: KnowledgeItemRow[] = [];
+  for (const id of phaseTemplates(mapping)) {
+    const t = await pinnedTemplate(deps, feature, id, warnings);
+    if (!t) { warnings.push(`phase template "${id}" not found for ${feature.framework}@${feature.framework_pack_version}`); continue; }
+    templates.push(t);
+    items.push({ stable_id: t.stable_id, version: t.version });
+  }
+  const templateText = templates.length === 1
+    ? templates[0]!.body
+    : templates.map((t) => `### ${t.title} (${t.stable_id})\n\n${t.body}`).join('\n\n');
+  const pinnedIds = [...templates.map((t) => t.id), ...alwaysOn.map((i) => i.id)];
   // Position 6
   const footer = `${renderStopConditions(app.stop_conditions)}\n\n${renderNextGate(track, phase, feature.high_risk)}`;
 
-  const fixedText = renderPack({ header, alwaysOn: renderAlwaysOn(alwaysOn), template: template?.body ?? '', retrieved: '', stack: '', footer });
+  const fixedText = renderPack({ header, alwaysOn: renderAlwaysOn(alwaysOn), template: templateText, retrieved: '', stack: '', footer });
   const fixedTokens = countTokens(fixedText);
 
   // Positions 4 and 5
@@ -72,11 +79,11 @@ export async function assembleContextPack(deps: AssemblerDeps, input: AssembleIn
 
   const knowledge = await retrieve(deps, {
     query, ids, minSimilarity,
-    filter: { scope: resolved, framework: feature.framework, frameworkPackVersion: feature.framework_pack_version, phase, kinds: ['app_memory', 'standard', 'framework_pack'], tier: null, excludeItemIds: [...(template ? [template.id] : []), ...alwaysOn.map((i) => i.id)] },
+    filter: { scope: resolved, framework: feature.framework, frameworkPackVersion: feature.framework_pack_version, phase, kinds: ['app_memory', 'standard', 'framework_pack'], tier: null, excludeItemIds: pinnedIds },
   });
   const guides = stackPacks.length === 0
     ? { chunks: [], degraded: knowledge.degraded }
-    : await retrieve(deps, { query, ids, minSimilarity, filter: { scope: resolved, framework: feature.framework, frameworkPackVersion: feature.framework_pack_version, phase, kinds: ['stack_guide'], packNames: stackPacks, excludeItemIds: [...(template ? [template.id] : []), ...alwaysOn.map((i) => i.id)] } });
+    : await retrieve(deps, { query, ids, minSimilarity, filter: { scope: resolved, framework: feature.framework, frameworkPackVersion: feature.framework_pack_version, phase, kinds: ['stack_guide'], packNames: stackPacks, excludeItemIds: pinnedIds } });
   const degraded = knowledge.degraded || guides.degraded;
   if (degraded) warnings.push('retrieval degraded: embedding provider unavailable, positions 4 and 5 built from exact-id matches only');
 
@@ -87,7 +94,7 @@ export async function assembleContextPack(deps: AssemblerDeps, input: AssembleIn
   for (const s of [...trimmed.retrieved, ...trimmed.stack]) items.push({ stable_id: s.chunk.stable_id, version: s.chunk.version });
 
   const rendered = renderPack({
-    header, alwaysOn: renderAlwaysOn(alwaysOn), template: template?.body ?? '',
+    header, alwaysOn: renderAlwaysOn(alwaysOn), template: templateText,
     retrieved: trimmed.retrieved.map((s) => renderChunk(s.chunk)).join('\n\n'),
     stack: trimmed.stack.map((s) => renderChunk(s.chunk)).join('\n\n'),
     footer,

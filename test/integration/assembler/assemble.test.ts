@@ -212,4 +212,20 @@ describe.skipIf(!url)('attachedLayers and lite pack', () => {
     const lite = await buildLitePack({ q: pool, embedder: null, defaultBudget: 6000 }, { app, taskDescription: 'csv export orders', stack: ['nonexistent-stack'] });
     expect(lite.degraded).toBe(true);
   });
+
+  it('pins every template a phase lists, in order, and keeps them out of retrieval', async () => {
+    const pool = await getTestPool();
+    const { app, feature } = await fixture(pool);
+    const multi: TrackDecl = { ...track, phases: { ...track.phases, specify: { alias: 'proposal', templates: ['openspec.template.proposal', 'openspec.template.spec', 'openspec.template.missing'] } } };
+    await upsertFramework(pool, { name: 'openspec', pack_version: '1.0.0', tracks: { default: multi }, gate_library_version: '1' }, 'cli');
+    await seed(pool, { stable_id: 'openspec.template.spec', kind: 'framework_pack', framework: 'openspec', pack_name: 'openspec', phase_tags: ['specify'], title: 'Delta spec template', body: '## ADDED Requirements\n### Requirement: csv export orders' });
+    const { pack, warnings } = await assembleContextPack({ q: pool, embedder: new FakeEmbeddingProvider(), defaultBudget: 6000 }, { feature, app, phase: 'specify', focus: 'csv export orders requirement', scope: 'app', createdBy: 'daniel' });
+    const pos3 = pack.rendered.slice(pack.rendered.indexOf('## 3.'), pack.rendered.indexOf('## 4.'));
+    expect(pos3.indexOf('### Proposal template (openspec.template.proposal)')).toBeGreaterThan(-1);
+    expect(pos3.indexOf('### Proposal template (openspec.template.proposal)')).toBeLessThan(pos3.indexOf('### Delta spec template (openspec.template.spec)'));
+    expect(pos3).toContain('## ADDED Requirements');
+    expect(pack.rendered).not.toContain('<retrieved id="openspec.template.spec"');
+    expect(pack.items).toEqual(expect.arrayContaining([{ stable_id: 'openspec.template.proposal', version: 1 }, { stable_id: 'openspec.template.spec', version: 1 }]));
+    expect(warnings).toContain('phase template "openspec.template.missing" not found for openspec@1.0.0');
+  });
 });
