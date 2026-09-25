@@ -15,6 +15,8 @@ describe('openspec pack', () => {
     expect(phaseOrder(tracks.hotfix!)).toEqual(['specify', 'implement', 'verify', 'integrate', 'learn']);
     expect(phaseOrder(tracks.refactor!)).toEqual(['specify', 'implement', 'verify', 'integrate']);
     expect(tracks.hotfix!.spec_review).toBe('deferred');
+    expect(tracks.hotfix!.intents).toEqual(['incident']);
+    expect(tracks.refactor!.intents).toEqual(['refactor']);
     expect(tracks.default!.phases.specify).toMatchObject({ alias: 'proposal' });
     expect(tracks.default!.gates.map((g) => g.transition)).toEqual(['specify->implement', 'verify->integrate']);
     const refactorVerify = tracks.refactor!.gates.find((g) => g.transition === 'verify->integrate')!;

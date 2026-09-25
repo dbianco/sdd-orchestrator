@@ -52,6 +52,8 @@ export interface GateDecl {
 }
 export interface TrackDecl {
   spec_review?: 'required' | 'deferred';
+  intents?: Intent[];
+  is_default?: boolean;
   phases: Record<Phase, PhaseEntry>;
   gates: GateDecl[];
 }

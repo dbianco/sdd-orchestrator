@@ -59,7 +59,10 @@ the server as a host assertion (spec section 8.3).
    feature exists, write its id to `.sdd/feature.json` and call `get_context`.
 2. Otherwise call `route_task` with the ticket as `external_ref` and your
    name as `actor`. It returns a `routing_id`; the same task routed again
-   returns the same id. Show the decision. If there are clarifying
+   returns the same id. Set `workspace.intent` whenever you know the work is
+   a spike, incident, refactor, product or trivial change: the server never
+   takes those intents from the task text, and a matching phrase only comes
+   back as a clarifying question. Show the decision. If there are clarifying
    questions, answer them and call `route_task` again. For trivial work the
    lite pack is the whole context: do the change, then go to step 6.
    For everything else call `start_feature` with the accepted decision and

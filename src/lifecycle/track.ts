@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { PHASES, type GateDecl, type Phase, type PhaseMapping, type PhaseOrArchived, type TrackDecl } from '../domain/types.js';
+import { INTENTS, PHASES, type GateDecl, type Intent, type Phase, type PhaseMapping, type PhaseOrArchived, type TrackDecl } from '../domain/types.js';
 
 const PhaseMappingSchema = z.object({
   alias: z.string().min(1).optional(),
@@ -21,6 +21,8 @@ export const GateDeclSchema = z.object({
 
 export const TrackDeclSchema = z.object({
   spec_review: z.enum(['required', 'deferred']).optional(),
+  intents: z.array(z.enum(INTENTS)).optional(),
+  is_default: z.boolean().optional(),
   phases: z.object(Object.fromEntries(PHASES.map((p) => [p, PhaseEntrySchema])) as Record<Phase, typeof PhaseEntrySchema>),
   gates: z.array(GateDeclSchema).default([]),
 });
@@ -50,6 +52,21 @@ export function phaseMapping(track: TrackDecl, phase: Phase): PhaseMapping {
 export function phaseAlias(track: TrackDecl, phase: Phase): string {
   const entry = track.phases[phase];
   return entry === 'skipped' ? phase : entry.alias ?? phase;
+}
+
+export function validateTrackSelection(tracks: Record<string, TrackDecl>): string[] {
+  const errors: string[] = [];
+  const defaults = Object.entries(tracks).filter(([, t]) => t.is_default).map(([n]) => n);
+  if (defaults.length > 1) errors.push(`tracks ${defaults.join(', ')} are all marked is_default; at most one may be`);
+  const owner = new Map<Intent, string>();
+  for (const [name, track] of Object.entries(tracks)) {
+    for (const intent of track.intents ?? []) {
+      const other = owner.get(intent);
+      if (other) errors.push(`intent ${intent} is claimed by tracks ${other} and ${name}; at most one track may claim an intent`);
+      else owner.set(intent, name);
+    }
+  }
+  return errors;
 }
 
 export function validateTrackShape(track: TrackDecl): string[] {

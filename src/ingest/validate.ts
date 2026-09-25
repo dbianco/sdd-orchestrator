@@ -1,6 +1,6 @@
 import { PHASES, type TrackDecl } from '../domain/types.js';
 import { validateGateDecl } from '../gates/library.js';
-import { validateTrackShape } from '../lifecycle/track.js';
+import { validateTrackSelection, validateTrackShape } from '../lifecycle/track.js';
 import { countTokens } from '../tokens.js';
 import { effectiveApp, effectiveKind, type LoadedPack } from './load.js';
 
@@ -62,6 +62,7 @@ export function validatePack(pack: LoadedPack, ctx: { knownAppSlugs: Set<string>
         }
         for (const gate of track.gates) for (const e of validateGateDecl(gate)) errors.push(`track ${name} gate ${gate.transition}: ${e}`);
       }
+      errors.push(...validateTrackSelection(pack.manifest.tracks as Record<string, TrackDecl>));
     }
   } else if (pack.manifest.tracks) {
     warnings.push('tracks are ignored on non-framework packs');

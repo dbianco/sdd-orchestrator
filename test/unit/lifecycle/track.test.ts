@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
-import { TrackDeclSchema, phaseOrder, transitionKey, gateFor, phaseAlias, validateTrackShape } from '../../../src/lifecycle/track.js';
+import { TrackDeclSchema, phaseOrder, transitionKey, gateFor, phaseAlias, validateTrackSelection, validateTrackShape } from '../../../src/lifecycle/track.js';
 import type { TrackDecl } from '../../../src/domain/types.js';
 
 // Compile-time only: if the hand-written TrackDecl interface (src/domain/types.ts) and the
@@ -65,5 +65,26 @@ describe('validateTrackShape', () => {
   it('accepts the archive edge', () => {
     const ok = { ...openspecDefault, gates: [{ transition: 'integrate->archived', artifacts: [], checks: [] }] };
     expect(validateTrackShape(ok)).toEqual([]);
+  });
+});
+
+describe('validateTrackSelection', () => {
+  it('accepts one default track and one track per intent', () => {
+    expect(validateTrackSelection({
+      default: openspecDefault,
+      hotfix: { ...openspecDefault, intents: ['incident'] },
+      refactor: { ...openspecDefault, intents: ['refactor'], is_default: true },
+    })).toEqual([]);
+  });
+  it('rejects two default tracks', () => {
+    expect(validateTrackSelection({ a: { ...openspecDefault, is_default: true }, b: { ...openspecDefault, is_default: true } }))
+      .toEqual(['tracks a, b are all marked is_default; at most one may be']);
+  });
+  it('rejects an intent claimed by two tracks', () => {
+    expect(validateTrackSelection({ a: { ...openspecDefault, intents: ['incident'] }, b: { ...openspecDefault, intents: ['incident', 'refactor'] } }))
+      .toEqual(['intent incident is claimed by tracks a and b; at most one track may claim an intent']);
+  });
+  it('rejects an unknown intent in the schema', () => {
+    expect(TrackDeclSchema.safeParse({ ...openspecDefault, intents: ['hotfix'] }).success).toBe(false);
   });
 });
