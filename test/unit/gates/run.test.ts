@@ -6,9 +6,9 @@ describe('library', () => {
   it('exposes exactly the spec checks', () => {
     expect(Object.keys(GATE_LIBRARY).sort()).toEqual([
       'delta_markers', 'human_approved', 'measurable_criteria', 'missing_artifact', 'placeholder_scan',
-      'required_sections', 'scope_drift', 'task_done_checks', 'task_ordering', 'verify_evidence',
+      'required_sections', 'requirement_coverage', 'requirement_ids', 'scope_drift', 'task_done_checks', 'task_ordering', 'verify_evidence',
     ]);
-    expect(GATE_LIBRARY_VERSION).toBe('1');
+    expect(GATE_LIBRARY_VERSION).toBe('2');
   });
   it('validates declarations', () => {
     expect(validateGateDecl({ transition: 'specify->implement', artifacts: ['a.md'], checks: [{ name: 'nope' }] })).toEqual(['unknown check "nope"']);

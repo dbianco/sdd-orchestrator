@@ -8,6 +8,7 @@ export interface CheckInput {
   human_approved: boolean;
   params: Record<string, unknown>;
   severity: Severity;
+  requirements?: string[];
 }
 
 export type CheckFn = (input: CheckInput) => Finding[];

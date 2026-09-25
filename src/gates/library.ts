@@ -6,16 +6,18 @@ import { measurableCriteria } from './checks/measurableCriteria.js';
 import { missingArtifact } from './checks/missingArtifact.js';
 import { placeholderScan } from './checks/placeholderScan.js';
 import { requiredSections } from './checks/requiredSections.js';
+import { requirementCoverage } from './checks/requirementCoverage.js';
+import { requirementIds } from './checks/requirementIds.js';
 import { scopeDrift } from './checks/scopeDrift.js';
 import { taskDoneChecks } from './checks/taskDoneChecks.js';
 import { taskOrdering } from './checks/taskOrdering.js';
 import { verifyEvidence } from './checks/verifyEvidence.js';
 
-export const GATE_LIBRARY_VERSION = '1';
+export const GATE_LIBRARY_VERSION = '2';
 
 export const GATE_LIBRARY: Record<string, CheckDefinition> = Object.fromEntries(
   [missingArtifact, placeholderScan, requiredSections, measurableCriteria, taskDoneChecks, taskOrdering,
-    deltaMarkers, verifyEvidence, scopeDrift, humanApproved].map((c) => [c.name, c]),
+    deltaMarkers, verifyEvidence, scopeDrift, humanApproved, requirementIds, requirementCoverage].map((c) => [c.name, c]),
 );
 
 export function getCheck(name: string): CheckDefinition | undefined {
