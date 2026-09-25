@@ -15,7 +15,7 @@ export async function buildDeps(): Promise<HttpDeps> {
   const pool = createPool(config.databaseUrl);
   const embedder = createEmbeddingProvider(config.embedding);
   const { registry, hooks } = createMetrics();
-  return { pool, embedder, tokenBudget: config.tokenBudget, logger, metrics: hooks, registry };
+  return { pool, embedder, tokenBudget: config.tokenBudget, logger, metrics: hooks, registry, authMode: config.authMode };
 }
 
 async function main(): Promise<void> {

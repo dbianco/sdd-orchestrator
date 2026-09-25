@@ -2,12 +2,15 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import type { Config } from '../config.js';
 import type { Registry } from 'prom-client';
+import type { AuthContext } from '../auth/context.js';
 import { createAdminRouter } from '../web/adminRoutes.js';
+import { mcpAuth } from '../web/mcpAuth.js';
 import { createMcpServer, type McpDeps } from './server.js';
 
 export interface HttpDeps extends McpDeps { registry: Registry }
 
-export function createHttpApp(deps: HttpDeps, config: Config): Express {
+export function createHttpApp(baseDeps: HttpDeps, config: Config): Express {
+  const deps: HttpDeps = { ...baseDeps, authMode: config.authMode };
   const app = express();
   app.use(express.json({ limit: '4mb' }));
   app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
@@ -19,7 +22,7 @@ export function createHttpApp(deps: HttpDeps, config: Config): Express {
   });
 
   const handle = async (req: Request, res: Response) => {
-    const server = createMcpServer(deps);
+    const server = createMcpServer(deps, res.locals.auth as AuthContext);
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
       enableDnsRebindingProtection: true,
@@ -34,9 +37,10 @@ export function createHttpApp(deps: HttpDeps, config: Config): Express {
       if (!res.headersSent) res.status(500).json({ jsonrpc: '2.0', error: { code: -32603, message: 'internal error' }, id: null });
     }
   };
-  app.post('/mcp', handle);
-  app.get('/mcp', handle);
-  app.delete('/mcp', handle);
+  const auth = mcpAuth(deps, config.authMode);
+  app.post('/mcp', auth, handle);
+  app.get('/mcp', auth, handle);
+  app.delete('/mcp', auth, handle);
 
   app.get('/healthz', async (_req, res) => {
     let database = 'ok';

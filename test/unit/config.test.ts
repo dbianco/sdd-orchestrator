@@ -38,4 +38,10 @@ describe('loadConfig', () => {
     expect(ACCEPTED_MODELS.voyage).toEqual(['voyage-3', 'voyage-3-large', 'voyage-3.5', 'voyage-3.5-lite', 'voyage-code-3']);
     expect(ACCEPTED_MODELS.ollama).toEqual(['mxbai-embed-large', 'bge-m3']);
   });
+
+  it('defaults SDD_AUTH_MODE to warn and refuses unknown modes', () => {
+    expect(loadConfig({ ...base, VOYAGE_API_KEY: 'k' }).authMode).toBe('warn');
+    expect(loadConfig({ ...base, VOYAGE_API_KEY: 'k', SDD_AUTH_MODE: 'enforce' }).authMode).toBe('enforce');
+    expect(() => loadConfig({ ...base, VOYAGE_API_KEY: 'k', SDD_AUTH_MODE: 'strict' })).toThrow();
+  });
 });

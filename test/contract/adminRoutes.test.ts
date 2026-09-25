@@ -20,7 +20,7 @@ const adminUiIndexPath = fileURLToPath(new URL('../../admin-ui/dist/index.html',
 const decision: Decision = { intent: 'feature', framework: 'mini', track: 'default', confidence: 'high', rule: 'r', reasons: [], high_risk: false, policy_version: null, framework_pack_version: '1.0.0' };
 const baseConfig: Omit<Config, 'adminToken'> = {
   databaseUrl: 'unused', embedding: { provider: 'fake', model: 'fake-1024', ollamaUrl: 'unused' },
-  listen: { host: '127.0.0.1', port: 0 }, allowedHosts: ['127.0.0.1'], tokenBudget: 6000,
+  listen: { host: '127.0.0.1', port: 0 }, allowedHosts: ['127.0.0.1'], tokenBudget: 6000, authMode: 'off',
 };
 
 function listen(app: ReturnType<typeof createHttpApp>): Promise<{ server: Server; origin: string }> {

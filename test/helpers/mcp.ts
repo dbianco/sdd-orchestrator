@@ -19,20 +19,21 @@ async function waitForHealth(url: string, ms = 20_000): Promise<void> {
 }
 
 export interface ClientInfo { baseUrl: string | null }
+export interface ClientOptions { env?: Record<string, string>; headers?: Record<string, string> }
 
-export async function withClient(mode: TransportMode, fn: (client: Client, info: ClientInfo) => Promise<void>): Promise<void> {
+export async function withClient(mode: TransportMode, fn: (client: Client, info: ClientInfo) => Promise<void>, opts: ClientOptions = {}): Promise<void> {
   const client = new Client({ name: 'contract-test', version: '0.0.0' });
   let child: ChildProcess | null = null;
   const info: ClientInfo = { baseUrl: null };
   try {
     if (mode === 'stdio') {
-      await client.connect(new StdioClientTransport({ command: 'npx', args: ['tsx', 'src/index.ts', '--stdio'], env, stderr: 'ignore' }));
+      await client.connect(new StdioClientTransport({ command: 'npx', args: ['tsx', 'src/index.ts', '--stdio'], env: { ...env, ...opts.env }, stderr: 'ignore' }));
     } else {
       const port = 18_000 + Math.floor(Math.random() * 1000);
-      child = spawn('npx', ['tsx', 'src/index.ts'], { env: { ...env, SDD_LISTEN: `127.0.0.1:${port}`, SDD_ALLOWED_HOSTS: `127.0.0.1:${port},localhost:${port}` }, stdio: 'ignore' });
+      child = spawn('npx', ['tsx', 'src/index.ts'], { env: { ...env, ...opts.env, SDD_LISTEN: `127.0.0.1:${port}`, SDD_ALLOWED_HOSTS: `127.0.0.1:${port},localhost:${port}` }, stdio: 'ignore' });
       info.baseUrl = `http://127.0.0.1:${port}`;
       await waitForHealth(`${info.baseUrl}/healthz`);
-      await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp`)));
+      await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp`), { requestInit: { headers: opts.headers ?? {} } }));
     }
     await fn(client, info);
   } finally {

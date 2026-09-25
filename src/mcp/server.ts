@@ -1,4 +1,5 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { LOCAL_AUTH, type AuthContext } from '../auth/context.js';
 import type { Logger } from '../logging.js';
 import type { ServiceDeps } from '../services/deps.js';
 import { registerPrompts } from './prompts.js';
@@ -17,11 +18,11 @@ export interface McpDeps extends ServiceDeps { logger: Logger }
 
 export const SERVER_INFO = { name: 'sdd-orchestrator', version: '0.1.0' };
 
-export type Registrar = (server: McpServer, deps: McpDeps) => void;
+export type Registrar = (server: McpServer, deps: McpDeps, auth: AuthContext) => void;
 const registrars: Registrar[] = [registerRouteTask, registerStartFeature, registerRecordCommit, registerGetContext, registerAdvancePhase, registerGetFeatureStatus, registerListFeatures, registerSearchMemory, registerProposeMemory, registerResources, registerPrompts];
 
-export function createMcpServer(deps: McpDeps): McpServer {
+export function createMcpServer(deps: McpDeps, auth: AuthContext = LOCAL_AUTH): McpServer {
   const server = new McpServer(SERVER_INFO);
-  for (const r of registrars) r(server, deps);
+  for (const r of registrars) r(server, deps, auth);
   return server;
 }
