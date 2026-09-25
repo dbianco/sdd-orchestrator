@@ -46,6 +46,7 @@ Decisions taken before this draft, with the requester:
 - Approvals: a human approves a pending transition on the server, with
   `sdd-admin` or the admin UI, authenticated with their own token.
 - Process: this spec is reviewed before a plan and code are written.
+- Authentication default (after review): `SDD_AUTH_MODE` defaults to `warn`.
 
 ## 2. Goals
 
@@ -118,13 +119,14 @@ most once a minute per token.
 
 | Mode | Unauthenticated `/mcp` request | `actor` | Approvals | Evidence required from CI |
 |---|---|---|---|---|
-| `enforce` (default) | HTTP 401 with `WWW-Authenticate: Bearer` before any MCP handling | From the token | Server-side (section 5) | As section 6.3 |
-| `warn` | Accepted; logged; every result carries a warning `unauthenticated call accepted because SDD_AUTH_MODE=warn` | From the token when present, else from the payload | Server-side | As section 6.3 |
+| `enforce` | HTTP 401 with `WWW-Authenticate: Bearer` before any MCP handling | From the token | Server-side (section 5) | As section 6.3 |
+| `warn` (default) | Accepted; logged; every result carries a warning `unauthenticated call accepted because SDD_AUTH_MODE=warn` | From the token when present, else from the payload | Server-side | As section 6.3 |
 | `off` | Accepted, as in v1 | From the payload | Host-asserted `human_approved`, as in v1 | Never |
 
 An invalid token is a 401 in every mode except `off`, where the header is
-ignored. `warn` exists for migration (section 14); `off` exists for local
-development and tests.
+ignored. `warn` is the default so an upgrade without tokens keeps working;
+operators move to `enforce` once every host sends a token (section 14).
+`off` exists for local development and tests.
 
 Over stdio there is no token. The process belongs to the local user: `actor`
 comes from the payload or `SDD_ACTOR`, evidence is always tagged `host`, and
@@ -559,9 +561,10 @@ One migration, `…_trust_traceability_enforcement.js`:
 ## 13. Configuration and errors
 
 New environment variable `SDD_AUTH_MODE` (`enforce`, `warn`, `off`; default
-`enforce`). `SDD_ADMIN_TOKEN` keeps working, now read-only (section 4.5).
-`docker-compose.yml` and `.env.example` set `SDD_AUTH_MODE=enforce` and
-document how to create the first token.
+`warn`). `SDD_ADMIN_TOKEN` keeps working, now read-only (section 4.5).
+`docker-compose.yml` and `.env.example` set `SDD_AUTH_MODE=warn` explicitly,
+with a comment recommending `enforce` once tokens are issued, and document
+how to create the first token.
 
 New error codes, placed in `ERROR_PRECEDENCE` right after
 `VALIDATION_ERROR`: `FORBIDDEN` (scope, app restriction, distinct approver),
@@ -575,8 +578,11 @@ Metrics: `sdd_approvals_total{decision}`, `sdd_approval_wait_seconds`
 
 ## 14. Rollout
 
-1. Deploy with `SDD_AUTH_MODE=warn`. Nothing breaks; unauthenticated calls
-   carry a warning.
+1. Deploy. `SDD_AUTH_MODE` defaults to `warn`, so unauthenticated calls keep
+   working with a warning. One behaviour changes on upgrade: mandated
+   approvals now wait for a person (section 5), so before deploying, make
+   sure at least one reviewer per app has an `approver` token or CLI access.
+   Operators who need the v1 flag for a while can set `SDD_AUTH_MODE=off`.
 2. Create tokens for each developer (`host,approver`) and each pipeline
    (`ci`), and add the `Authorization` header to hosts' MCP configuration or
    install the plugin.
@@ -595,8 +601,9 @@ verify (section 7.2), not a blocker.
 ## 15. Deviations from the v1 design
 
 - Section 11.3 of the v1 spec says there is no authentication and `actor` is
-  attribution only. With `SDD_AUTH_MODE=enforce` (the new default), `/mcp`
-  requires a token and `actor` comes from it.
+  attribution only. With `SDD_AUTH_MODE=enforce`, `/mcp` requires a token and
+  `actor` comes from it. The default, `warn`, accepts unauthenticated calls
+  with a warning, and uses the token's actor whenever a token is sent.
 - Sections 8.3 and 10.4 say `human_approved` and verify evidence are host
   assertions the server records and never checks. With authentication on,
   mandated approvals come from a person on the server, and for compliance
@@ -647,8 +654,7 @@ follow this order.
 
 ## 18. Open questions for review
 
-1. `SDD_AUTH_MODE` defaults to `enforce`, so an upgrade without tokens fails
-   closed. Acceptable, or should the default be `warn` for one release?
+1. ~~Default `SDD_AUTH_MODE`~~ Resolved 2026-09-25: the default is `warn`.
 2. Distinct approver is forced for compliance apps and high-risk features. Is
    self-approval acceptable everywhere else, or should it be a company-wide
    policy?
