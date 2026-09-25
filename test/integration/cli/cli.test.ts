@@ -6,6 +6,9 @@ import { writeFile, mkdtemp, mkdir, cp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { getTestPool, truncateAll, closeTestPool } from '../../helpers/db.js';
+import { seedAll, embedder } from '../../helpers/seed.js';
+import { startFeature } from '../../../src/services/startFeature.js';
+import { advancePhase } from '../../../src/services/advancePhase.js';
 
 const url = process.env.SDD_TEST_DATABASE_URL;
 const fixtures = fileURLToPath(new URL('../../fixtures/packs/', import.meta.url));
@@ -105,5 +108,25 @@ describe.skipIf(!url)('sdd-admin', () => {
     expect(await admin('token', 'revoke', created.token.id, '--reason', 'lost')).toMatchObject({ id: created.token.id, revoked_reason: expect.stringContaining('lost') });
     await expect(admin('token', 'create', '--for', 'x', '--scope', 'root', '--name', 'n')).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining('--scope') });
     await expect(admin('token', 'create', '--for', 'x', '--scope', 'ci', '--name', 'n', '--app', 'nope')).rejects.toMatchObject({ code: 1 });
+  });
+
+  it('lists, shows, approves and rejects approval requests', async () => {
+    const pool = await getTestPool();
+    await seedAll(pool);
+    const deps = { pool, embedder, tokenBudget: 6000, authMode: 'warn' as const };
+    const decision = { intent: 'feature' as const, framework: 'mini', track: 'default', confidence: 'high' as const, rule: 'r', reasons: [], high_risk: false, policy_version: null, framework_pack_version: '1.0.0' };
+    const request = async (task: string) => {
+      const fid = (await startFeature(deps, { app: 'checkout', actor: 'dana', task_description: task, decision })).feature_id;
+      return (await advancePhase(deps, { feature_id: fid, actor: 'dana', expected_phase: 'specify', target_phase: 'implement', artifacts: { 'proposal.md': '## Why\nx\n\n## What Changes\ny\n' } })).approval_id!;
+    };
+    const a = await request('one');
+    const b = await request('two');
+    const listed = await admin('approvals', 'list', '--app', 'checkout') as { approvals: { id: string; app: string }[] };
+    expect(listed.approvals.map((x) => x.id)).toEqual([a, b]);
+    const shown = await admin('approvals', 'show', a) as { approval: { id: string }; artifacts: { name: string; content: string }[] };
+    expect(shown.artifacts).toEqual([expect.objectContaining({ name: 'proposal.md', content: '## Why\nx\n\n## What Changes\ny\n' })]);
+    expect(await admin('approvals', 'approve', a, '--comment', 'ok', '--actor', 'erin')).toMatchObject({ approval: { status: 'approved', decided_by: 'erin' }, feature: { current_phase: 'implement' } });
+    expect(await admin('approvals', 'reject', b, '--reason', 'unclear', '--actor', 'erin')).toMatchObject({ approval: { status: 'rejected' }, feature: { current_phase: 'specify' } });
+    await expect(admin('approvals', 'approve', a, '--actor', 'erin')).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining('is approved') });
   });
 });

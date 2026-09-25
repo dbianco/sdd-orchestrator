@@ -2,6 +2,7 @@
 import { userInfo } from 'node:os';
 import { Command } from 'commander';
 import { appCommand } from './commands/app.js';
+import { approvalsCommand } from './commands/approvals.js';
 import { deprecateCommand, deprecateFrameworkCommand } from './commands/deprecate.js';
 import { exportCommand } from './commands/export.js';
 import { ingestCommand } from './commands/ingest.js';
@@ -24,5 +25,6 @@ program.addCommand(proposalsCommand(actorOption));
 program.addCommand(reindexCommand(actorOption));
 program.addCommand(exportCommand());
 program.addCommand(tokenCommand(actorOption));
+program.addCommand(approvalsCommand(actorOption));
 
 program.parseAsync(process.argv).catch((e: unknown) => fail(e instanceof Error ? e.message : String(e)));
