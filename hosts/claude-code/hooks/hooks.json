@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.mjs\"" }] }
+    ],
+    "PreToolUse": [
+      { "matcher": "^(Edit|Write|MultiEdit|NotebookEdit)$", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/pre-edit.mjs\"" }] },
+      { "matcher": "^Bash$", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/pre-bash.mjs\"" }] }
+    ],
+    "PostToolUse": [
+      { "matcher": "^mcp__(plugin_sdd_)?sdd__(route_task|start_feature|advance_phase|get_feature_status|get_context)$", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/post-sdd-tool.mjs\"" }] },
+      { "matcher": "^Bash$", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/post-bash.mjs\"" }] }
+    ]
+  }
+}

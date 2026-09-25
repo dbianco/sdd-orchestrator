@@ -43,6 +43,14 @@ jobs:
       - run: npm --prefix admin-ui ci
       - run: npm run test:admin-ui
       - run: npm run build:admin-ui
+  plugin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npx vitest run hosts/claude-code/test
   image:
     runs-on: ubuntu-latest
     steps:
