@@ -3,7 +3,13 @@ import { DomainError } from '../errors.js';
 import { inferIntent, type IntentPhraseLists } from './intent.js';
 import { greenfieldOf, matchPolicyPathRule, matchRiskPaths, sizeOf } from './signals.js';
 
-export interface KnownFramework { name: string; pack_version: string; tracks: string[] }
+export interface KnownFramework {
+  name: string;
+  pack_version: string;
+  tracks: string[];
+  intent_tracks: Partial<Record<Intent, string>>;
+  default_track: string | null;
+}
 export interface RouterInput {
   task_description: string;
   workspace: Workspace;
@@ -33,6 +39,10 @@ export const SPIKE_GUIDANCE =
   'Prototype first. Time-box the spike, keep the code disposable, write down what you learned and what you would build next. ' +
   'When the question is answered, route the follow-up as a feature; no lifecycle state is kept for a spike.';
 
+// Intents that change the process (no feature, deferred spec review, heavier or different tracks).
+// Keyword matches are too ambiguous to apply them, so a match only produces a clarifying question.
+export const HOST_ONLY_INTENTS: ReadonlySet<Intent> = new Set<Intent>(['spike', 'incident', 'refactor', 'product']);
+
 export function parseFrameworkRef(ref: string): { name: string; track: string | null } {
   const [name, track] = ref.split(':', 2);
   return { name: name!, track: track ?? null };
@@ -59,7 +69,8 @@ function requireFramework(ctx: Readonly<Ctx>, name: string, source: string): Kno
   return fw;
 }
 
-function trackForIntent(fw: KnownFramework, ctx: Readonly<Ctx>, named: string | null): string | null {
+// Track choice comes from the pack: a track claiming the intent, else the pack's is_default track, else "default".
+function trackForIntent(fw: KnownFramework, ctx: Readonly<Ctx>, named: string | null, requireIntentTrack = false): string | null {
   if (fw.tracks.length === 0) return null;
   if (named) {
     if (!fw.tracks.includes(named)) {
@@ -67,12 +78,12 @@ function trackForIntent(fw: KnownFramework, ctx: Readonly<Ctx>, named: string | 
     }
     return named;
   }
-  if (fw.name === 'openspec') {
-    if (ctx.intent === 'incident' && fw.tracks.includes('hotfix')) return 'hotfix';
-    if (ctx.intent === 'refactor' && fw.tracks.includes('refactor')) return 'refactor';
+  const claimed = fw.intent_tracks[ctx.intent];
+  if (claimed && fw.tracks.includes(claimed)) return claimed;
+  if (requireIntentTrack) {
+    throw new DomainError('UNKNOWN_FRAMEWORK', `framework "${fw.name}" has no track for intent "${ctx.intent}"`, { framework: fw.name, intent: ctx.intent, tracks: fw.tracks });
   }
-  if (fw.name === 'spec-kit' && ctx.intent === 'refactor' && fw.tracks.includes('refactor')) return 'refactor';
-  if (fw.name === 'bmad') return fw.tracks.includes('full') ? 'full' : fw.tracks[0]!;
+  if (fw.default_track && fw.tracks.includes(fw.default_track)) return fw.default_track;
   return fw.tracks.includes('default') ? 'default' : fw.tracks[0]!;
 }
 
@@ -89,6 +100,10 @@ function rulesThreeToTwelve(ctx: Readonly<Ctx>): RulesResult {
     const fw = requireFramework(ctx, name, `rule ${rule}`);
     return { framework: name, track: trackForIntent(fw, ctx, track ?? null), rule, confidence: 'high', questions: [], guidance: null, lite: false };
   };
+  const pickIntentTrack = (name: string, rule: string): RulePick => {
+    const fw = requireFramework(ctx, name, `rule ${rule}`);
+    return { framework: name, track: trackForIntent(fw, { ...ctx, intent }, null, true), rule, confidence: 'high', questions: [], guidance: null, lite: false };
+  };
 
   if (intent === 'spike') return done(none('3-spike', SPIKE_GUIDANCE, false));
 
@@ -103,16 +118,16 @@ function rulesThreeToTwelve(ctx: Readonly<Ctx>): RulesResult {
   }
 
   if (intent === 'product') return done(pick('sdlc', '5-product'));
-  if (intent === 'incident') return done(pick('openspec', '6-incident', 'hotfix'));
-  if (intent === 'refactor' && (ctx.size === 'small' || ctx.size === 'medium')) return done(pick('openspec', '7-refactor-small-medium', 'refactor'));
-  if (intent === 'refactor' && ctx.size === 'large') return done(pick('spec-kit', '8-refactor-large', 'refactor'));
+  if (intent === 'incident') return done(pickIntentTrack('openspec', '6-incident'));
+  if (intent === 'refactor' && (ctx.size === 'small' || ctx.size === 'medium')) return done(pickIntentTrack('openspec', '7-refactor-small-medium'));
+  if (intent === 'refactor' && ctx.size === 'large') return done(pickIntentTrack('spec-kit', '8-refactor-large'));
   if (ctx.size === 'large' && (ctx.compliance || ctx.ws.new_subsystem === true)) {
     const files = ctx.ws.estimated_files ?? null;
     const quick = files !== null && files <= 15 && !ctx.compliance;
     return done(pick('bmad', '9-large-compliance-or-subsystem', quick ? 'quick' : 'full'));
   }
-  if (ctx.greenfield === false && (ctx.size === 'small' || ctx.size === 'medium')) return done(pick('openspec', '10-brownfield-small-medium', 'default'));
-  if ((ctx.greenfield === true && (ctx.size === 'small' || ctx.size === 'medium')) || ctx.size === 'large') return done(pick('spec-kit', '11-greenfield-or-large', 'default'));
+  if (ctx.greenfield === false && (ctx.size === 'small' || ctx.size === 'medium')) return done(pick('openspec', '10-brownfield-small-medium'));
+  if ((ctx.greenfield === true && (ctx.size === 'small' || ctx.size === 'medium')) || ctx.size === 'large') return done(pick('spec-kit', '11-greenfield-or-large'));
 
   const questions: string[] = [];
   if (ctx.greenfield === null) questions.push('Is this a greenfield repository (fewer than 20 commits) or does it already have a spec library?');
@@ -130,15 +145,22 @@ export function route(input: RouterInput): RouterOutput {
 
   let intent: Intent;
   let intentSource: 'host' | 'inferred';
+  let intentHint: { intent: Intent; matched: string } | null = null;
   if (ws.intent && ws.intent !== 'auto') {
     intent = ws.intent;
     intentSource = 'host';
     reasons.push(`intent ${intent} (asserted by host)`);
   } else {
     const inferred = inferIntent(input.task_description, input.phraseLists);
-    intent = inferred.intent;
     intentSource = 'inferred';
-    reasons.push(inferred.matched ? `intent ${intent} (matched "${inferred.matched}")` : 'intent feature (no phrase matched)');
+    if (inferred.matched && HOST_ONLY_INTENTS.has(inferred.intent)) {
+      intent = 'feature';
+      intentHint = { intent: inferred.intent, matched: inferred.matched };
+      reasons.push(`intent feature (text suggests ${inferred.intent}: matched "${inferred.matched}"; not applied unless the host sets workspace.intent)`);
+    } else {
+      intent = inferred.intent;
+      reasons.push(inferred.matched ? `intent ${intent} (matched "${inferred.matched}")` : 'intent feature (no phrase matched)');
+    }
   }
 
   const size = sizeOf(ws);
@@ -198,12 +220,15 @@ export function route(input: RouterInput): RouterOutput {
 
   const highRisk = risk.length > 0 || ctx.intent === 'incident';
   const fw = partial.framework === 'none' ? null : ctx.frameworks.get(partial.framework) ?? null;
+  const questions = intentHint
+    ? [`The task mentions "${intentHint.matched}". Is this ${intentHint.intent} work? If so, route again with workspace.intent set to "${intentHint.intent}"; otherwise set it to "feature".`, ...partial.questions].slice(0, 3)
+    : partial.questions;
 
   const decision: Decision = {
     intent: ctx.intent,
     framework: partial.framework,
     track: partial.track,
-    confidence: partial.confidence,
+    confidence: intentHint ? 'medium' : partial.confidence,
     rule: partial.rule,
     reasons,
     high_risk: highRisk,
@@ -213,7 +238,7 @@ export function route(input: RouterInput): RouterOutput {
 
   return {
     decision,
-    clarifying_questions: partial.questions,
+    clarifying_questions: questions,
     warnings,
     guidance: partial.guidance,
     lite: partial.lite,

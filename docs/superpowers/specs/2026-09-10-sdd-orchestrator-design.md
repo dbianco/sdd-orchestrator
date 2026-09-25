@@ -434,7 +434,7 @@ signals used.
 |---|---|
 | App policy | Current `app_policies` row: `framework`, or the first `path_rules` glob matching any `paths_touched` |
 | Explicit preference | `framework_preference` |
-| Intent | `workspace.intent` if not `auto`; else the first phrase list the task text matches, in this order: `incident` (`outage`, `production is down`, `hotfix`, `P1`, `INC-\d+`), `remediation` (`CVE-\d+`, `vulnerability`, `Snyk`, `deprecated library`), `refactor` (`refactor`, `no behaviour change`, `no behavior change`, `extract`, `untangle`), `spike` (`can we`, `prototype`, `spike`, `is it possible`), `product` (`whole product`, `new product`, `PRD`); else `feature`. `trivial` is never inferred: it applies only when the host sets `workspace.intent: trivial`. Lists are server configuration; the defaults are these. A backlog ticket title alone rarely matches `product`, which is intended |
+| Intent | `workspace.intent` if not `auto`; else the first phrase list the task text matches, in this order: `incident` (`outage`, `production is down`, `hotfix`, `P1`, `INC-\d+`), `remediation` (`CVE-\d+`, `vulnerability`, `Snyk`, `deprecated library`), `refactor` (`refactor`, `no behaviour change`, `no behavior change`, `extract`, `untangle`), `spike` (`can we`, `prototype`, `spike`, `is it possible`), `product` (`whole product`, `new product`, `PRD`); else `feature`. Only `remediation` is applied from a text match, because it routes exactly like a feature. A match for `incident`, `refactor`, `spike` or `product` changes the process (no feature, deferred spec review, a different track), and phrases like "Can we add…", "Extract totals…" or "P1 badge" match ordinary features, so such a match is never applied: the intent stays `feature`, confidence drops to medium, and the first clarifying question names the phrase and asks the host to route again with `workspace.intent` set. `trivial` is never inferred: it applies only when the host sets `workspace.intent: trivial`. Lists are server configuration; the defaults are these |
 | Greenfield | `is_greenfield`; if null, `not has_spec_library`; if both null, unknown |
 | Size | `small`: `estimated_files` at most 3 and all `paths_touched` share one top-level directory. `large`: `estimated_files` at least 20, or `repositories` at least 2, or `new_subsystem` true. Else `medium`. Unknown when `estimated_files` is null and `new_subsystem` is not true |
 | Risk paths | Any `paths_touched` matching the default list plus the policy's `risk_paths`. Default: `**/payments/**`, `**/billing/**`, `**/auth/**`, `**/*crypto*`, `**/migrations/**`, `infra/**`, `**/*.tf`, `.github/workflows/**` |
@@ -469,8 +469,15 @@ Kiro is routed only by rules 1 and 2, since its workflow assumes its IDE. Its
 EARS requirement patterns are ingested as a `standard` with `framework` null
 and `phase_tags: [specify]`, so every framework's specify phase retrieves them.
 
-`track` is `default` for frameworks with a single track. When rules 1 or 2
-name BMAD, the track is `full` unless the preference or policy names one.
+Tracks are chosen from the pack, not from framework names in the router
+(section 12.1): the track whose `intents` list contains the decision's intent;
+else the track marked `is_default`; else the track named `default`; else the
+first track. Rules 6 to 8 require a track claiming their intent (`incident`,
+`refactor`) and fail with `UNKNOWN_FRAMEWORK` when the framework has none. Rule
+9 names BMAD's `quick` or `full` track by size. The seed packs declare
+OpenSpec `hotfix` for `incident`, OpenSpec and Spec Kit `refactor` for
+`refactor`, and BMAD `full` as `is_default`, so when rules 1 or 2 name BMAD the
+track is `full` unless the preference or policy names one.
 
 If rule 1 or 2 names a framework with no current version, the call fails with
 `UNKNOWN_FRAMEWORK`.
@@ -613,7 +620,7 @@ lines from one `task_regex` match to the next.
 | `missing_artifact` | implicit | A `blocker` finding for each declared artifact name absent from the call |
 | `placeholder_scan` | `markers[]` (default `\bTBD\b`, `\bTODO\b`, `NEEDS HUMAN INPUT`, `\bOQ-\d+\b`) | Every submitted artifact is scanned; each match is a finding with line number |
 | `required_sections` | `artifact`, `sections[]` | Each named heading present and non-empty |
-| `measurable_criteria` | `artifact`, `section`, `adjectives[]` (default list in code, extendable) | Each list item or line in the section containing a listed adjective must also contain a number followed by a unit or symbol (`ms`, `s`, `%`, `MB`, `req/s`, or a bare integer); otherwise a finding |
+| `measurable_criteria` | `artifact`, `section`, `adjectives[]` (default list in code, extendable) | Each list item or line in the section containing a listed adjective must also contain a threshold, otherwise a finding. A threshold is a number followed by a unit (`ms`, `s`, `seconds`, `minutes`, `hours`, `days`, `%`, `KB`/`MB`/`GB`, `req/s`, `rps`, `qps`) or a number preceded by a bound (`<`, `<=`, `>`, `>=`, `≤`, `≥`, `under`, `below`, `above`, `over`, `within`, `at most`, `at least`, `no more than`, `less than`, `more than`, `fewer than`, `up to`, `max`, `min`). A bare number is not a threshold: "fast for 2 users" is a finding |
 | `task_done_checks` | `artifact`, `task_regex`, `done_regex` | Every task block must contain a `done_regex` match |
 | `task_ordering` | `artifact`, `task_regex` with named group `id`, `dep_regex` with named group `id` | Every dependency id must belong to a task that appears earlier |
 | `delta_markers` | `artifact` | Sections `ADDED`, `MODIFIED`, `REMOVED` Requirements recognised; each entry under `REMOVED` must contain `**Reason**` and `**Migration**` |
@@ -800,6 +807,8 @@ app: null                 # optional default app slug for every item in the pack
 tracks:                   # framework packs only. A pack without tracks uses a single key "default"
   quick:
     spec_review: required # or deferred; see section 10.3
+    intents: []           # optional; intents that select this track (section 8.2). At most one track per intent
+    is_default: false     # optional; the track used when no track claims the intent. At most one per pack
     phases:               # all seven required
       specify:   { alias: quick-spec, command: "/bmad-bmm-quick-spec", template: bmad.template.quick-spec }
       plan:      skipped

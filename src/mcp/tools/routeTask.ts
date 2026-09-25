@@ -13,6 +13,7 @@ export function registerRouteTask(server: McpServer, deps: McpDeps): void {
       'Use it first for any new piece of work, and again with better facts when it returns clarifying_questions. It records one routing event per unit of work (deduplicated by external_ref or by task text) and returns its routing_id; it never touches repositories or lifecycle state.',
       'Returns decision {intent, framework or "none", track, confidence, rule, reasons, high_risk, policy_version, framework_pack_version}, clarifying_questions at medium confidence,',
       'guidance for spikes, a lite_pack for trivial work (no feature, no gates) and attached_layers. Pass the decision to start_feature to create lifecycle state.',
+      'Set workspace.intent for spike, incident, refactor, product and trivial work: those intents are never taken from the task text, which only produces a clarifying question.',
       'Example: route_task({"task_description":"Add CSV export to the orders page","app":"checkout","workspace":{"stack":["typescript","react"],"is_greenfield":false,"has_spec_library":true,"estimated_files":4,"paths_touched":["src/orders/"],"host":"claude-code"}})',
     ].join(' '),
     inputSchema: {

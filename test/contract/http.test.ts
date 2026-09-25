@@ -19,7 +19,7 @@ describe.skipIf(!url)('Streamable HTTP transport', () => {
       const st = structuredOf<{ current_phase: string }>(await client.callTool({ name: 'get_feature_status', arguments: { feature_id: s.feature_id } }));
       expect(st.current_phase).toBe('specify');
       expect(errorOf(await client.callTool({ name: 'get_context', arguments: { feature_id: 'f_nope', actor: 'd' } })).code).toBe('FEATURE_NOT_FOUND');
-      expect(textOf(await client.callTool({ name: 'route_task', arguments: { task_description: 'Can we cache?', app: 'checkout', workspace: {} } }))).toMatch(/Prototype first/);
+      expect(textOf(await client.callTool({ name: 'route_task', arguments: { task_description: 'Can we cache?', app: 'checkout', workspace: { intent: 'spike' } } }))).toMatch(/Prototype first/);
     });
   });
 

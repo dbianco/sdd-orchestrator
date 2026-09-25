@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { route, parseFrameworkRef, type RouterInput } from '../../../src/router/router.js';
+import { route, parseFrameworkRef, type KnownFramework, type RouterInput } from '../../../src/router/router.js';
 
-const frameworks = [
-  { name: 'openspec', pack_version: '1.0.0', tracks: ['default', 'hotfix', 'refactor'] },
-  { name: 'spec-kit', pack_version: '1.0.0', tracks: ['default', 'refactor'] },
-  { name: 'bmad', pack_version: '1.0.0', tracks: ['quick', 'full'] },
-  { name: 'kiro', pack_version: '1.0.0', tracks: ['default'] },
-  { name: 'sdlc', pack_version: '1.0.0', tracks: ['default'] },
+const frameworks: KnownFramework[] = [
+  { name: 'openspec', pack_version: '1.0.0', tracks: ['default', 'hotfix', 'refactor'], intent_tracks: { incident: 'hotfix', refactor: 'refactor' }, default_track: null },
+  { name: 'spec-kit', pack_version: '1.0.0', tracks: ['default', 'refactor'], intent_tracks: { refactor: 'refactor' }, default_track: null },
+  { name: 'bmad', pack_version: '1.0.0', tracks: ['quick', 'full'], intent_tracks: {}, default_track: 'full' },
+  { name: 'kiro', pack_version: '1.0.0', tracks: ['default'], intent_tracks: {}, default_track: null },
+  { name: 'sdlc', pack_version: '1.0.0', tracks: ['default'], intent_tracks: {}, default_track: null },
 ];
 
 function input(over: Partial<RouterInput> = {}): RouterInput {
@@ -103,7 +103,7 @@ describe('route: rules in order', () => {
     ]);
   });
   it('rule 3: spike returns none with guidance and no track', () => {
-    const out = route(input({ task_description: 'Can we stream exports?' }));
+    const out = route(input({ workspace: { intent: 'spike', estimated_files: 4, is_greenfield: false } }));
     expect(out.decision).toMatchObject({ intent: 'spike', framework: 'none', track: null, rule: '3-spike', framework_pack_version: null });
     expect(out.guidance).toMatch(/prototype/i);
   });
@@ -135,15 +135,15 @@ describe('route: rules in order', () => {
     expect(out.decision.intent).toBe('feature');
   });
   it('rule 5: product routes to sdlc', () => {
-    expect(route(input({ task_description: 'PRD for a new product' })).decision).toMatchObject({ framework: 'sdlc', track: 'default', rule: '5-product' });
+    expect(route(input({ workspace: { intent: 'product', estimated_files: 4, is_greenfield: false } })).decision).toMatchObject({ framework: 'sdlc', track: 'default', rule: '5-product' });
   });
   it('rule 6: incident routes to openspec hotfix at any size and forces high_risk', () => {
-    const out = route(input({ task_description: 'production is down', workspace: { estimated_files: 30 } }));
+    const out = route(input({ workspace: { intent: 'incident', estimated_files: 30 } }));
     expect(out.decision).toMatchObject({ framework: 'openspec', track: 'hotfix', rule: '6-incident', high_risk: true });
   });
   it('rule 7 and 8: refactor by size', () => {
-    expect(route(input({ task_description: 'refactor exports', workspace: { estimated_files: 5 } })).decision).toMatchObject({ framework: 'openspec', track: 'refactor', rule: '7-refactor-small-medium' });
-    expect(route(input({ task_description: 'refactor exports', workspace: { estimated_files: 25 } })).decision).toMatchObject({ framework: 'spec-kit', track: 'refactor', rule: '8-refactor-large' });
+    expect(route(input({ workspace: { intent: 'refactor', estimated_files: 5 } })).decision).toMatchObject({ framework: 'openspec', track: 'refactor', rule: '7-refactor-small-medium' });
+    expect(route(input({ workspace: { intent: 'refactor', estimated_files: 25 } })).decision).toMatchObject({ framework: 'spec-kit', track: 'refactor', rule: '8-refactor-large' });
   });
   it('rule 9: large with compliance or new subsystem routes to bmad with track by size', () => {
     expect(route(input({ app: { compliance: true, default_stack: [] }, workspace: { estimated_files: 25 } })).decision).toMatchObject({ framework: 'bmad', track: 'full', rule: '9-large-compliance-or-subsystem' });
@@ -151,15 +151,15 @@ describe('route: rules in order', () => {
     expect(route(input({ workspace: { estimated_files: null, new_subsystem: true } })).decision).toMatchObject({ framework: 'bmad', track: 'full' });
   });
   it('rule 8 refactor precedes rule 9 even at large size with compliance', () => {
-    const out = route(input({ task_description: 'refactor exports', app: { compliance: true, default_stack: [] }, workspace: { estimated_files: 25 } }));
+    const out = route(input({ app: { compliance: true, default_stack: [] }, workspace: { intent: 'refactor', estimated_files: 25 } }));
     expect(out.decision).toMatchObject({ framework: 'spec-kit', track: 'refactor', rule: '8-refactor-large' });
   });
   it('rule 6 incident precedes rule 9 even at large size with compliance and new subsystem', () => {
-    const out = route(input({ task_description: 'production is down', app: { compliance: true, default_stack: [] }, workspace: { estimated_files: 30, new_subsystem: true } }));
+    const out = route(input({ app: { compliance: true, default_stack: [] }, workspace: { intent: 'incident', estimated_files: 30, new_subsystem: true } }));
     expect(out.decision).toMatchObject({ framework: 'openspec', track: 'hotfix', rule: '6-incident', high_risk: true });
   });
   it('rule 5 product precedes rule 9 even at large size with compliance', () => {
-    const out = route(input({ task_description: 'PRD for a new product', app: { compliance: true, default_stack: [] }, workspace: { estimated_files: 25 } }));
+    const out = route(input({ app: { compliance: true, default_stack: [] }, workspace: { intent: 'product', estimated_files: 25 } }));
     expect(out.decision).toMatchObject({ framework: 'sdlc', track: 'default', rule: '5-product' });
   });
   it('rule 10: brownfield small or medium routes to openspec default', () => {
@@ -200,22 +200,74 @@ describe('route: rules in order', () => {
   });
   it('rule 6: throws UNKNOWN_FRAMEWORK when openspec has no hotfix track', () => {
     const noHotfix = frameworks.map((f) => (f.name === 'openspec' ? { ...f, tracks: ['default'] } : f));
-    expect(() => route(input({ task_description: 'production is down', frameworks: noHotfix })))
+    expect(() => route(input({ workspace: { intent: 'incident' }, frameworks: noHotfix })))
       .toThrow(expect.objectContaining({ code: 'UNKNOWN_FRAMEWORK' }));
   });
   it('rule 7: throws UNKNOWN_FRAMEWORK when openspec has no refactor track', () => {
     const noRefactor = frameworks.map((f) => (f.name === 'openspec' ? { ...f, tracks: ['default'] } : f));
-    expect(() => route(input({ task_description: 'refactor exports', workspace: { estimated_files: 5 }, frameworks: noRefactor })))
+    expect(() => route(input({ workspace: { intent: 'refactor', estimated_files: 5 }, frameworks: noRefactor })))
       .toThrow(expect.objectContaining({ code: 'UNKNOWN_FRAMEWORK' }));
   });
   it('rule 8: throws UNKNOWN_FRAMEWORK when spec-kit has no refactor track', () => {
     const noRefactor = frameworks.map((f) => (f.name === 'spec-kit' ? { ...f, tracks: ['default'] } : f));
-    expect(() => route(input({ task_description: 'refactor exports', workspace: { estimated_files: 25 }, frameworks: noRefactor })))
+    expect(() => route(input({ workspace: { intent: 'refactor', estimated_files: 25 }, frameworks: noRefactor })))
       .toThrow(expect.objectContaining({ code: 'UNKNOWN_FRAMEWORK' }));
   });
   it('rule 9: throws UNKNOWN_FRAMEWORK when bmad has neither the requested track nor a fallback', () => {
     const noFull = frameworks.map((f) => (f.name === 'bmad' ? { ...f, tracks: ['quick'] } : f));
     expect(() => route(input({ app: { compliance: true, default_stack: [] }, workspace: { estimated_files: 25 }, frameworks: noFull })))
       .toThrow(expect.objectContaining({ code: 'UNKNOWN_FRAMEWORK' }));
+  });
+});
+
+describe('route: intents inferred from text', () => {
+  it.each([
+    ['Can we add CSV export to the orders page?', 'spike', 'can we'],
+    ['Extract invoice totals into the monthly report', 'refactor', 'extract'],
+    ['Add P1 priority badge to support tickets', 'incident', 'P1'],
+    ['Refresh the PRD link in the footer', 'product', 'PRD'],
+  ])('%s routes as a feature and asks about %s', (task, hinted, phrase) => {
+    const out = route(input({ task_description: task }));
+    expect(out.decision).toMatchObject({ intent: 'feature', framework: 'openspec', track: 'default', rule: '10-brownfield-small-medium', confidence: 'medium', high_risk: false });
+    expect(out.clarifying_questions[0]).toContain(`"${phrase}"`);
+    expect(out.clarifying_questions[0]).toContain(`workspace.intent set to "${hinted}"`);
+    expect(out.decision.reasons[0]).toContain(`text suggests ${hinted}`);
+    expect(out.signals.intent_source).toBe('inferred');
+  });
+  it('keeps the hint ahead of rule 12 questions and caps them at three', () => {
+    const out = route(input({ task_description: 'production is down', workspace: {} }));
+    expect(out.decision).toMatchObject({ intent: 'feature', rule: '12-unknown', confidence: 'medium' });
+    expect(out.clarifying_questions).toHaveLength(3);
+    expect(out.clarifying_questions[0]).toContain('"production is down"');
+  });
+  it('lowers confidence on a policy route when the text hints at another intent', () => {
+    const out = route(input({ task_description: 'hotfix the export', policy: { framework: 'openspec', path_rules: [], risk_paths: [] } }));
+    expect(out.decision).toMatchObject({ rule: '1-policy', track: 'default', confidence: 'medium' });
+  });
+  it('applies the intent when the host asserts it, whatever the text says', () => {
+    const out = route(input({ task_description: 'Can we add CSV export?', workspace: { intent: 'feature', estimated_files: 4, is_greenfield: false } }));
+    expect(out.decision).toMatchObject({ intent: 'feature', confidence: 'high' });
+    expect(out.clarifying_questions).toEqual([]);
+  });
+});
+
+describe('route: track selection comes from the pack', () => {
+  it('uses the track a pack declares for the intent, not a hard-coded name', () => {
+    const renamed = frameworks.map((f) => (f.name === 'openspec'
+      ? { ...f, tracks: ['default', 'emergency'], intent_tracks: { incident: 'emergency' } }
+      : f));
+    const out = route(input({ workspace: { intent: 'incident', estimated_files: 2 }, frameworks: renamed }));
+    expect(out.decision).toMatchObject({ framework: 'openspec', track: 'emergency', rule: '6-incident' });
+  });
+  it('uses the pack default track when policy names a framework without a track', () => {
+    const out = route(input({ policy: { framework: 'bmad', path_rules: [], risk_paths: [] } }));
+    expect(out.decision).toMatchObject({ framework: 'bmad', track: 'full' });
+    const quickDefault = frameworks.map((f) => (f.name === 'bmad' ? { ...f, default_track: 'quick' } : f));
+    expect(route(input({ policy: { framework: 'bmad', path_rules: [], risk_paths: [] }, frameworks: quickDefault })).decision.track).toBe('quick');
+  });
+  it('fails when the routed framework declares no track for the intent', () => {
+    const unclaimed = frameworks.map((f) => (f.name === 'openspec' ? { ...f, intent_tracks: {} } : f));
+    expect(() => route(input({ workspace: { intent: 'incident' }, frameworks: unclaimed })))
+      .toThrow(expect.objectContaining({ code: 'UNKNOWN_FRAMEWORK', message: expect.stringContaining('no track for intent "incident"') }));
   });
 });

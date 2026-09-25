@@ -11,6 +11,7 @@ describe('bmad pack', () => {
     const pack = await loadPack(dir);
     const tracks = pack.manifest.tracks as Record<string, TrackDecl>;
     expect(Object.keys(tracks).sort()).toEqual(['full', 'quick']);
+    expect(tracks.full!.is_default).toBe(true);
     expect(phaseOrder(tracks.quick!)).toEqual(['specify', 'implement', 'verify', 'integrate']);
     expect(phaseOrder(tracks.full!)).toEqual(['specify', 'plan', 'tasks', 'implement', 'verify', 'integrate', 'learn']);
     expect(tracks.quick!.phases.specify).toMatchObject({ alias: 'quick-spec', command: '/bmad-bmm-quick-spec' });

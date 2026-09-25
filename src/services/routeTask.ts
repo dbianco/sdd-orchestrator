@@ -4,7 +4,7 @@ import type { AttachedLayer, Decision, Workspace } from '../domain/types.js';
 import { assertEmbeddingConfigMatches } from '../embedding/index.js';
 import { route } from '../router/router.js';
 import { requireApp } from '../store/apps.js';
-import { listCurrentFrameworks, trackNames } from '../store/frameworks.js';
+import { listCurrentFrameworks, routableFramework } from '../store/frameworks.js';
 import { currentPolicy } from '../store/policies.js';
 import { upsertRoutingEvent } from '../store/routingEvents.js';
 import type { ServiceDeps } from './deps.js';
@@ -22,7 +22,7 @@ export async function routeTask(deps: ServiceDeps, input: RouteTaskInput): Promi
   const q = deps.pool;
   const app = await requireApp(q, input.app);
   const policy = await currentPolicy(q, app.id);
-  const frameworks = (await listCurrentFrameworks(q)).map((f) => ({ name: f.name, pack_version: f.pack_version, tracks: trackNames(f) }));
+  const frameworks = (await listCurrentFrameworks(q)).map(routableFramework);
   const out = route({
     task_description: input.task_description, workspace: input.workspace, framework_preference: input.framework_preference ?? null,
     policy: policy?.policy ?? null, policy_version: policy?.version ?? null, app: { compliance: app.compliance, default_stack: app.default_stack }, frameworks,

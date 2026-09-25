@@ -11,6 +11,7 @@ describe('spec-kit pack', () => {
     const pack = await loadPack(dir);
     const tracks = pack.manifest.tracks as Record<string, TrackDecl>;
     expect(Object.keys(tracks).sort()).toEqual(['default', 'refactor']);
+    expect(tracks.refactor!.intents).toEqual(['refactor']);
     expect(phaseOrder(tracks.default!)).toEqual(['specify', 'plan', 'tasks', 'implement', 'verify', 'integrate', 'learn']);
     expect(tracks.default!.phases.learn).toMatchObject({ alias: 'reconcile' });
     const verify = tracks.default!.gates.find((g) => g.transition === 'verify->integrate')!;

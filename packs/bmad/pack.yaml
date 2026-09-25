@@ -27,6 +27,7 @@ tracks:
         checks:
           - { name: verify_evidence }
   full:
+    is_default: true
     spec_review: required
     phases:
       specify:   { alias: prd-and-architecture, command: "/bmad-bmm-prd", template: bmad.template.prd }

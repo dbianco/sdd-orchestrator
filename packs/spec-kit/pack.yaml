@@ -38,6 +38,7 @@ tracks:
           - { name: verify_evidence }
           - { name: scope_drift, params: { plan_artifact: plan.md, files_section: Project Structure } }
   refactor:
+    intents: [refactor]
     spec_review: required
     phases:
       specify:   { alias: specify, command: "/speckit.specify", template: spec-kit.template.refactor-spec }

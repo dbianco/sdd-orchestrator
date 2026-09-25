@@ -81,3 +81,16 @@ loop.
 directory out of the build context. The image installs its own dependencies
 with `npm ci` inside `node:22-alpine`; a host `node_modules` built on macOS
 must never reach the image.
+
+## Re-ingest framework packs after upgrading the router
+
+The router picks tracks from each track's `intents` and `is_default` fields in
+`pack.yaml`, stored in `frameworks.tracks`. A database ingested before those
+fields existed has no track claiming `incident` or `refactor`, so routing an
+incident or a refactor fails with `UNKNOWN_FRAMEWORK` until the packs are
+re-ingested. Re-run
+`sdd-admin ingest packs/openspec`, `packs/spec-kit` and `packs/bmad` after
+upgrading. Re-ingesting the same pack version rewrites the stored tracks, adds
+no knowledge item versions for unchanged files, and leaves features that are
+already pinned to that version unaffected.
+

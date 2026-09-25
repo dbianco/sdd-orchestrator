@@ -1,8 +1,9 @@
 import type { Queryable } from '../db/pool.js';
-import type { TrackDecl } from '../domain/types.js';
+import type { Intent, TrackDecl } from '../domain/types.js';
 import { DomainError } from '../errors.js';
 import { newId } from '../ids.js';
 import { TrackDeclSchema } from '../lifecycle/track.js';
+import type { KnownFramework } from '../router/router.js';
 import type { FrameworkRow } from './rows.js';
 
 function normalizeFrameworkRow(row: FrameworkRow): FrameworkRow {
@@ -83,4 +84,15 @@ export function trackOf(row: FrameworkRow, track: string | null): TrackDecl {
 
 export function trackNames(row: FrameworkRow): string[] {
   return Object.keys(row.tracks);
+}
+
+export function routableFramework(row: FrameworkRow): KnownFramework {
+  const intent_tracks: Partial<Record<Intent, string>> = {};
+  let default_track: string | null = null;
+  for (const name of trackNames(row)) {
+    const track = trackOf(row, name);
+    for (const intent of track.intents ?? []) intent_tracks[intent] = name;
+    if (track.is_default) default_track = name;
+  }
+  return { name: row.name, pack_version: row.pack_version, tracks: trackNames(row), intent_tracks, default_track };
 }

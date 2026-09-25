@@ -8,7 +8,9 @@ export const DEFAULT_ADJECTIVES: string[] = [
   'soon', 'instant', 'instantly', 'minimal', 'maximum', 'optimal', 'better', 'improved', 'acceptable', 'reasonable',
 ];
 
-const MEASURE = /\d+(?:\.\d+)?\s*(?:ms|s|%|MB|GB|KB|req\/s|rps)\b|\b\d+\b/;
+// A bare number is not a threshold ("fast for 2 users"): it needs a unit, or a bound word or symbol in front.
+const WITH_UNIT = /\d+(?:\.\d+)?\s*(?:ms|s|secs?|seconds?|mins?|minutes?|h|hrs?|hours?|days?|%|[KMGT]?B|req\/s|rps|qps)(?![\w/])/i;
+const WITH_BOUND = /(?:[<>]=?|[≤≥]|\b(?:under|below|above|over|within|at most|at least|no more than|no less than|less than|more than|fewer than|up to|max(?:imum)?|min(?:imum)?)\b)\s*\d/i;
 
 const Params = z.object({ artifact: z.string(), section: z.string(), adjectives: z.array(z.string()).optional() });
 
@@ -26,7 +28,7 @@ export const measurableCriteria: CheckDefinition = {
     const adjective = new RegExp(`\\b(?:${adjectives.map((a) => a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\b`, 'i');
     const out = [];
     for (const line of contentLines(section)) {
-      if (adjective.test(line.text) && !MEASURE.test(line.text)) {
+      if (adjective.test(line.text) && !WITH_UNIT.test(line.text) && !WITH_BOUND.test(line.text)) {
         const shown = line.text.replace(/^\s*[-*+]\s+|\s*\d+\.\s+/, '').trim();
         out.push(finding('measurable_criteria', severity, `${p.artifact}:${line.n}`, `"${shown}" has no threshold`));
       }
