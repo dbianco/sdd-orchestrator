@@ -35,6 +35,7 @@ export const FeatureStateShape = z.object({
   track: z.string().nullable(), current_phase: z.string(), phase_alias: z.string(), status: z.string(), blocked_reason: z.string().nullable(),
   high_risk: z.boolean(), failed_cycles: z.number().int(), external_ref: z.string().nullable(), trigger_ref: z.string().nullable(),
   allowed_targets: z.object({ forward: z.array(z.string()), backward: z.array(z.string()) }),
+  pending_approval: z.object({ approval_id: z.string(), from: z.string(), to: z.string(), requested_by: z.string(), requested_at: z.string() }).nullable(),
 });
 
 export const WarningsShape = z.array(z.string());

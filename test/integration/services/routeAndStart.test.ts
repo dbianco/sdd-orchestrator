@@ -97,7 +97,7 @@ describe.skipIf(!url)('routeTask and startFeature', () => {
 
   it('fires overBudgetPack for a lite pack whose always-on content alone exceeds the app budget', async () => {
     await updateApp(deps.pool, 'checkout', { token_budget: 5 }, 'd');
-    const metrics = { routed: vi.fn(), gate: vi.fn(), degradedPack: vi.fn(), overBudgetPack: vi.fn(), failedCycle: vi.fn(), authRejected: vi.fn() };
+    const metrics = { routed: vi.fn(), gate: vi.fn(), degradedPack: vi.fn(), overBudgetPack: vi.fn(), failedCycle: vi.fn(), authRejected: vi.fn(), approval: vi.fn() };
     const tightDeps: ServiceDeps = { ...deps, metrics };
     const r = await routeTask(tightDeps, { task_description: 'Rename a label', app: 'checkout', workspace: { intent: 'trivial', estimated_files: 1, paths_touched: ['src/a.tsx'], stack: ['react'] } });
     expect(r.lite_pack?.over_budget).toBe(true);

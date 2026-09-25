@@ -9,6 +9,7 @@ export interface MetricsHooks {
   overBudgetPack(): void;
   failedCycle(): void;
   authRejected(reason: 'missing' | 'invalid' | 'would_reject'): void;
+  approval(event: 'requested' | 'approved' | 'rejected', waitSeconds?: number): void;
 }
 
 export interface ServiceDeps {

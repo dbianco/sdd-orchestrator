@@ -56,8 +56,9 @@ describe.skipIf(!url)('authentication over Streamable HTTP', () => {
     await withClient('http', async (client) => {
       const started = structuredOf<{ feature_id: string; warnings: string[] }>(await client.callTool({ name: 'start_feature', arguments: { app: 'checkout', actor: 'mallory', task_description: 'CSV export', decision } }));
       expect(started.warnings).toContain('actor "mallory" ignored; the token belongs to "dana"');
-      const adv = structuredOf<{ result: string }>(await client.callTool({ name: 'advance_phase', arguments: { feature_id: started.feature_id, expected_phase: 'specify', target_phase: 'implement', artifacts: { 'proposal.md': '## Why\nx\n\n## What Changes\ny\n' }, human_approved: true } }));
-      expect(adv.result).toBe('pass');
+      const adv = structuredOf<{ result: string; warnings: string[] }>(await client.callTool({ name: 'advance_phase', arguments: { feature_id: started.feature_id, expected_phase: 'specify', target_phase: 'implement', artifacts: { 'proposal.md': '## Why\nx\n\n## What Changes\ny\n' }, human_approved: true } }));
+      expect(adv.result).toBe('awaiting_approval');
+      expect(adv.warnings).toContain('human_approved is ignored; approval is requested from a person on the server');
       const row = (await pool.query('SELECT created_by, token_id FROM phase_transitions WHERE feature_id = $1', [started.feature_id])).rows[0];
       expect(row).toEqual({ created_by: 'dana', token_id: tokenId });
       expect((await pool.query('SELECT created_by FROM features WHERE id = $1', [started.feature_id])).rows[0].created_by).toBe('dana');

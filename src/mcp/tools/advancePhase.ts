@@ -28,7 +28,7 @@ export function registerAdvancePhase(server: McpServer, deps: McpDeps, auth: Aut
       dry_run: z.boolean().optional().describe('Evaluate gate checks without recording a transition; forward moves only'),
     },
     outputSchema: {
-      result: z.enum(['pass', 'fail']), findings: z.array(FindingShape), next_instructions: z.string().nullable(), feature: FeatureStateShape, warnings: WarningsShape,
+      result: z.enum(['pass', 'fail', 'awaiting_approval']), approval_id: z.string().optional(), findings: z.array(FindingShape), next_instructions: z.string().nullable(), feature: FeatureStateShape, warnings: WarningsShape,
     },
   }, async (args) => guarded(deps.logger, 'advance_phase', async () => {
     const a = await authorizeCall(deps.pool, auth, { featureId: args.feature_id }, args.actor, true);
@@ -38,7 +38,7 @@ export function registerAdvancePhase(server: McpServer, deps: McpDeps, auth: Aut
       dry_run: args.dry_run,
     });
     const r = { ...raw, warnings: [...a.warnings, ...raw.warnings] };
-    const text = r.result === 'pass' && r.next_instructions ? r.next_instructions : JSON.stringify({ result: r.result, findings: r.findings, feature: r.feature, warnings: r.warnings }, null, 2);
+    const text = r.result !== 'fail' && r.next_instructions ? r.next_instructions : JSON.stringify({ result: r.result, findings: r.findings, feature: r.feature, warnings: r.warnings }, null, 2);
     return { structured: { ...r }, text };
   }));
 }
