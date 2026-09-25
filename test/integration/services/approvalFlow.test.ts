@@ -4,6 +4,7 @@ import { seedAll, embedder } from '../../helpers/seed.js';
 import { startFeature } from '../../../src/services/startFeature.js';
 import { advancePhase, HUMAN_APPROVED_IGNORED } from '../../../src/services/advancePhase.js';
 import { getApproval, pendingApproval } from '../../../src/store/approvals.js';
+import { appendPolicy } from '../../../src/store/policies.js';
 import type { ServiceDeps } from '../../../src/services/deps.js';
 import type { Decision } from '../../../src/domain/types.js';
 
@@ -60,8 +61,9 @@ describe.skipIf(!url)('server-side approval requests', () => {
     const other = (await startFeature(offDeps, { app: 'checkout', actor: 'dana', task_description: 'Another', decision })).feature_id;
     await advancePhase(offDeps, { feature_id: other, actor: 'dana', ...toImplement, human_approved: true });
     await advancePhase(offDeps, { feature_id: other, actor: 'dana', expected_phase: 'implement', target_phase: 'verify' });
-    const highRisk = await deps.pool.query('UPDATE features SET high_risk = true WHERE id = $1', [other]);
-    expect(highRisk.rowCount).toBe(1);
+    const highRisk = await deps.pool.query('UPDATE features SET high_risk = true WHERE id = $1 RETURNING app_id', [other]);
+    // This test is about approvals; opt the app out of the CI evidence that high-risk work otherwise needs.
+    await appendPolicy(deps.pool, highRisk.rows[0].app_id, { framework: null, path_rules: [], risk_paths: [], evidence: 'host' }, 'no pipeline', 'admin');
     const evidence = { tests: { command: 'npm test', passed: 1, failed: 0 }, lint: 'pass', security: { status: 'pass', new_high: 0 } };
     const awaiting = await advancePhase(deps, { feature_id: other, actor: 'dana', expected_phase: 'verify', target_phase: 'integrate', evidence });
     expect(awaiting.result).toBe('awaiting_approval');
