@@ -1,7 +1,14 @@
 import { fileURLToPath } from 'node:url';
 import express, { Router, type Request, type Response } from 'express';
 import { z, ZodError } from 'zod';
-import { isDomainError } from '../errors.js';
+import type { Phase, PhaseOrArchived } from '../domain/types.js';
+import { isDomainError, type ErrorCode } from '../errors.js';
+import { gateFor } from '../lifecycle/track.js';
+import { approveRequest, rejectRequest } from '../services/decideApproval.js';
+import { loadTrack } from '../services/featureState.js';
+import { requirementsFromGate } from '../services/requirements.js';
+import { getApproval, listApprovals } from '../store/approvals.js';
+import type { AdminIdentity } from './adminAuth.js';
 import type { Logger } from '../logging.js';
 import type { ServiceDeps } from '../services/deps.js';
 import { listFeaturesService } from '../services/listFeatures.js';
@@ -19,6 +26,14 @@ import { adminAuth } from './adminAuth.js';
 const adminUiDist = fileURLToPath(new URL('../../admin-ui/dist', import.meta.url));
 
 const AppQuery = z.object({ app: z.string().optional() });
+const ApprovalsQuery = z.object({ app: z.string().optional(), status: z.enum(['pending', 'approved', 'rejected', 'superseded']).default('pending') });
+const ApproveBody = z.object({ comment: z.string().trim().min(1).max(2000).optional() });
+const RejectBody = z.object({ reason: z.string().trim().min(1, 'reason is required').max(2000) });
+
+const STATUS_BY_CODE: Partial<Record<ErrorCode, number>> = {
+  APP_NOT_FOUND: 404, FEATURE_NOT_FOUND: 404, ROUTING_EVENT_NOT_FOUND: 404, APPROVAL_NOT_FOUND: 404,
+  FORBIDDEN: 403, APPROVAL_NOT_PENDING: 409, STALE_STATE: 409, FEATURE_ARCHIVED: 409,
+};
 const ProposalsQuery = z.object({ status: z.enum(['pending', 'approved', 'rejected']).optional() });
 const DateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'expected YYYY-MM-DD');
 const RoutingQuery = z.object({
@@ -45,8 +60,8 @@ export function createAdminRouter(deps: ServiceDeps & { logger?: Logger }, legac
       try {
         await fn(req, res);
       } catch (e) {
-        if (isDomainError(e) && (e.code === 'APP_NOT_FOUND' || e.code === 'FEATURE_NOT_FOUND' || e.code === 'ROUTING_EVENT_NOT_FOUND')) {
-          res.status(404).json({ error: e.message });
+        if (isDomainError(e) && STATUS_BY_CODE[e.code]) {
+          res.status(STATUS_BY_CODE[e.code]!).json({ error: e.message, code: e.code });
           return;
         }
         if (e instanceof ZodError) {
@@ -133,6 +148,51 @@ export function createAdminRouter(deps: ServiceDeps & { logger?: Logger }, legac
     const event = await requireRoutingEventDetail(deps.pool, req.params.id as string);
     const commits = await listCommitsForRouting(deps.pool, event);
     res.json({ event, commits });
+  }));
+
+  const admin = (res: Response): AdminIdentity => res.locals.admin as AdminIdentity;
+  const canApprove = (res: Response): boolean => {
+    if (admin(res).canApprove) return true;
+    res.status(403).json({ error: 'approver scope required' });
+    return false;
+  };
+
+  router.get('/api/approvals', handle(async (req, res) => {
+    const { app, status } = ApprovalsQuery.parse(req.query);
+    res.json({ approvals: await listApprovals(deps.pool, { appId: await resolveAppId(deps, app), status, appIds: admin(res).apps }) });
+  }));
+
+  router.get('/api/approvals/:id', handle(async (req, res) => {
+    const approval = await getApproval(deps.pool, req.params.id as string);
+    if (!approval) { res.status(404).json({ error: `no approval request with id "${req.params.id as string}"` }); return; }
+    const feature = await requireFeature(deps.pool, approval.feature_id);
+    const scope = admin(res).apps;
+    if (scope && !scope.includes(feature.app_id)) { res.status(403).json({ error: 'this token is not allowed for that app' }); return; }
+    const transition = (await deps.pool.query('SELECT findings, evidence, created_by, created_at FROM phase_transitions WHERE id = $1', [approval.transition_id])).rows[0];
+    const artifacts = (await deps.pool.query<{ name: string; byte_length: number; content: string | null }>(
+      'SELECT name, byte_length, content FROM feature_artifacts WHERE transition_id = $1 ORDER BY name', [approval.transition_id],
+    )).rows;
+    const track = await loadTrack(deps.pool, feature);
+    const texts = Object.fromEntries(artifacts.filter((a) => a.content !== null).map((a) => [a.name, a.content!]));
+    const requirements = requirementsFromGate(gateFor(track, approval.from_phase as Phase, approval.to_phase as PhaseOrArchived), texts);
+    res.json({
+      approval, feature: { feature_id: feature.id, slug: feature.slug, framework: feature.framework, track: feature.track, high_risk: feature.high_risk },
+      findings: transition.findings, evidence: transition.evidence, artifacts, requirements: requirements?.map((r) => r.id) ?? null,
+    });
+  }));
+
+  router.post('/api/approvals/:id/approve', express.json(), handle(async (req, res) => {
+    if (!canApprove(res)) return;
+    const { comment } = ApproveBody.parse(req.body ?? {});
+    const me = admin(res);
+    res.json(await approveRequest(deps, { approval_id: req.params.id as string, actor: me.actor, comment: comment ?? null, apps: me.apps }));
+  }));
+
+  router.post('/api/approvals/:id/reject', express.json(), handle(async (req, res) => {
+    if (!canApprove(res)) return;
+    const { reason } = RejectBody.parse(req.body ?? {});
+    const me = admin(res);
+    res.json(await rejectRequest(deps, { approval_id: req.params.id as string, actor: me.actor, reason, apps: me.apps }));
   }));
 
   router.use(express.static(adminUiDist));

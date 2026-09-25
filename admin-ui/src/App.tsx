@@ -4,8 +4,9 @@ import { AppsFeatures } from './views/AppsFeatures';
 import { Flow } from './views/Flow';
 import { Proposals } from './views/Proposals';
 import { Work } from './views/Work';
+import { Approvals } from './views/Approvals';
 
-type Tab = 'overview' | 'apps' | 'flow' | 'proposals' | 'work';
+type Tab = 'overview' | 'apps' | 'flow' | 'proposals' | 'work' | 'approvals';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
@@ -13,6 +14,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'flow', label: 'Flow' },
   { id: 'proposals', label: 'Proposals' },
   { id: 'work', label: 'Work' },
+  { id: 'approvals', label: 'Approvals' },
 ];
 
 export function App() {
@@ -32,6 +34,7 @@ export function App() {
         {tab === 'flow' && <Flow />}
         {tab === 'proposals' && <Proposals />}
         {tab === 'work' && <Work />}
+        {tab === 'approvals' && <Approvals />}
       </main>
     </div>
   );

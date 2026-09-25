@@ -1,6 +1,15 @@
-import type { AppSummary, Commit, FeatureDetail, FeatureSummary, FlowCount, Overview, Proposal, RoutingEvent, RoutingSummary, RtmRow } from './types';
+import type { Approval, ApprovalDetail, AppSummary, Commit, Me, FeatureDetail, FeatureSummary, FlowCount, Overview, Proposal, RoutingEvent, RoutingSummary, RtmRow } from './types';
 
 export class ApiError extends Error {}
+
+async function post<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (!res.ok) {
+    const detail = await res.json().then((b: { error?: string }) => b.error).catch(() => undefined);
+    throw new ApiError(detail ?? `${path} responded ${res.status}`);
+  }
+  return (await res.json()) as T;
+}
 
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(path);
@@ -49,4 +58,24 @@ export function getRoutingDetail(id: string): Promise<{ event: RoutingEvent; com
 
 export function getRtm(app: string): Promise<{ app: string; rows: RtmRow[] }> {
   return get<{ app: string; rows: RtmRow[] }>(`/admin/api/apps/${encodeURIComponent(app)}/rtm`);
+}
+
+export function getMe(): Promise<Me> {
+  return get<Me>('/admin/api/me');
+}
+
+export function getApprovals(): Promise<{ approvals: Approval[] }> {
+  return get<{ approvals: Approval[] }>('/admin/api/approvals');
+}
+
+export function getApproval(id: string): Promise<ApprovalDetail> {
+  return get<ApprovalDetail>(`/admin/api/approvals/${encodeURIComponent(id)}`);
+}
+
+export function approveApproval(id: string, comment?: string): Promise<unknown> {
+  return post(`/admin/api/approvals/${encodeURIComponent(id)}/approve`, comment ? { comment } : {});
+}
+
+export function rejectApproval(id: string, reason: string): Promise<unknown> {
+  return post(`/admin/api/approvals/${encodeURIComponent(id)}/reject`, { reason });
 }
