@@ -27,8 +27,13 @@ export interface ContextPackRow extends Audit {
   rendered: string; token_count: number; budget: number; degraded: boolean; over_budget: boolean;
 }
 export interface TransitionRow extends Audit {
-  id: string; feature_id: string; from_phase: string; to_phase: string; direction: 'forward' | 'backward'; result: 'pass' | 'fail';
+  id: string; feature_id: string; from_phase: string; to_phase: string; direction: 'forward' | 'backward'; result: 'pass' | 'fail' | 'awaiting_approval';
   findings: Finding[]; evidence: unknown | null; pack_id: string | null; artifact_hashes: Record<string, string>; human_approved: boolean; reason: string | null;
+  token_id: string | null; approval_id: string | null; approved_by: string | null;
+}
+export interface ApprovalRow extends Audit {
+  id: string; feature_id: string; transition_id: string; from_phase: string; to_phase: string;
+  status: 'pending' | 'approved' | 'rejected' | 'superseded'; requested_by: string; decided_by: string | null; decided_at: Date | null; comment: string | null;
 }
 export interface ApiTokenRow extends Audit {
   id: string; actor: string; name: string; scopes: Scope[]; app_ids: string[] | null;
