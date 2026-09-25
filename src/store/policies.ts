@@ -8,6 +8,8 @@ export const PolicySchema: z.ZodType<Policy, z.ZodTypeDef, unknown> = z.object({
   framework: z.string().min(1).nullable().default(null),
   path_rules: z.array(z.object({ glob: z.string().min(1), framework: z.string().min(1) })).default([]),
   risk_paths: z.array(z.string().min(1)).default([]),
+  approval: z.object({ distinct_approver: z.boolean() }).strict().optional(),
+  evidence: z.enum(['ci', 'host']).optional(),
 }).strict();
 
 export async function currentPolicy(q: Queryable, appId: string): Promise<PolicyRow | null> {

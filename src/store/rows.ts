@@ -1,5 +1,5 @@
 import type { Scope } from '../auth/tokens.js';
-import type { Decision, Finding, KnowledgeKind, MemoryType, Phase, Tier, Workspace } from '../domain/types.js';
+import type { Decision, Finding, Policy, KnowledgeKind, MemoryType, Phase, Tier, Workspace } from '../domain/types.js';
 
 interface Audit { created_at: Date; updated_at: Date; created_by: string }
 
@@ -8,7 +8,7 @@ export interface AppRow extends Audit {
   token_budget: number | null; min_similarity: number | null; stop_conditions: string[];
 }
 export interface PolicyRow extends Audit {
-  id: string; app_id: string; version: number; policy: { framework: string | null; path_rules: { glob: string; framework: string }[]; risk_paths: string[] }; reason: string;
+  id: string; app_id: string; version: number; policy: Policy; reason: string;
 }
 export interface FrameworkRow extends Audit {
   id: string; name: string; pack_version: string; tracks: Record<string, unknown>; gate_library_version: string; status: 'active' | 'deprecated';
