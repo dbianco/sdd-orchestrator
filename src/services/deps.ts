@@ -10,6 +10,7 @@ export interface MetricsHooks {
   failedCycle(): void;
   authRejected(reason: 'missing' | 'invalid' | 'would_reject'): void;
   approval(event: 'requested' | 'approved' | 'rejected', waitSeconds?: number): void;
+  ciEvidence(app: string): void;
 }
 
 export interface ServiceDeps {

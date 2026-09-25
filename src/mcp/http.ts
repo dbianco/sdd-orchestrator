@@ -4,6 +4,7 @@ import type { Config } from '../config.js';
 import type { Registry } from 'prom-client';
 import type { AuthContext } from '../auth/context.js';
 import { createAdminRouter } from '../web/adminRoutes.js';
+import { createCiRouter } from '../web/ciRoutes.js';
 import { mcpAuth } from '../web/mcpAuth.js';
 import { createMcpServer, type McpDeps } from './server.js';
 
@@ -54,6 +55,8 @@ export function createHttpApp(baseDeps: HttpDeps, config: Config): Express {
     res.setHeader('Content-Type', deps.registry.contentType);
     res.send(await deps.registry.metrics());
   });
+
+  if (config.authMode !== 'off') app.use('/api/ci', createCiRouter(deps));
 
   // Personal approver tokens can log in whenever auth is on; SDD_ADMIN_TOKEN alone still enables a read-only admin.
   if (config.adminToken || config.authMode !== 'off') app.use('/admin', createAdminRouter(deps, config.adminToken));
