@@ -82,6 +82,18 @@ the server as a host assertion (spec section 8.3).
    commit message so the history is self-describing; the server does not
    parse it, but a future forge webhook can.
 
+## Requirements and `implements`
+
+Tracks with functional requirements capture their ids when the spec gate
+passes: `**FR-001**` in Spec Kit, `**FR1**`/`**NFR1**` in BMAD `full`,
+`**R1**` in the house flow, `### Requirement 1` in Kiro, and the requirement
+name in `### Requirement: <name>` for OpenSpec. `get_feature_status` lists
+them under `requirements`. On the move out of `verify`, put every id this
+feature implements in `evidence.implements`, spelled as in the spec (case and
+surrounding spaces are ignored). A missing id is a blocker, except in
+OpenSpec, where requirement names are easy to paraphrase and a missing one is
+a warning. An id that is not a requirement of the feature is a warning.
+
 ## Known limitations of a v1 context pack
 
 **`attached_layers` is an announcement, not a guarantee of text.** `route_task`
