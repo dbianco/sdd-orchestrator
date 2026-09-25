@@ -12,6 +12,7 @@ import { createLogger } from '../../src/logging.js';
 import { createMetrics } from '../../src/metrics.js';
 import type { Config } from '../../src/config.js';
 import type { Decision } from '../../src/domain/types.js';
+import { createToken } from '../../src/store/tokens.js';
 
 const url = process.env.SDD_TEST_DATABASE_URL;
 // admin-ui/dist is gitignored and only exists after `npm --prefix admin-ui run build`,
@@ -57,6 +58,17 @@ describe.skipIf(!url)('admin routes', () => {
     server = listening.server;
     const res = await fetch(`${listening.origin}/admin/api/overview`);
     expect(res.status).toBe(404);
+  });
+
+  it('logs in personal approver tokens when auth is on, even without SDD_ADMIN_TOKEN', async () => {
+    const approver = (await createToken(deps.pool, { actor: 'dana', name: 't', scopes: ['approver'], app_ids: null, expires_at: null }, 'test')).secret;
+    const host = (await createToken(deps.pool, { actor: 'bob', name: 't', scopes: ['host'], app_ids: null, expires_at: null }, 'test')).secret;
+    const listening = await listen(createHttpApp(deps, { ...baseConfig, adminToken: null, authMode: 'warn' }));
+    server = listening.server;
+    const me = await fetch(`${listening.origin}/admin/api/me`, { headers: { Authorization: authHeader(approver) } });
+    expect(me.status).toBe(200);
+    expect(await me.json()).toEqual({ actor: 'dana', canApprove: true });
+    expect((await fetch(`${listening.origin}/admin/api/me`, { headers: { Authorization: authHeader(host) } })).status).toBe(401);
   });
 
   it('requires Basic Auth and serves the overview once authenticated', async () => {

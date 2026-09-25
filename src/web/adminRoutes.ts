@@ -37,7 +37,7 @@ async function resolveAppId(deps: ServiceDeps, slug: string | undefined): Promis
   return (await requireApp(deps.pool, slug)).id;
 }
 
-export function createAdminRouter(deps: ServiceDeps & { logger?: Logger }, token: string): Router {
+export function createAdminRouter(deps: ServiceDeps & { logger?: Logger }, legacyToken: string | null): Router {
   const router = Router();
 
   function handle(fn: (req: Request, res: Response) => Promise<void>) {
@@ -59,7 +59,12 @@ export function createAdminRouter(deps: ServiceDeps & { logger?: Logger }, token
     };
   }
 
-  router.use(adminAuth(token));
+  router.use(adminAuth(deps, legacyToken));
+
+  router.get('/api/me', (_req, res) => {
+    const me = res.locals.admin as { actor: string; canApprove: boolean };
+    res.json({ actor: me.actor, canApprove: me.canApprove });
+  });
 
   router.get('/api/overview', handle(async (req, res) => {
     const { app } = AppQuery.parse(req.query);

@@ -55,7 +55,8 @@ export function createHttpApp(baseDeps: HttpDeps, config: Config): Express {
     res.send(await deps.registry.metrics());
   });
 
-  if (config.adminToken) app.use('/admin', createAdminRouter(deps, config.adminToken));
+  // Personal approver tokens can log in whenever auth is on; SDD_ADMIN_TOKEN alone still enables a read-only admin.
+  if (config.adminToken || config.authMode !== 'off') app.use('/admin', createAdminRouter(deps, config.adminToken));
 
   return app;
 }
