@@ -11,6 +11,7 @@ export function createMetrics(): { registry: Registry; hooks: MetricsHooks } {
   const approvals = new Counter({ name: 'sdd_approvals_total', help: 'Approval requests created and decided', labelNames: ['decision'], registers: [registry] });
   const approvalWait = new Histogram({ name: 'sdd_approval_wait_seconds', help: 'Time from approval request to decision', buckets: [60, 300, 900, 3600, 14400, 86400, 259200], registers: [registry] });
   const ciEvidence = new Counter({ name: 'sdd_ci_evidence_total', help: 'CI evidence reports received', labelNames: ['app'], registers: [registry] });
+  const uncovered = new Counter({ name: 'sdd_requirements_uncovered_total', help: 'Captured requirements missing from evidence.implements on recorded moves out of verify', registers: [registry] });
   const failedCycles = new Counter({ name: 'sdd_failed_cycles_total', help: 'verify->implement moves flagged cycle_failed', registers: [registry] });
   return {
     registry,
@@ -22,6 +23,7 @@ export function createMetrics(): { registry: Registry; hooks: MetricsHooks } {
       failedCycle: () => failedCycles.inc(),
       authRejected: (reason) => authRejections.inc({ reason }),
       ciEvidence: (app) => ciEvidence.inc({ app }),
+      requirementsUncovered: (count) => uncovered.inc(count),
       approval: (event, waitSeconds) => { approvals.inc({ decision: event }); if (waitSeconds !== undefined) approvalWait.observe(waitSeconds); },
     },
   };

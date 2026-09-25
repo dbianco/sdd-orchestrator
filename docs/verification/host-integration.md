@@ -21,23 +21,31 @@ its copy is behind.
 { "feature_id": "f_01j9...", "current_phase": "implement", "updated_at": "2026-09-10T12:00:00Z" }
 ```
 
-Add `.sdd/feature.json` to `.gitignore`. The actor identity comes from the
-host's own configuration (for Claude Code the `SDD_ACTOR` environment
-variable or the git user name; for Cursor the same environment variable).
+Add `.sdd/feature.json` to `.gitignore`. Identity comes from a personal token
+issued with `sdd-admin token create --for <name> --scope host,approver`,
+kept in the `SDD_TOKEN` environment variable and sent as a bearer header
+(below). The server records the token's actor and ignores a different
+`actor` in the payload, with a warning. Without a token (`SDD_AUTH_MODE=warn`
+or `off`, or stdio), `actor` in the payload is the identity, falling back to
+`SDD_ACTOR` over stdio.
 
 ## Connecting
 
 Claude Code, `.mcp.json` in the workspace:
 
 ```json
-{ "mcpServers": { "sdd": { "type": "http", "url": "http://sdd.internal:8080/mcp" } } }
+{ "mcpServers": { "sdd": { "type": "http", "url": "http://sdd.internal:8080/mcp", "headers": { "Authorization": "Bearer ${SDD_TOKEN}" } } } }
 ```
 
 Cursor, `.cursor/mcp.json`:
 
 ```json
-{ "mcpServers": { "sdd": { "url": "http://sdd.internal:8080/mcp" } } }
+{ "mcpServers": { "sdd": { "url": "http://sdd.internal:8080/mcp", "headers": { "Authorization": "Bearer ${env:SDD_TOKEN}" } } } }
 ```
+
+With `SDD_AUTH_MODE=enforce` a missing or invalid token is an HTTP 401 before
+any tool runs. A token restricted to other apps, or without the `host`
+scope, gets `FORBIDDEN`.
 
 Local development over stdio against a local database:
 
@@ -74,13 +82,22 @@ the server as a host assertion (spec section 8.3).
    from `.sdd/feature.json` and pass it as `expected_phase`. On `STALE_STATE`,
    call `get_feature_status`, update the cache, and retry once.
 4. After every successful `advance_phase`, update `.sdd/feature.json` from the
-   returned `feature` state.
+   returned `feature` state. A result of `awaiting_approval` means every check
+   passed and a person must decide: tell the developer the `approval_id`
+   (reviewers use the admin UI's Approvals tab or
+   `sdd-admin approvals approve <id>`), do not start the next phase, and poll
+   `get_feature_status` until `pending_approval` is null. A rejection shows up
+   as a failed transition whose `human_approved` finding carries the
+   reviewer's reason. Do not send `human_approved: true`; with auth on it is
+   ignored.
 5. When the feature is archived, delete `.sdd/feature.json`.
 6. After every commit — trivial fix or feature — call `record_commit` with
    the sha, message, `files_changed` (from `git show --name-only`) and the
    `routing_id` or `feature_id`. Add a trailer `SDD-Ref: <that id>` to the
-   commit message so the history is self-describing; the server does not
-   parse it, but a future forge webhook can.
+   commit message. The CI evidence script (`scripts/sdd-ci-evidence.mjs`,
+   `docs/ci/github-actions.md`) reads it to know which feature a pipeline run
+   belongs to; for compliance apps and high-risk features, the move out of
+   `verify` needs that CI evidence for the feature's latest commit.
 
 ## Requirements and `implements`
 

@@ -11,6 +11,7 @@ export interface MetricsHooks {
   authRejected(reason: 'missing' | 'invalid' | 'would_reject'): void;
   approval(event: 'requested' | 'approved' | 'rejected', waitSeconds?: number): void;
   ciEvidence(app: string): void;
+  requirementsUncovered(count: number): void;
 }
 
 export interface ServiceDeps {

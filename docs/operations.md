@@ -105,3 +105,37 @@ archived; a backward move with `repin: true` moves one to `1.1.0`. A feature
 that reaches `verify` without captured requirements gets a warning, not a
 blocker.
 
+
+## Authentication, approvals and CI evidence
+
+`SDD_AUTH_MODE` controls the trust model:
+
+| Mode | Calls without a token | Mandated approvals | CI evidence |
+|---|---|---|---|
+| `warn` (default) | Accepted with a warning; counted in `sdd_auth_rejections_total{reason="would_reject"}` | A person decides on the server | Merged into verify evidence; required for compliance apps and high-risk features |
+| `enforce` | HTTP 401 | A person decides on the server | As `warn` |
+| `off` | Accepted, as in v1 | The host sends `human_approved` | Ignored; `/api/ci` is not mounted |
+
+Upgrading from v1, in order:
+
+1. Before deploying, make sure each app has a reviewer who can approve:
+   `sdd-admin token create --for <name> --scope host,approver --name <where>`,
+   or CLI access (`sdd-admin approvals approve <id>`). From the first request
+   after the upgrade, spec reviews and high-risk verify moves wait for a
+   person. To keep the v1 flag for a while, set `SDD_AUTH_MODE=off`.
+2. Deploy. Hosts without tokens keep working, with a warning on every result.
+3. Issue a token per developer and per pipeline, and add the
+   `Authorization: Bearer` header to hosts' MCP configuration.
+4. Add the CI evidence step (`docs/ci/github-actions.md`) to compliance apps'
+   pipelines first: their features cannot leave `verify` without it. A
+   non-compliance app with high-risk features and no pipeline yet can opt out
+   with `"evidence": "host"` in its policy.
+5. When `sdd_auth_rejections_total{reason="would_reject"}` stays flat, switch to
+   `SDD_AUTH_MODE=enforce`.
+
+Tokens are stored as SHA-256 hashes; a lost token cannot be recovered, only
+revoked (`sdd-admin token revoke <id> --reason ...`) and reissued. Rotate by
+issuing the new token, updating the host or pipeline secret, then revoking
+the old one. `--expires 90d` makes rotation mandatory. `SDD_ADMIN_TOKEN` still
+logs in to the admin UI, read-only; approvals need a personal token so every
+decision names a person.

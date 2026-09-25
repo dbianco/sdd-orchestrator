@@ -143,6 +143,8 @@ export async function advancePhase(deps: ServiceDeps, input: AdvancePhaseInput):
         return { result, findings: outcome.findings, next_instructions: null, feature: state, warnings };
       }
       for (const f of outcome.findings) deps.metrics?.gate(f.check, f.severity === 'blocker' ? 'fail' : 'pass');
+      const uncovered = outcome.findings.filter((f) => f.check === 'requirement_coverage' && f.message.endsWith('is not covered by evidence.implements')).length;
+      if (uncovered > 0) deps.metrics?.requirementsUncovered(uncovered);
       const transition = await insertTransition(tx, {
         feature_id: feature.id, from_phase: feature.current_phase, to_phase: target, direction, result, findings: outcome.findings,
         evidence: ev.evidence, pack_id: packId, artifact_hashes: artifactHashes, human_approved: humanApproved, reason: input.reason ?? null, token_id: input.token_id ?? null,
