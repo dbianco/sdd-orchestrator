@@ -614,6 +614,8 @@ Open the release B pull request here.
 - [ ] **Step 2:** If the payload carries the tool result (`tool_response`, with `structuredContent` or the text content), tasks 27–28 read it. If not, add **Task 25a** before task 26: `route_task` accepts optional `branch` (stored on `routing_events`, migration column), and a `host`-scoped `GET /api/host/state?app=&branch=&external_ref=` returns `{ routing_id, lite, feature: FeatureState | null }` for the caller's most recent match; the hooks call it with the plugin token.
 - [ ] **Step 3:** Record the Claude Code version, the observed payload shape and the chosen path here, and commit — `docs(plan): record the PostToolUse payload contract`.
 
+**Result (2026-09-25, Claude Code 2.1.282):** a headless session with a PostToolUse hook matching `mcp__.*` received, for `mcp__sdd__list_features` and `mcp__sdd__start_feature`, a payload with `hook_event_name`, `tool_name` (`mcp__sdd__<tool>` for a project-configured server), `tool_input`, `tool_use_id`, `cwd`, `session_id`, `mcp_server: { name, source }` and `tool_response`. `tool_response` is a **string holding the tool's `structuredContent` as JSON** (for `start_feature` it carried `feature_id`, `routing_id`, `context_pack` and `feature`), not the text content block. PostToolUse does not fire for tool results with `isError: true`. **Chosen path:** hooks `JSON.parse` the `tool_response` string (accepting an object too). Task 25a is not needed.
+
 ---
 
 ### Task 26: Plugin scaffold
