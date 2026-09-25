@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "sdd": {
+      "type": "http",
+      "url": "${SDD_URL}/mcp",
+      "headers": { "Authorization": "Bearer ${SDD_TOKEN}" }
+    }
+  }
+}

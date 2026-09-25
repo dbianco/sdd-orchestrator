@@ -1,0 +1,11 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "sdd",
+  "version": "0.1.0",
+  "description": "Enforces the SDD Orchestrator lifecycle in Claude Code: connects the sdd MCP server, blocks code edits until work is routed and in implement, keeps .sdd/state.json from server responses, and prompts record_commit after each commit.",
+  "author": { "name": "SDD Orchestrator maintainers" },
+  "homepage": "https://github.com/dbianco/sdd-orchestrator",
+  "repository": "https://github.com/dbianco/sdd-orchestrator",
+  "license": "MIT",
+  "keywords": ["spec-driven-development", "mcp", "lifecycle", "gates"]
+}
