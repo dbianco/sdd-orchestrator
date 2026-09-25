@@ -144,3 +144,21 @@ An approver token restricted with `--app` can list and decide approvals only
 for those apps. The admin UI's read-only views (Overview, Apps & Features,
 Flow, Work, Traceability) are not filtered by that restriction yet: anyone who
 can log in to the admin UI sees every app there.
+
+## Measure retrieval before and after changing it
+
+`sdd-admin eval packs/evals/seed.yaml` (or an app's own cases file) reports
+recall@8 and mean reciprocal rank for golden queries, through the same
+position-4 retrieval `get_context` uses. Run it before and after a `reindex`,
+a model switch, a chunking change or a similarity-floor change, and pass
+`--min-recall` or `--min-mrr` to make it fail the run. The fake embedder's
+numbers say nothing about a real model; CI gates on Voyage only when a
+`VOYAGE_API_KEY` secret is configured.
+
+## Scripted walkthrough
+
+`node docs/verification/walkthrough.mjs --url <server> --host-token ... --approver-token ... --ci-token ...`
+runs the whole host contract against a deployment seeded with `packs/` and
+running with `SDD_AUTH_MODE` `warn` or `enforce`. Use tokens made for the
+purpose; the run creates and archives one feature under a `WALK-...` ticket.
+

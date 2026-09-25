@@ -1,0 +1,12 @@
+{
+  "name": "sdd-orchestrator",
+  "owner": { "name": "SDD Orchestrator maintainers" },
+  "metadata": { "description": "Plugins for working with the SDD Orchestrator MCP server" },
+  "plugins": [
+    {
+      "name": "sdd",
+      "source": "./hosts/claude-code",
+      "description": "Enforces the SDD lifecycle in Claude Code with hooks, a workflow skill and the sdd MCP server"
+    }
+  ]
+}

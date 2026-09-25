@@ -87,6 +87,9 @@ npm test                                 # unit, integration and contract tests
 npm run typecheck
 npm run dev:stdio                        # server over stdio against SDD_DATABASE_URL
 npm run admin -- app list                # sdd-admin without building
+npm run admin -- eval packs/evals/seed.yaml   # retrieval recall@8 and MRR on golden cases
+node docs/verification/walkthrough.mjs --url http://localhost:8080 \
+  --host-token sdd_... --approver-token sdd_... --ci-token sdd_...   # scripted host walkthrough
 ```
 
 ## Planned stack
@@ -139,6 +142,18 @@ sdd-admin ingest packs/company            # always-on constitution
 ```
 
 ### 3. Issue tokens and connect a host
+
+For Claude Code, the `sdd` plugin (`hosts/claude-code/`) is the recommended
+setup: it connects the server and adds hooks that block code edits until the
+task is routed and its feature reaches `implement`.
+
+```bash
+export SDD_URL=http://sdd.internal:8080 SDD_TOKEN=sdd_...
+claude plugin marketplace add dbianco/sdd-orchestrator
+claude plugin install sdd@sdd-orchestrator
+```
+
+Without the plugin, configure the server by hand as below.
 
 Each person and each pipeline gets its own token; the server records the
 token's identity instead of trusting an `actor` field. `SDD_AUTH_MODE`
@@ -360,15 +375,17 @@ open http://localhost:8080/admin   # any username, password = your sdd_ token
 ## Repository layout
 
 ```
-.github/workflows/        CI: typecheck, unit, integration, contract, admin UI, image
+.claude-plugin/           marketplace manifest for the Claude Code plugin
+.github/workflows/        CI: typecheck, unit, integration, contract, admin UI, plugin, eval, image
 docs/ci/                  reporting CI evidence from a pipeline
 docs/operations.md        deployment and operating notes
 docs/superpowers/specs/   design specifications
 docs/superpowers/plans/   implementation plans
-docs/verification/        host integration guide, feature matrix, walkthroughs, workspace-facts script
+docs/verification/        host integration guide, feature matrix, walkthroughs, scripted walkthrough, workspace-facts script
+hosts/claude-code/        the sdd plugin for Claude Code: hooks, skill, commands
 migrations/               node-pg-migrate schema
 scripts/                  sdd-ci-evidence.mjs for pipelines
-packs/                    seed knowledge packs (frameworks, quality layer, stack guides, company)
+packs/                    seed knowledge packs (frameworks, quality layer, stack guides, company) and golden eval cases
 src/                      server, services, assembler, ingestion and CLI
 test/                     unit, integration and contract tests
 ```

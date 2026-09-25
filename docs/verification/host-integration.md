@@ -7,21 +7,31 @@ convention; any host may keep these values elsewhere. Whatever the host keeps
 is a cache. The server is authoritative, and `STALE_STATE` tells the host
 its copy is behind.
 
+## Claude Code: use the plugin
+
+In Claude Code, install the `sdd` plugin (`hosts/claude-code/README.md`). It
+connects the server, loads the session flow below as a skill, keeps
+`.sdd/state.json` from server responses, and blocks code edits until the
+branch's work is routed and its feature is in `implement`. With the plugin,
+the host does not manage the files below by hand; the rest of this guide
+describes what the plugin automates and what other hosts must do themselves.
+
 ## Files
 
 `.sdd/config.json`, committed:
 
 ```json
-{ "server": "http://sdd.internal:8080/mcp", "app": "checkout", "greenfield": false }
+{ "app": "checkout", "enforcement": "block", "greenfield": false }
 ```
 
-`.sdd/feature.json`, per branch and git-ignored:
+`.sdd/state.json`, git-ignored, one entry per branch (the plugin writes it;
+other hosts may keep the same shape):
 
 ```json
-{ "feature_id": "f_01j9...", "current_phase": "implement", "updated_at": "2026-09-10T12:00:00Z" }
+{ "branches": { "feature/csv": { "routing_id": "r_01j9...", "feature_id": "f_01j9...", "current_phase": "implement", "status": "active", "pending_approval": null, "updated_at": "2026-09-25T12:00:00Z" } } }
 ```
 
-Add `.sdd/feature.json` to `.gitignore`. Identity comes from a personal token
+Add `.sdd/state.json` to `.gitignore`. Identity comes from a personal token
 issued with `sdd-admin token create --for <name> --scope host,approver`,
 kept in the `SDD_TOKEN` environment variable and sent as a bearer header
 (below). The server records the token's actor and ignores a different
@@ -64,7 +74,7 @@ the server as a host assertion (spec section 8.3).
 ## Session flow
 
 1. New work: run `list_features` with the ticket id as `external_ref`. If a
-   feature exists, write its id to `.sdd/feature.json` and call `get_context`.
+   feature exists, write its id to `.sdd/state.json` and call `get_context`.
 2. Otherwise call `route_task` with the ticket as `external_ref` and your
    name as `actor`. It returns a `routing_id`; the same task routed again
    returns the same id. Set `workspace.intent` whenever you know the work is
@@ -74,14 +84,14 @@ the server as a host assertion (spec section 8.3).
    questions, answer them and call `route_task` again. For trivial work the
    lite pack is the whole context: do the change, then go to step 6.
    For everything else call `start_feature` with the accepted decision and
-   the `routing_id`, and write the returned feature id to `.sdd/feature.json`.
+   the `routing_id`, and write the returned feature id to `.sdd/state.json`.
    If `start_feature` reports that the routing event already belongs to a
    feature (for example on a retry after a timeout), that id is your feature:
-   write it to `.sdd/feature.json` and call `get_context`; do not start again.
+   write it to `.sdd/state.json` and call `get_context`; do not start again.
 3. Work from the context pack. Before `advance_phase`, read `current_phase`
-   from `.sdd/feature.json` and pass it as `expected_phase`. On `STALE_STATE`,
+   from `.sdd/state.json` and pass it as `expected_phase`. On `STALE_STATE`,
    call `get_feature_status`, update the cache, and retry once.
-4. After every successful `advance_phase`, update `.sdd/feature.json` from the
+4. After every successful `advance_phase`, update `.sdd/state.json` from the
    returned `feature` state. A result of `awaiting_approval` means every check
    passed and a person must decide: tell the developer the `approval_id`
    (reviewers use the admin UI's Approvals tab or
@@ -90,7 +100,7 @@ the server as a host assertion (spec section 8.3).
    as a failed transition whose `human_approved` finding carries the
    reviewer's reason. Do not send `human_approved: true`; with auth on it is
    ignored.
-5. When the feature is archived, delete `.sdd/feature.json`.
+5. When the feature is archived, remove the branch's entry from `.sdd/state.json`.
 6. After every commit — trivial fix or feature — call `record_commit` with
    the sha, message, `files_changed` (from `git show --name-only`) and the
    `routing_id` or `feature_id`. Add a trailer `SDD-Ref: <that id>` to the
