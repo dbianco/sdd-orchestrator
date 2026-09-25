@@ -90,4 +90,20 @@ describe.skipIf(!url)('sdd-admin', () => {
     expect(await admin('export', 'rtm', 'checkout', '--format', 'json')).toEqual({ app: 'checkout', rows: [] });
     await expect(admin('export', 'rtm', 'nope')).rejects.toMatchObject({ code: 1 });
   });
+
+  it('creates, lists and revokes tokens; the secret is shown once and never listed', async () => {
+    await admin('app', 'register', 'checkout', '--name', 'Checkout');
+    const created = await admin('token', 'create', '--for', 'dana', '--scope', 'host,approver', '--name', 'dana laptop', '--app', 'checkout', '--expires', '90d', '--actor', 'root') as { token: { id: string; scopes: string[]; app_ids: string[]; expires_at: string; created_by: string }; secret: string };
+    expect(created.secret).toMatch(/^sdd_/);
+    expect(created.token).toMatchObject({ scopes: ['host', 'approver'], created_by: 'root' });
+    expect(created.token.app_ids).toHaveLength(1);
+    expect(new Date(created.token.expires_at).getTime()).toBeGreaterThan(Date.now() + 89 * 86_400_000);
+    const listed = await admin('token', 'list', '--for', 'dana') as { tokens: Record<string, unknown>[] };
+    expect(listed.tokens).toHaveLength(1);
+    expect(JSON.stringify(listed)).not.toContain(created.secret);
+    expect(JSON.stringify(listed)).not.toContain('token_hash');
+    expect(await admin('token', 'revoke', created.token.id, '--reason', 'lost')).toMatchObject({ id: created.token.id, revoked_reason: expect.stringContaining('lost') });
+    await expect(admin('token', 'create', '--for', 'x', '--scope', 'root', '--name', 'n')).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining('--scope') });
+    await expect(admin('token', 'create', '--for', 'x', '--scope', 'ci', '--name', 'n', '--app', 'nope')).rejects.toMatchObject({ code: 1 });
+  });
 });
