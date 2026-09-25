@@ -4,10 +4,10 @@ import { seedAll, embedder } from '../../helpers/seed.js';
 import { startFeature } from '../../../src/services/startFeature.js';
 import { advancePhase } from '../../../src/services/advancePhase.js';
 import { getFeatureStatus } from '../../../src/services/featureStatus.js';
-import { getFrameworkVersion, upsertFramework } from '../../../src/store/frameworks.js';
+import { withRequirementGates } from '../../helpers/requirementGates.js';
 import { listRequirements } from '../../../src/store/requirements.js';
 import type { ServiceDeps } from '../../../src/services/deps.js';
-import type { Decision, TrackDecl } from '../../../src/domain/types.js';
+import type { Decision } from '../../../src/domain/types.js';
 
 const url = process.env.SDD_TEST_DATABASE_URL;
 const decision: Decision = { intent: 'feature', framework: 'mini', track: 'default', confidence: 'high', rule: 'r', reasons: [], high_risk: false, policy_version: null, framework_pack_version: '1.0.0' };
@@ -19,11 +19,7 @@ describe.skipIf(!url)('requirement capture and coverage', () => {
   let fid: string;
   beforeEach(async () => {
     const pool = await getTestPool(); await truncateAll(pool); await seedAll(pool);
-    const fw = (await getFrameworkVersion(pool, 'mini', '1.0.0'))!;
-    const track = structuredClone(fw.tracks.default) as TrackDecl;
-    track.gates.find((g) => g.transition === 'specify->implement')!.checks.push({ name: 'requirement_ids', params: { artifact: 'proposal.md', id_regex: String.raw`\*\*(?<id>FR-\d{3})\*\*` } });
-    track.gates.find((g) => g.transition === 'verify->integrate')!.checks.push({ name: 'requirement_coverage' });
-    await upsertFramework(pool, { name: 'mini', pack_version: '1.0.0', tracks: { default: track }, gate_library_version: '2' }, 'seed');
+    await withRequirementGates(pool);
     deps = { pool, embedder, tokenBudget: 6000 };
     fid = (await startFeature(deps, { app: 'checkout', actor: 'd', task_description: 'Add CSV export', decision })).feature_id;
   });

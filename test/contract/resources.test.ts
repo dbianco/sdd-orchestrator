@@ -19,7 +19,7 @@ describe.skipIf(!url)('resources over stdio', () => {
   it('lists templates and reads each resource', async () => {
     await withClient('stdio', async (client) => {
       const { resourceTemplates } = await client.listResourceTemplates();
-      expect(resourceTemplates.map((t) => t.uriTemplate).sort()).toEqual(['sdd://apps/{slug}', 'sdd://features/{id}', 'sdd://frameworks/{name}', 'sdd://knowledge/{stable_id}', 'sdd://knowledge/{stable_id}/v/{version}']);
+      expect(resourceTemplates.map((t) => t.uriTemplate).sort()).toEqual(['sdd://apps/{slug}', 'sdd://apps/{slug}/rtm', 'sdd://features/{id}', 'sdd://frameworks/{name}', 'sdd://knowledge/{stable_id}', 'sdd://knowledge/{stable_id}/v/{version}']);
       const app = json(await client.readResource({ uri: 'sdd://apps/checkout' }));
       expect(app).toMatchObject({ slug: 'checkout', policy_version: null });
       expect((app.always_on as { stable_id: string }[]).map((i) => i.stable_id)).toEqual(['mini-company.constitution']);
@@ -33,6 +33,8 @@ describe.skipIf(!url)('resources over stdio', () => {
       const fid = structuredOf<{ feature_id: string }>(await client.callTool({ name: 'start_feature', arguments: { app: 'checkout', actor: 'd', task_description: 'x', decision } })).feature_id;
       const f = json(await client.readResource({ uri: `sdd://features/${fid}` }));
       expect(f).toMatchObject({ feature_id: fid, current_phase: 'specify' });
+      expect(json(await client.readResource({ uri: 'sdd://apps/checkout/rtm' }))).toEqual({ app: 'checkout', rows: [] });
+      await expect(client.readResource({ uri: 'sdd://apps/nope/rtm' })).rejects.toThrow(/APP_NOT_FOUND/);
       await expect(client.readResource({ uri: 'sdd://apps/nope' })).rejects.toThrow(/APP_NOT_FOUND/);
       await expect(client.readResource({ uri: 'sdd://knowledge/nope/v/3' })).rejects.toThrow(/KNOWLEDGE_NOT_FOUND/);
       await expect(client.readResource({ uri: 'sdd://knowledge/nope' })).rejects.toThrow(/KNOWLEDGE_NOT_FOUND/);

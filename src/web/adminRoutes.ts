@@ -11,7 +11,9 @@ import { listCommitsForRouting } from '../store/commits.js';
 import { requireFeature } from '../store/features.js';
 import { listProposals } from '../store/proposals.js';
 import { listRoutingEvents, requireRoutingEventDetail, routingSummary } from '../store/routingEvents.js';
+import { rtmRows } from '../store/rtm.js';
 import { listTransitions } from '../store/transitions.js';
+import { requirementStatus } from '../services/requirements.js';
 import { adminAuth } from './adminAuth.js';
 
 const adminUiDist = fileURLToPath(new URL('../../admin-ui/dist', import.meta.url));
@@ -91,7 +93,13 @@ export function createAdminRouter(deps: ServiceDeps & { logger?: Logger }, token
         current_phase: feature.current_phase, status: feature.status, blocked_reason: feature.blocked_reason, updated_at: feature.updated_at,
       },
       transitions,
+      requirements: await requirementStatus(deps.pool, feature.id),
     });
+  }));
+
+  router.get('/api/apps/:app/rtm', handle(async (req, res) => {
+    const app = await requireApp(deps.pool, req.params.app as string);
+    res.json({ app: app.slug, rows: await rtmRows(deps.pool, app.id) });
   }));
 
   router.get('/api/flow', handle(async (req, res) => {

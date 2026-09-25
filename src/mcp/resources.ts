@@ -5,6 +5,7 @@ import { requireApp } from '../store/apps.js';
 import { currentFramework } from '../store/frameworks.js';
 import { currentItem, itemVersion, listAlwaysOn } from '../store/knowledge.js';
 import { currentPolicy } from '../store/policies.js';
+import { rtmRows } from '../store/rtm.js';
 import type { McpDeps } from './server.js';
 
 function jsonContent(uri: URL, value: unknown) {
@@ -33,6 +34,13 @@ export function registerResources(server: McpServer, deps: McpDeps): void {
       const policy = await currentPolicy(q, app.id);
       const alwaysOn = (await listAlwaysOn(q, app.id)).map((i) => ({ stable_id: i.stable_id, version: i.version, title: i.title, app_scoped: i.app_id !== null }));
       return jsonContent(uri, { slug: app.slug, name: app.name, default_stack: app.default_stack, compliance: app.compliance, token_budget: app.token_budget, min_similarity: app.min_similarity, stop_conditions: app.stop_conditions, policy_version: policy?.version ?? null, policy: policy?.policy ?? null, always_on: alwaysOn });
+    }));
+
+  server.registerResource('app-rtm', new ResourceTemplate('sdd://apps/{slug}/rtm', { list: undefined }),
+    { title: 'Traceability matrix', description: 'One row per feature requirement: coverage by verify evidence, files, tests and approvers', mimeType: 'application/json' },
+    async (uri, { slug }) => wrap(async () => {
+      const app = await requireApp(q, one(slug));
+      return jsonContent(uri, { app: app.slug, rows: await rtmRows(q, app.id) });
     }));
 
   server.registerResource('feature', new ResourceTemplate('sdd://features/{id}', { list: undefined }),

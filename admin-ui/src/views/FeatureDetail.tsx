@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getFeatureDetail } from '../api';
 import type { FeatureDetail as FeatureDetailData } from '../types';
+import { RequirementList } from './Requirements';
 
 export function FeatureDetail({ featureId, onBack }: { featureId: string; onBack: () => void }) {
   const [data, setData] = useState<FeatureDetailData | null>(null);
@@ -39,6 +40,8 @@ export function FeatureDetail({ featureId, onBack }: { featureId: string; onBack
               </tbody>
             </table>
           )}
+          <h4>Requirements</h4>
+          <RequirementList requirements={data.requirements} />
         </>
       )}
     </section>
