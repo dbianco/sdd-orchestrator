@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
-import { TrackDeclSchema, phaseOrder, transitionKey, gateFor, phaseAlias, validateTrackSelection, validateTrackShape } from '../../../src/lifecycle/track.js';
+import { TrackDeclSchema, phaseOrder, transitionKey, gateFor, phaseAlias, phaseTemplates, validateTrackSelection, validateTrackShape } from '../../../src/lifecycle/track.js';
 import type { TrackDecl } from '../../../src/domain/types.js';
 
 // Compile-time only: if the hand-written TrackDecl interface (src/domain/types.ts) and the
@@ -86,5 +86,13 @@ describe('validateTrackSelection', () => {
   });
   it('rejects an unknown intent in the schema', () => {
     expect(TrackDeclSchema.safeParse({ ...openspecDefault, intents: ['hotfix'] }).success).toBe(false);
+  });
+});
+
+describe('phaseTemplates', () => {
+  it('returns the templates list, the single template, or nothing', () => {
+    expect(phaseTemplates({ templates: ['a', 'b'] })).toEqual(['a', 'b']);
+    expect(phaseTemplates({ template: 'a' })).toEqual(['a']);
+    expect(phaseTemplates({ alias: 'x' })).toEqual([]);
   });
 });

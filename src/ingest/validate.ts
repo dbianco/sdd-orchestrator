@@ -1,6 +1,6 @@
 import { PHASES, type TrackDecl } from '../domain/types.js';
 import { validateGateDecl } from '../gates/library.js';
-import { validateTrackSelection, validateTrackShape } from '../lifecycle/track.js';
+import { phaseTemplates, validateTrackSelection, validateTrackShape } from '../lifecycle/track.js';
 import { countTokens } from '../tokens.js';
 import { effectiveApp, effectiveKind, type LoadedPack } from './load.js';
 
@@ -48,16 +48,20 @@ export function validatePack(pack: LoadedPack, ctx: { knownAppSlugs: Set<string>
         for (const e of validateTrackShape(track)) errors.push(`track ${name}: ${e}`);
         for (const phase of PHASES) {
           const entry = track.phases[phase];
-          if (entry !== 'skipped' && entry.template && !ids.has(entry.template)) {
-            errors.push(`track ${name}: phase ${phase} names template "${entry.template}" which is not in this pack`);
+          if (entry === 'skipped') continue;
+          if (entry.template && entry.templates) errors.push(`track ${name}: phase ${phase} declares both template and templates`);
+          const templates = phaseTemplates(entry);
+          let total = 0;
+          for (const id of templates) {
+            const item = pack.items.find((i) => i.frontMatter.id === id);
+            if (!item) { errors.push(`track ${name}: phase ${phase} names template "${id}" which is not in this pack`); continue; }
+            total += countTokens(item.body);
           }
-          if (entry !== 'skipped' && entry.template && ids.has(entry.template)) {
-            const item = pack.items.find((i) => i.frontMatter.id === entry.template)!;
-            const tokens = countTokens(item.body);
-            if (tokens > TEMPLATE_WARN_TOKENS) {
-              const msg = `template ${entry.template} is ${tokens} tokens, above ${TEMPLATE_WARN_TOKENS}`;
-              if (!warnings.includes(msg)) warnings.push(msg);
-            }
+          if (total > TEMPLATE_WARN_TOKENS) {
+            const msg = templates.length === 1
+              ? `template ${templates[0]} is ${total} tokens, above ${TEMPLATE_WARN_TOKENS}`
+              : `templates for phase ${phase} total ${total} tokens, above ${TEMPLATE_WARN_TOKENS}`;
+            if (!warnings.includes(msg)) warnings.push(msg);
           }
         }
         for (const gate of track.gates) for (const e of validateGateDecl(gate)) errors.push(`track ${name} gate ${gate.transition}: ${e}`);

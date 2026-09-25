@@ -5,6 +5,7 @@ const PhaseMappingSchema = z.object({
   alias: z.string().min(1).optional(),
   command: z.string().min(1).optional(),
   template: z.string().min(1).optional(),
+  templates: z.array(z.string().min(1)).min(1).optional(),
 });
 const PhaseEntrySchema = z.union([z.literal('skipped'), PhaseMappingSchema]);
 
@@ -47,6 +48,10 @@ export function phaseMapping(track: TrackDecl, phase: Phase): PhaseMapping {
   const entry = track.phases[phase];
   if (entry === 'skipped') throw new Error(`phase ${phase} is skipped in this track`);
   return entry;
+}
+
+export function phaseTemplates(mapping: PhaseMapping): string[] {
+  return mapping.templates ?? (mapping.template ? [mapping.template] : []);
 }
 
 export function phaseAlias(track: TrackDecl, phase: Phase): string {

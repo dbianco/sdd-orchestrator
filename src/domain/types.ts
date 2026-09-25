@@ -37,6 +37,7 @@ export interface PhaseMapping {
   alias?: string;
   command?: string;
   template?: string;
+  templates?: string[];
 }
 export type PhaseEntry = PhaseMapping | 'skipped';
 
