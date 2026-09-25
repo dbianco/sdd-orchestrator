@@ -84,31 +84,6 @@ the server as a host assertion (spec section 8.3).
 
 ## Known limitations of a v1 context pack
 
-**One template is pinned per phase.** A phase declares a single `template` in
-its framework pack, and the assembler pins exactly that one into position 3 of
-the pack (`src/assembler/assemble.ts`). Several phases nonetheless gate on
-more than one artifact, and the next-gate footer names all of them
-unconditionally:
-
-| Framework / track | Phase | Gate requires | Pinned template |
-|---|---|---|---|
-| openspec / default | specify | `proposal.md`, `spec.md`, `tasks.md` | `openspec.template.proposal` |
-| bmad / full | specify | `prd.md`, `architecture.md` | `bmad.template.prd` |
-| sdlc / default | specify | `prd.md`, `scoping.md` | `sdlc.template.prd` |
-
-The secondary templates are ingested and retrievable, but they reach the pack
-only through ordinary similarity retrieval in position 4 — subject to the
-similarity floor and to budget trimming — so a host cannot assume their text is
-present just because the footer asks for the artifact. When the pack names an
-artifact whose template is not in it, call `get_context` again with `focus` set
-to that artifact and use the returned pack for that file. Write the `focus` in
-the vocabulary of the document you want, not in the vocabulary of the task:
-against the seed packs, `focus: "ADDED Requirements delta spec scenario WHEN
-THEN requirement"` pulls `openspec.template.spec` into position 4, while
-`focus: "spec.md delta requirements"` falls under the similarity floor and
-returns nothing. Giving a phase several pinned templates is a manifest-schema
-change and is deliberately out of scope for v1.
-
 **`attached_layers` is an announcement, not a guarantee of text.** `route_task`
 always reports the quality layer (and any stack-guide pack matching the stack)
 in `attached_layers`, and those packs are always eligible for retrieval. Their

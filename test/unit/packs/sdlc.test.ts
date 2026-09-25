@@ -11,6 +11,8 @@ describe('sdlc pack', () => {
     const pack = await loadPack(dir);
     const tracks = pack.manifest.tracks as Record<string, TrackDecl>;
     expect(Object.keys(tracks)).toEqual(['default']);
+    expect(pack.manifest.version).toBe('1.1.0');
+    expect(tracks.default!.phases.specify).toMatchObject({ templates: ['sdlc.template.prd', 'sdlc.template.scoping'] });
     expect(phaseOrder(tracks.default!)).toEqual(['specify', 'plan', 'tasks', 'implement', 'verify', 'integrate', 'learn']);
     expect(tracks.default!.phases.plan).toMatchObject({ alias: 'jot-down' });
     expect(tracks.default!.phases.verify).toMatchObject({ alias: 'implement-task' });

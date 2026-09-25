@@ -1,14 +1,14 @@
 name: openspec
 kind: framework_pack
 framework: openspec
-version: 1.0.0
+version: 1.1.0
 source_url: https://github.com/Fission-AI/OpenSpec
 license: MIT
 tracks:
   default:
     spec_review: required
     phases:
-      specify:   { alias: proposal, command: "/openspec:proposal", template: openspec.template.proposal }
+      specify:   { alias: proposal, command: "/openspec:proposal", templates: [openspec.template.proposal, openspec.template.spec, openspec.template.tasks] }
       plan:      skipped
       tasks:     skipped
       implement: { alias: apply, command: "/openspec:apply", template: openspec.template.apply }
@@ -58,7 +58,7 @@ tracks:
     intents: [refactor]
     spec_review: required
     phases:
-      specify:   { alias: proposal, command: "/openspec:proposal", template: openspec.template.refactor-proposal }
+      specify:   { alias: proposal, command: "/openspec:proposal", templates: [openspec.template.refactor-proposal, openspec.template.spec] }
       plan:      skipped
       tasks:     skipped
       implement: { alias: apply, command: "/openspec:apply", template: openspec.template.apply }
