@@ -151,7 +151,9 @@ export function createAdminRouter(deps: ServiceDeps & { logger?: Logger }, legac
   }));
 
   const admin = (res: Response): AdminIdentity => res.locals.admin as AdminIdentity;
-  const canApprove = (res: Response): boolean => {
+  // Browsers resend cached Basic credentials on cross-site form posts; a form cannot send application/json.
+  const canApprove = (req: Request, res: Response): boolean => {
+    if (!req.is('application/json')) { res.status(415).json({ error: 'decisions must be sent as application/json' }); return false; }
     if (admin(res).canApprove) return true;
     res.status(403).json({ error: 'approver scope required' });
     return false;
@@ -182,14 +184,14 @@ export function createAdminRouter(deps: ServiceDeps & { logger?: Logger }, legac
   }));
 
   router.post('/api/approvals/:id/approve', express.json(), handle(async (req, res) => {
-    if (!canApprove(res)) return;
+    if (!canApprove(req, res)) return;
     const { comment } = ApproveBody.parse(req.body ?? {});
     const me = admin(res);
     res.json(await approveRequest(deps, { approval_id: req.params.id as string, actor: me.actor, comment: comment ?? null, apps: me.apps }));
   }));
 
   router.post('/api/approvals/:id/reject', express.json(), handle(async (req, res) => {
-    if (!canApprove(res)) return;
+    if (!canApprove(req, res)) return;
     const { reason } = RejectBody.parse(req.body ?? {});
     const me = admin(res);
     res.json(await rejectRequest(deps, { approval_id: req.params.id as string, actor: me.actor, reason, apps: me.apps }));

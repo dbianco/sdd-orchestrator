@@ -95,6 +95,8 @@ describe.skipIf(!url)('admin routes', () => {
 
     const readOnly = await fetch(`${listening.origin}/admin/api/approvals/${a}/approve`, { method: 'POST', headers: { ...as('s3cret'), ...json }, body: '{}' });
     expect(readOnly.status).toBe(403);
+    const form = await fetch(`${listening.origin}/admin/api/approvals/${a}/approve`, { method: 'POST', headers: { ...as(approver), 'Content-Type': 'text/plain' }, body: 'x' });
+    expect(form.status).toBe(415);
     const noReason = await fetch(`${listening.origin}/admin/api/approvals/${b}/reject`, { method: 'POST', headers: { ...as(approver), ...json }, body: '{}' });
     expect(noReason.status).toBe(400);
 

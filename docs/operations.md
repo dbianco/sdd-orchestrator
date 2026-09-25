@@ -139,3 +139,8 @@ issuing the new token, updating the host or pipeline secret, then revoking
 the old one. `--expires 90d` makes rotation mandatory. `SDD_ADMIN_TOKEN` still
 logs in to the admin UI, read-only; approvals need a personal token so every
 decision names a person.
+
+An approver token restricted with `--app` can list and decide approvals only
+for those apps. The admin UI's read-only views (Overview, Apps & Features,
+Flow, Work, Traceability) are not filtered by that restriction yet: anyone who
+can log in to the admin UI sees every app there.
