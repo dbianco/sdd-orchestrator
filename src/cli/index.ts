@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import { appCommand } from './commands/app.js';
 import { approvalsCommand } from './commands/approvals.js';
 import { deprecateCommand, deprecateFrameworkCommand } from './commands/deprecate.js';
+import { evalCommand } from './commands/eval.js';
 import { exportCommand } from './commands/export.js';
 import { ingestCommand } from './commands/ingest.js';
 import { ingestAllCommand } from './commands/ingestAll.js';
@@ -24,6 +25,7 @@ program.addCommand(deprecateFrameworkCommand(actorOption));
 program.addCommand(proposalsCommand(actorOption));
 program.addCommand(reindexCommand(actorOption));
 program.addCommand(exportCommand());
+program.addCommand(evalCommand());
 program.addCommand(tokenCommand(actorOption));
 program.addCommand(approvalsCommand(actorOption));
 

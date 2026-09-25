@@ -12,7 +12,7 @@ import { trimToBudget } from './budget.js';
 import { extractExactIds } from './exactIds.js';
 import { attachedLayers, resolveScope, resolveStack } from './layers.js';
 import { renderAlwaysOn, renderChunk, renderPack, renderStopConditions } from './render.js';
-import { DEFAULT_MIN_SIMILARITY, retrieve, type RetrieveDeps } from './retrieve.js';
+import { DEFAULT_MIN_SIMILARITY, knowledgeFilter, retrieve, type RetrieveDeps } from './retrieve.js';
 
 export interface AssemblerDeps extends RetrieveDeps { defaultBudget: number }
 export interface AssembleInput { feature: FeatureRow; app: AppRow; phase: Phase; focus: string | null; scope: Scope; createdBy: string }
@@ -79,7 +79,7 @@ export async function assembleContextPack(deps: AssemblerDeps, input: AssembleIn
 
   const knowledge = await retrieve(deps, {
     query, ids, minSimilarity,
-    filter: { scope: resolved, framework: feature.framework, frameworkPackVersion: feature.framework_pack_version, phase, kinds: ['app_memory', 'standard', 'framework_pack'], tier: null, excludeItemIds: pinnedIds },
+    filter: knowledgeFilter({ scope: resolved, framework: feature.framework, frameworkPackVersion: feature.framework_pack_version, phase, excludeItemIds: pinnedIds }),
   });
   const guides = stackPacks.length === 0
     ? { chunks: [], degraded: knowledge.degraded }

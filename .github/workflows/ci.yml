@@ -51,6 +51,37 @@ jobs:
         with: { node-version: 22, cache: npm }
       - run: npm ci
       - run: npx vitest run hosts/claude-code/test
+  eval:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env: { POSTGRES_USER: sdd, POSTGRES_PASSWORD: sdd, POSTGRES_DB: sdd }
+        ports: ['55433:5432']
+        options: >-
+          --health-cmd "pg_isready -U sdd -d sdd" --health-interval 2s --health-timeout 5s --health-retries 30
+    env:
+      SDD_DATABASE_URL: postgres://sdd:sdd@localhost:55433/sdd
+      VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Seed packs with the fake embedder
+        env: { SDD_EMBEDDING_PROVIDER: fake }
+        run: |
+          npx tsx src/cli/index.ts app register checkout --name Checkout
+          npx tsx src/cli/index.ts ingest-all packs
+      - name: Eval harness (fake embedder; numbers are not meaningful)
+        env: { SDD_EMBEDDING_PROVIDER: fake }
+        run: npx tsx src/cli/index.ts eval packs/evals/seed.yaml
+      - name: Eval against Voyage
+        if: ${{ env.VOYAGE_API_KEY != '' }}
+        env: { SDD_EMBEDDING_PROVIDER: voyage }
+        run: |
+          npx tsx src/cli/index.ts reindex
+          npx tsx src/cli/index.ts eval packs/evals/seed.yaml --min-recall 0.8
   image:
     runs-on: ubuntu-latest
     steps:

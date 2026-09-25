@@ -1,10 +1,19 @@
 import type { Queryable } from '../db/pool.js';
 import type { EmbeddingProvider } from '../embedding/provider.js';
+import type { Phase } from '../domain/types.js';
 import { exactIdSearch, mergeAndRank, vectorSearch, type RetrievalFilter, type RetrievedChunk } from '../store/retrieval.js';
 
 export const RETRIEVAL_CANDIDATES = 12;
 export const DEFAULT_MIN_SIMILARITY = 0.35;
 export const RETRIEVAL_LIMIT = 8;
+
+// Position 4 of a context pack: app memory, retrieved standards and the pinned framework's non-template items.
+export function knowledgeFilter(f: { scope: RetrievalFilter['scope']; framework: string; frameworkPackVersion: string; phase: Phase; excludeItemIds?: string[] }): RetrievalFilter {
+  return {
+    scope: f.scope, framework: f.framework, frameworkPackVersion: f.frameworkPackVersion, phase: f.phase,
+    kinds: ['app_memory', 'standard', 'framework_pack'], tier: null, excludeItemIds: f.excludeItemIds ?? [],
+  };
+}
 
 export interface RetrieveDeps { q: Queryable; embedder: EmbeddingProvider | null }
 export interface RetrieveInput { query: string; ids: string[]; filter: RetrievalFilter; minSimilarity: number; limit?: number }

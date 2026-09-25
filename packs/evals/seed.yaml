@@ -1,0 +1,53 @@
+# Golden retrieval cases for the seed packs. Each query should bring the expected
+# items into position 4 of a context pack (app memory, standards, framework guides).
+# Run: sdd-admin eval packs/evals/seed.yaml --min-recall 0.8
+- query: "delta spec ADDED MODIFIED REMOVED requirements with WHEN THEN scenarios"
+  phase: specify
+  framework: openspec
+  app: checkout
+  expect: [openspec.template.spec]
+- query: "tasks.md checklist of tasks, one sitting of work each, tests for the scenarios"
+  phase: specify
+  framework: openspec
+  app: checkout
+  expect: [openspec.template.tasks]
+- query: "openspec proposal apply verify archive commands and delta specs"
+  phase: implement
+  framework: openspec
+  app: checkout
+  expect: [openspec.guide.workflow]
+- query: "write one failing test first, run the suite, refactor with the suite green"
+  phase: implement
+  framework: openspec
+  app: checkout
+  expect: [quality.tdd]
+- query: "review the change against the accepted spec; order of concerns correctness security"
+  phase: verify
+  framework: openspec
+  app: checkout
+  expect: [quality.code-review]
+- query: "validate input at the boundary with a schema; secrets and tokens never logged"
+  phase: implement
+  framework: openspec
+  app: checkout
+  expect: [quality.security-hardening]
+- query: "reproduce the bug with a failing test, one hypothesis at a time"
+  phase: implement
+  framework: openspec
+  app: checkout
+  expect: [quality.systematic-debugging]
+- query: "EARS requirement patterns WHEN event THEN the system SHALL response"
+  phase: specify
+  framework: spec-kit
+  app: checkout
+  expect: [standard.ears]
+- query: "structured JSON logs with request id, healthz and metrics endpoints, alerts on symptoms"
+  phase: implement
+  framework: spec-kit
+  app: checkout
+  expect: [company.engineering-defaults]
+- query: "architecture decisions with alternatives rejected; components, responsibilities and interfaces"
+  phase: specify
+  framework: bmad
+  app: checkout
+  expect: [bmad.template.architecture]
