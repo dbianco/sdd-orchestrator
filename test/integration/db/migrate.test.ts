@@ -13,7 +13,7 @@ describe.skipIf(!url)('migrations', () => {
     );
     const names = tables.rows.map((r) => r.table_name);
     for (const t of ['apps', 'app_policies', 'frameworks', 'embedding_config', 'features', 'context_packs',
-      'phase_transitions', 'feature_artifacts', 'knowledge_items', 'knowledge_chunks', 'proposals', 'routing_events', 'commits', 'feature_requirements']) {
+      'phase_transitions', 'feature_artifacts', 'knowledge_items', 'knowledge_chunks', 'proposals', 'routing_events', 'commits', 'feature_requirements', 'api_tokens']) {
       expect(names).toContain(t);
     }
     const ext = await pool.query<{ extname: string }>(`SELECT extname FROM pg_extension`);

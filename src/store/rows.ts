@@ -1,3 +1,4 @@
+import type { Scope } from '../auth/tokens.js';
 import type { Decision, Finding, KnowledgeKind, MemoryType, Phase, Tier, Workspace } from '../domain/types.js';
 
 interface Audit { created_at: Date; updated_at: Date; created_by: string }
@@ -28,6 +29,10 @@ export interface ContextPackRow extends Audit {
 export interface TransitionRow extends Audit {
   id: string; feature_id: string; from_phase: string; to_phase: string; direction: 'forward' | 'backward'; result: 'pass' | 'fail';
   findings: Finding[]; evidence: unknown | null; pack_id: string | null; artifact_hashes: Record<string, string>; human_approved: boolean; reason: string | null;
+}
+export interface ApiTokenRow extends Audit {
+  id: string; actor: string; name: string; scopes: Scope[]; app_ids: string[] | null;
+  expires_at: Date | null; revoked_at: Date | null; revoked_reason: string | null; last_used_at: Date | null;
 }
 export interface FeatureRequirementRow extends Audit {
   feature_id: string; req_id: string; artifact: string; line: number; transition_id: string;
