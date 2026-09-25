@@ -29,6 +29,9 @@ export interface TransitionRow extends Audit {
   id: string; feature_id: string; from_phase: string; to_phase: string; direction: 'forward' | 'backward'; result: 'pass' | 'fail';
   findings: Finding[]; evidence: unknown | null; pack_id: string | null; artifact_hashes: Record<string, string>; human_approved: boolean; reason: string | null;
 }
+export interface FeatureRequirementRow extends Audit {
+  feature_id: string; req_id: string; artifact: string; line: number; transition_id: string;
+}
 export interface ArtifactRow extends Audit {
   id: string; transition_id: string; name: string; sha256: string; byte_length: number; content: string | null;
 }
