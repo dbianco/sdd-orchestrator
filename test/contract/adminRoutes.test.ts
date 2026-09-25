@@ -7,11 +7,13 @@ import { seedAll, embedder } from '../helpers/seed.js';
 import { startFeature } from '../../src/services/startFeature.js';
 import { routeTask } from '../../src/services/routeTask.js';
 import { recordCommit } from '../../src/services/recordCommit.js';
+import { advancePhase } from '../../src/services/advancePhase.js';
 import { createHttpApp, type HttpDeps } from '../../src/mcp/http.js';
 import { createLogger } from '../../src/logging.js';
 import { createMetrics } from '../../src/metrics.js';
 import type { Config } from '../../src/config.js';
 import type { Decision } from '../../src/domain/types.js';
+import { createToken } from '../../src/store/tokens.js';
 
 const url = process.env.SDD_TEST_DATABASE_URL;
 // admin-ui/dist is gitignored and only exists after `npm --prefix admin-ui run build`,
@@ -20,7 +22,7 @@ const adminUiIndexPath = fileURLToPath(new URL('../../admin-ui/dist/index.html',
 const decision: Decision = { intent: 'feature', framework: 'mini', track: 'default', confidence: 'high', rule: 'r', reasons: [], high_risk: false, policy_version: null, framework_pack_version: '1.0.0' };
 const baseConfig: Omit<Config, 'adminToken'> = {
   databaseUrl: 'unused', embedding: { provider: 'fake', model: 'fake-1024', ollamaUrl: 'unused' },
-  listen: { host: '127.0.0.1', port: 0 }, allowedHosts: ['127.0.0.1'], tokenBudget: 6000,
+  listen: { host: '127.0.0.1', port: 0 }, allowedHosts: ['127.0.0.1'], tokenBudget: 6000, authMode: 'off',
 };
 
 function listen(app: ReturnType<typeof createHttpApp>): Promise<{ server: Server; origin: string }> {
@@ -57,6 +59,54 @@ describe.skipIf(!url)('admin routes', () => {
     server = listening.server;
     const res = await fetch(`${listening.origin}/admin/api/overview`);
     expect(res.status).toBe(404);
+  });
+
+  it('logs in personal approver tokens when auth is on, even without SDD_ADMIN_TOKEN', async () => {
+    const approver = (await createToken(deps.pool, { actor: 'dana', name: 't', scopes: ['approver'], app_ids: null, expires_at: null }, 'test')).secret;
+    const host = (await createToken(deps.pool, { actor: 'bob', name: 't', scopes: ['host'], app_ids: null, expires_at: null }, 'test')).secret;
+    const listening = await listen(createHttpApp(deps, { ...baseConfig, adminToken: null, authMode: 'warn' }));
+    server = listening.server;
+    const me = await fetch(`${listening.origin}/admin/api/me`, { headers: { Authorization: authHeader(approver) } });
+    expect(me.status).toBe(200);
+    expect(await me.json()).toEqual({ actor: 'dana', canApprove: true });
+    expect((await fetch(`${listening.origin}/admin/api/me`, { headers: { Authorization: authHeader(host) } })).status).toBe(401);
+  });
+
+  it('lists, shows, approves and rejects approval requests for approvers only', async () => {
+    const approver = (await createToken(deps.pool, { actor: 'erin', name: 't', scopes: ['approver'], app_ids: null, expires_at: null }, 'test')).secret;
+    const listening = await listen(createHttpApp(deps, { ...baseConfig, adminToken: 's3cret', authMode: 'warn' }));
+    server = listening.server;
+    const warnDeps = { ...deps, authMode: 'warn' as const };
+    const pending = async (task: string) => {
+      const fid = (await startFeature(warnDeps, { app: 'checkout', actor: 'dana', task_description: task, decision })).feature_id;
+      return (await advancePhase(warnDeps, { feature_id: fid, actor: 'dana', expected_phase: 'specify', target_phase: 'implement', artifacts: { 'proposal.md': '## Why\nx\n\n## What Changes\ny\n' } })).approval_id!;
+    };
+    const a = await pending('one');
+    const b = await pending('two');
+    const as = (secret: string) => ({ Authorization: authHeader(secret) });
+    const json = { 'Content-Type': 'application/json' };
+
+    const list = (await (await fetch(`${listening.origin}/admin/api/approvals`, { headers: as(approver) })).json()) as any;
+    expect(list.approvals.map((x: { id: string }) => x.id)).toEqual([a, b]);
+    const detail = (await (await fetch(`${listening.origin}/admin/api/approvals/${a}`, { headers: as(approver) })).json()) as any;
+    expect(detail.artifacts).toEqual([expect.objectContaining({ name: 'proposal.md' })]);
+    expect(detail.requirements).toBeNull();
+    expect((await fetch(`${listening.origin}/admin/api/approvals/ap_nope`, { headers: as(approver) })).status).toBe(404);
+
+    const readOnly = await fetch(`${listening.origin}/admin/api/approvals/${a}/approve`, { method: 'POST', headers: { ...as('s3cret'), ...json }, body: '{}' });
+    expect(readOnly.status).toBe(403);
+    const form = await fetch(`${listening.origin}/admin/api/approvals/${a}/approve`, { method: 'POST', headers: { ...as(approver), 'Content-Type': 'text/plain' }, body: 'x' });
+    expect(form.status).toBe(415);
+    const noReason = await fetch(`${listening.origin}/admin/api/approvals/${b}/reject`, { method: 'POST', headers: { ...as(approver), ...json }, body: '{}' });
+    expect(noReason.status).toBe(400);
+
+    const approved = await fetch(`${listening.origin}/admin/api/approvals/${a}/approve`, { method: 'POST', headers: { ...as(approver), ...json }, body: JSON.stringify({ comment: 'ok' }) });
+    expect(approved.status).toBe(200);
+    expect(((await approved.json()) as any).approval).toMatchObject({ status: 'approved', decided_by: 'erin' });
+    const again = await fetch(`${listening.origin}/admin/api/approvals/${a}/approve`, { method: 'POST', headers: { ...as(approver), ...json }, body: '{}' });
+    expect(again.status).toBe(409);
+    const rejected = await fetch(`${listening.origin}/admin/api/approvals/${b}/reject`, { method: 'POST', headers: { ...as(approver), ...json }, body: JSON.stringify({ reason: 'unclear' }) });
+    expect(((await rejected.json()) as any).approval).toMatchObject({ status: 'rejected' });
   });
 
   it('requires Basic Auth and serves the overview once authenticated', async () => {

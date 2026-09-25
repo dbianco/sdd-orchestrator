@@ -1,11 +1,13 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { advancePhase } from '../../services/advancePhase.js';
+import { authorizeCall } from '../../auth/authorize.js';
+import type { AuthContext } from '../../auth/context.js';
 import { guarded } from '../encode.js';
 import { ActorSchema, FeatureStateShape, FindingShape, PhaseSchema, WarningsShape } from '../schemas.js';
 import type { McpDeps } from '../server.js';
 
-export function registerAdvancePhase(server: McpServer, deps: McpDeps): void {
+export function registerAdvancePhase(server: McpServer, deps: McpDeps, auth: AuthContext): void {
   server.registerTool('advance_phase', {
     title: 'Move a feature to the next or an earlier phase',
     description: [
@@ -26,15 +28,17 @@ export function registerAdvancePhase(server: McpServer, deps: McpDeps): void {
       dry_run: z.boolean().optional().describe('Evaluate gate checks without recording a transition; forward moves only'),
     },
     outputSchema: {
-      result: z.enum(['pass', 'fail']), findings: z.array(FindingShape), next_instructions: z.string().nullable(), feature: FeatureStateShape, warnings: WarningsShape,
+      result: z.enum(['pass', 'fail', 'awaiting_approval']), approval_id: z.string().optional(), findings: z.array(FindingShape), next_instructions: z.string().nullable(), feature: FeatureStateShape, warnings: WarningsShape,
     },
   }, async (args) => guarded(deps.logger, 'advance_phase', async () => {
-    const r = await advancePhase(deps, {
-      feature_id: args.feature_id, actor: args.actor, expected_phase: args.expected_phase, target_phase: args.target_phase, artifacts: args.artifacts,
+    const a = await authorizeCall(deps.pool, auth, { featureId: args.feature_id }, args.actor, true);
+    const raw = await advancePhase(deps, {
+      token_id: a.token_id, feature_id: args.feature_id, actor: a.actor!, expected_phase: args.expected_phase, target_phase: args.target_phase, artifacts: args.artifacts,
       evidence: args.evidence, human_approved: args.human_approved, cycle_failed: args.cycle_failed, pack_id: args.pack_id ?? null, reason: args.reason ?? null, repin: args.repin,
       dry_run: args.dry_run,
     });
-    const text = r.result === 'pass' && r.next_instructions ? r.next_instructions : JSON.stringify({ result: r.result, findings: r.findings, feature: r.feature, warnings: r.warnings }, null, 2);
+    const r = { ...raw, warnings: [...a.warnings, ...raw.warnings] };
+    const text = r.result !== 'fail' && r.next_instructions ? r.next_instructions : JSON.stringify({ result: r.result, findings: r.findings, feature: r.feature, warnings: r.warnings }, null, 2);
     return { structured: { ...r }, text };
   }));
 }

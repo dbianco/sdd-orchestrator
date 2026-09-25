@@ -1,11 +1,13 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { startFeature } from '../../services/startFeature.js';
+import { authorizeCall } from '../../auth/authorize.js';
+import type { AuthContext } from '../../auth/context.js';
 import { guarded } from '../encode.js';
 import { ActorSchema, DecisionShape, FeatureStateShape, WarningsShape, WorkspaceShape } from '../schemas.js';
 import type { McpDeps } from '../server.js';
 
-export function registerStartFeature(server: McpServer, deps: McpDeps): void {
+export function registerStartFeature(server: McpServer, deps: McpDeps, auth: AuthContext): void {
   server.registerTool('start_feature', {
     title: 'Start a feature from an accepted routing decision',
     description: [
@@ -25,11 +27,13 @@ export function registerStartFeature(server: McpServer, deps: McpDeps): void {
       feature_id: z.string(), routing_id: z.string(), context_pack: z.string(), pack_id: z.string(), feature: FeatureStateShape, next_instructions: z.string(), warnings: WarningsShape,
     },
   }, async (args) => guarded(deps.logger, 'start_feature', async () => {
-    const r = await startFeature(deps, {
-      app: args.app, actor: args.actor, task_description: args.task_description, decision: args.decision, workspace: args.workspace ?? null,
+    const a = await authorizeCall(deps.pool, auth, { apps: [args.app] }, args.actor, true);
+    const raw = await startFeature(deps, {
+      app: args.app, actor: a.actor!, task_description: args.task_description, decision: args.decision, workspace: args.workspace ?? null,
       feature_slug: args.feature_slug ?? null, external_ref: args.external_ref ?? null, trigger_ref: args.trigger_ref ?? null, policy_override_reason: args.policy_override_reason ?? null,
       routing_id: args.routing_id ?? null,
     });
+    const r = { ...raw, warnings: [...a.warnings, ...raw.warnings] };
     return { structured: { ...r }, text: r.context_pack };
   }));
 }

@@ -1,11 +1,13 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { getContext } from '../../services/getContext.js';
+import { authorizeCall, scopeTarget } from '../../auth/authorize.js';
+import type { AuthContext } from '../../auth/context.js';
 import { guarded } from '../encode.js';
 import { ActorSchema, FeatureStateShape, PhaseSchema, ScopeSchema, WarningsShape } from '../schemas.js';
 import type { McpDeps } from '../server.js';
 
-export function registerGetContext(server: McpServer, deps: McpDeps): void {
+export function registerGetContext(server: McpServer, deps: McpDeps, auth: AuthContext): void {
   server.registerTool('get_context', {
     title: 'Get the context pack for a feature phase',
     description: [
@@ -20,7 +22,9 @@ export function registerGetContext(server: McpServer, deps: McpDeps): void {
     },
     outputSchema: { context_pack: z.string(), pack_id: z.string(), feature: FeatureStateShape, warnings: WarningsShape },
   }, async (args) => guarded(deps.logger, 'get_context', async () => {
-    const r = await getContext(deps, { feature_id: args.feature_id, actor: args.actor, phase: args.phase ?? null, focus: args.focus ?? null, scope: args.scope ?? 'app' });
+    const a = await authorizeCall(deps.pool, auth, { featureId: args.feature_id, ...scopeTarget(args.scope) }, args.actor, true);
+    const raw = await getContext(deps, { feature_id: args.feature_id, actor: a.actor!, phase: args.phase ?? null, focus: args.focus ?? null, scope: args.scope ?? 'app' });
+    const r = { ...raw, warnings: [...a.warnings, ...raw.warnings] };
     return { structured: { ...r }, text: r.context_pack };
   }));
 }

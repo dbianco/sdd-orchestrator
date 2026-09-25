@@ -3,6 +3,7 @@ import type { TrackDecl } from '../domain/types.js';
 import { DomainError } from '../errors.js';
 import { allowedTargets } from '../lifecycle/reachability.js';
 import { phaseAlias, phaseOrder } from '../lifecycle/track.js';
+import { pendingApproval } from '../store/approvals.js';
 import { getFrameworkVersion, trackOf } from '../store/frameworks.js';
 import type { FeatureRow } from '../store/rows.js';
 
@@ -10,6 +11,7 @@ export interface FeatureState {
   feature_id: string; app: string; slug: string; intent: string; framework: string; framework_pack_version: string; track: string | null;
   current_phase: string; phase_alias: string; status: string; blocked_reason: string | null; high_risk: boolean; failed_cycles: number;
   external_ref: string | null; trigger_ref: string | null; allowed_targets: { forward: string[]; backward: string[] };
+  pending_approval: { approval_id: string; from: string; to: string; requested_by: string; requested_at: string } | null;
 }
 
 export async function loadTrack(q: Queryable, feature: FeatureRow): Promise<TrackDecl> {
@@ -32,6 +34,7 @@ export async function featureState(q: Queryable, feature: FeatureRow): Promise<{
       { feature_id: feature.id, framework: feature.framework, framework_pack_version: feature.framework_pack_version, phase: feature.current_phase },
     );
   }
+  const pending = await pendingApproval(q, feature.id);
   const targets = feature.status === 'archived' ? { forward: [], backward: [] } : allowedTargets(track, feature.current_phase);
   return {
     track,
@@ -41,6 +44,7 @@ export async function featureState(q: Queryable, feature: FeatureRow): Promise<{
       phase_alias: phaseAlias(track, feature.current_phase), status: feature.status, blocked_reason: feature.blocked_reason,
       high_risk: feature.high_risk, failed_cycles: feature.failed_cycles, external_ref: feature.external_ref, trigger_ref: feature.trigger_ref,
       allowed_targets: { forward: targets.forward, backward: targets.backward },
+      pending_approval: pending ? { approval_id: pending.id, from: pending.from_phase, to: pending.to_phase, requested_by: pending.requested_by, requested_at: pending.created_at.toISOString() } : null,
     },
   };
 }

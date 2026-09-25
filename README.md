@@ -138,14 +138,24 @@ sdd-admin ingest packs/company            # always-on constitution
 }
 ```
 
-### 3. Connect a host
+### 3. Issue tokens and connect a host
+
+Each person and each pipeline gets its own token; the server records the
+token's identity instead of trusting an `actor` field. `SDD_AUTH_MODE`
+defaults to `warn` (calls without a token still work, with a warning); set it
+to `enforce` once every host sends a token.
+
+```bash
+sdd-admin token create --for daniel --scope host,approver --name "daniel laptop"
+sdd-admin token create --for checkout-ci --scope ci --app checkout --name "checkout pipeline"
+```
 
 Claude Code (`.mcp.json` in the workspace):
 
 ```json
 {
   "mcpServers": {
-    "sdd": { "type": "http", "url": "http://sdd.internal:8080/mcp" }
+    "sdd": { "type": "http", "url": "http://sdd.internal:8080/mcp", "headers": { "Authorization": "Bearer ${SDD_TOKEN}" } }
   }
 }
 ```
@@ -155,7 +165,7 @@ Cursor (`.cursor/mcp.json`):
 ```json
 {
   "mcpServers": {
-    "sdd": { "url": "http://sdd.internal:8080/mcp" }
+    "sdd": { "url": "http://sdd.internal:8080/mcp", "headers": { "Authorization": "Bearer ${env:SDD_TOKEN}" } }
   }
 }
 ```
@@ -239,10 +249,17 @@ After the agent writes the proposal and the developer reviews it:
   "actor": "daniel",
   "expected_phase": "specify",
   "target_phase": "implement",
-  "artifacts": { "proposal.md": "…", "specs": "…", "tasks.md": "…" },
-  "human_approved": true
+  "artifacts": { "proposal.md": "…", "specs": "…", "tasks.md": "…" }
 }
 ```
+
+Spec review is a person's decision, not the agent's: when every check
+passes, the move comes back as `"result": "awaiting_approval"` with an
+`approval_id`, and a reviewer approves or rejects it in the admin UI's
+Approvals tab or with `sdd-admin approvals approve <id>`. Compliance apps and
+high-risk features need a reviewer other than the requester. (With
+`SDD_AUTH_MODE=off` the v1 behaviour applies: the host sends
+`"human_approved": true`.)
 
 A failing gate is a normal result, not an error:
 
@@ -317,30 +334,40 @@ sdd-admin reindex                       # after switching embedding model
 sdd-admin export rtm checkout > rtm.csv # requirement traceability matrix
 ```
 
-### 8. Browse adoption and flow metrics (optional)
+### 8. Report CI evidence
 
-Set `SDD_ADMIN_TOKEN` and restart the server to turn on a read-only admin
-page at `/admin` — feature counts, gate blocker counts by check, a
-phase-to-phase flow heatmap, the memory-proposal queue, and a **Work** tab
-listing everything routed (features and trivial fixes alike) with linked
-commits, filterable by app and date range. It is absent entirely (a plain
-404) when the token is unset.
+For compliance apps and high-risk features (and apps whose policy sets
+`"evidence": "ci"`), the move out of `verify` takes tests, lint and security
+results only from CI, and only for the feature's latest commit. The pipeline
+posts them with `scripts/sdd-ci-evidence.mjs`, which finds the feature from
+the `SDD-Ref` commit trailer; see `docs/ci/github-actions.md`.
+
+### 9. Review approvals and browse metrics
+
+The admin page at `/admin` shows feature counts, gate blocker counts by
+check, a phase-to-phase flow heatmap, the memory-proposal queue, a **Work**
+tab listing everything routed with linked commits, per-app traceability and
+an **Approvals** tab. Log in with any username and, as the password, a
+personal token with the `approver` scope (to approve or reject) or the
+shared `SDD_ADMIN_TOKEN` (read-only). The page is absent (a plain 404) when
+`SDD_AUTH_MODE=off` and `SDD_ADMIN_TOKEN` is unset.
 
 ```bash
-export SDD_ADMIN_TOKEN=s3cret   # or set it in .env / docker-compose.yml
 docker compose up -d
-open http://localhost:8080/admin   # any username, password = SDD_ADMIN_TOKEN
+open http://localhost:8080/admin   # any username, password = your sdd_ token
 ```
 
 ## Repository layout
 
 ```
 .github/workflows/        CI: typecheck, unit, integration, contract, admin UI, image
+docs/ci/                  reporting CI evidence from a pipeline
 docs/operations.md        deployment and operating notes
 docs/superpowers/specs/   design specifications
 docs/superpowers/plans/   implementation plans
 docs/verification/        host integration guide, feature matrix, walkthroughs, workspace-facts script
 migrations/               node-pg-migrate schema
+scripts/                  sdd-ci-evidence.mjs for pipelines
 packs/                    seed knowledge packs (frameworks, quality layer, stack guides, company)
 src/                      server, services, assembler, ingestion and CLI
 test/                     unit, integration and contract tests

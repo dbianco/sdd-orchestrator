@@ -31,6 +31,10 @@ walkthroughs. A blank cell means not yet verified.
 | Tool: list_features | | | |
 | Tool: record_commit | | | after a route_task, call it with `external_ref` and a sha: expect `commit_id` and `deduplicated: false`; call again with the same sha for `deduplicated: true` |
 | Error results (`isError`) rendered readably | | | code, message, details |
+| Bearer token in MCP config (`SDD_AUTH_MODE=enforce`) | | | 401 without it; token actor recorded |
+| `awaiting_approval` shown and followed by the agent | | | agent stops and polls `get_feature_status` |
+| Approval decided in the admin UI Approvals tab | | | personal approver token login |
+| CI evidence posted by `scripts/sdd-ci-evidence.mjs` | | | required for compliance and high-risk features |
 | Resource: sdd://apps/{slug} | | | Cursor resource browsing lags Tools |
 | Resource: sdd://features/{id} | | | |
 | Resource: sdd://frameworks/{name} | | | |

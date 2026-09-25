@@ -14,8 +14,8 @@ export async function getTestPool(): Promise<pg.Pool> {
 }
 
 export async function truncateAll(p: pg.Pool): Promise<void> {
-  await p.query(`TRUNCATE feature_requirements, commits, routing_events, proposals, knowledge_chunks, knowledge_items, feature_artifacts, phase_transitions,
-    context_packs, features, embedding_config, frameworks, app_policies, apps RESTART IDENTITY CASCADE`);
+  await p.query(`TRUNCATE ci_evidence, approval_requests, feature_requirements, commits, routing_events, proposals, knowledge_chunks, knowledge_items, feature_artifacts, phase_transitions,
+    context_packs, features, api_tokens, embedding_config, frameworks, app_policies, apps RESTART IDENTITY CASCADE`);
 }
 
 export async function closeTestPool(): Promise<void> {

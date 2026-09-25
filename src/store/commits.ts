@@ -6,6 +6,7 @@ import type { CommitRow } from './rows.js';
 export interface NewCommit {
   app_id: string; sha: string; branch: string | null; message: string; files_changed: string[]; committed_at: Date | null;
   routing_id: string | null; feature_id: string | null;
+  source?: 'host' | 'ci';
 }
 
 // Postgres validates CHECK constraints on the INSERT candidate before ON CONFLICT arbitration, so the
@@ -17,7 +18,7 @@ export async function upsertCommit(q: Queryable, c: NewCommit, actor: string): P
      VALUES ($1, $2, $3, $4, $5, $6, $7,
        COALESCE($8::text, (SELECT routing_id FROM commits WHERE app_id = $2 AND sha = $3)),
        COALESCE($9::text, (SELECT feature_id FROM commits WHERE app_id = $2 AND sha = $3)),
-       'host', $10)
+       $11, $10)
      ON CONFLICT (app_id, sha) DO UPDATE SET
        branch = COALESCE(EXCLUDED.branch, commits.branch),
        message = EXCLUDED.message,
@@ -27,7 +28,7 @@ export async function upsertCommit(q: Queryable, c: NewCommit, actor: string): P
        feature_id = COALESCE(commits.feature_id, EXCLUDED.feature_id),
        updated_at = now()
      RETURNING *, (xmax = 0) AS inserted`,
-    [newId('cm'), c.app_id, sha, c.branch, c.message, c.files_changed, c.committed_at, c.routing_id, c.feature_id, actor],
+    [newId('cm'), c.app_id, sha, c.branch, c.message, c.files_changed, c.committed_at, c.routing_id, c.feature_id, actor, c.source ?? 'host'],
   );
   const { inserted, ...row } = r.rows[0]!;
   return { row, deduplicated: !inserted };

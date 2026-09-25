@@ -1,4 +1,5 @@
-import type { Decision, Finding, KnowledgeKind, MemoryType, Phase, Tier, Workspace } from '../domain/types.js';
+import type { Scope } from '../auth/tokens.js';
+import type { Decision, Finding, Policy, KnowledgeKind, MemoryType, Phase, Tier, Workspace } from '../domain/types.js';
 
 interface Audit { created_at: Date; updated_at: Date; created_by: string }
 
@@ -7,7 +8,7 @@ export interface AppRow extends Audit {
   token_budget: number | null; min_similarity: number | null; stop_conditions: string[];
 }
 export interface PolicyRow extends Audit {
-  id: string; app_id: string; version: number; policy: { framework: string | null; path_rules: { glob: string; framework: string }[]; risk_paths: string[] }; reason: string;
+  id: string; app_id: string; version: number; policy: Policy; reason: string;
 }
 export interface FrameworkRow extends Audit {
   id: string; name: string; pack_version: string; tracks: Record<string, unknown>; gate_library_version: string; status: 'active' | 'deprecated';
@@ -26,8 +27,22 @@ export interface ContextPackRow extends Audit {
   rendered: string; token_count: number; budget: number; degraded: boolean; over_budget: boolean;
 }
 export interface TransitionRow extends Audit {
-  id: string; feature_id: string; from_phase: string; to_phase: string; direction: 'forward' | 'backward'; result: 'pass' | 'fail';
+  id: string; feature_id: string; from_phase: string; to_phase: string; direction: 'forward' | 'backward'; result: 'pass' | 'fail' | 'awaiting_approval';
   findings: Finding[]; evidence: unknown | null; pack_id: string | null; artifact_hashes: Record<string, string>; human_approved: boolean; reason: string | null;
+  token_id: string | null; approval_id: string | null; approved_by: string | null;
+  ci_evidence_id: string | null; evidence_sources: Record<string, 'ci' | 'host'> | null;
+}
+export interface ApprovalRow extends Audit {
+  id: string; feature_id: string; transition_id: string; from_phase: string; to_phase: string;
+  status: 'pending' | 'approved' | 'rejected' | 'superseded'; requested_by: string; decided_by: string | null; decided_at: Date | null; comment: string | null;
+}
+export interface CiEvidenceRow extends Audit {
+  id: string; app_id: string; feature_id: string; commit_sha: string; branch: string | null; run_url: string | null;
+  evidence: Record<string, unknown>; token_id: string;
+}
+export interface ApiTokenRow extends Audit {
+  id: string; actor: string; name: string; scopes: Scope[]; app_ids: string[] | null;
+  expires_at: Date | null; revoked_at: Date | null; revoked_reason: string | null; last_used_at: Date | null;
 }
 export interface FeatureRequirementRow extends Audit {
   feature_id: string; req_id: string; artifact: string; line: number; transition_id: string;

@@ -1,5 +1,6 @@
 import { withTransaction } from '../db/pool.js';
-import type { Finding, Phase, PhaseOrArchived } from '../domain/types.js';
+import type { Queryable } from '../db/pool.js';
+import type { Finding, GateDecl, Phase, PhaseOrArchived, TrackDecl } from '../domain/types.js';
 import { isPhase } from '../domain/phases.js';
 import { DomainError, firstByPrecedence } from '../errors.js';
 import { runGate } from '../gates/run.js';
@@ -8,7 +9,12 @@ import { renderPhaseInstructions } from '../lifecycle/instructions.js';
 import { allowedTargets, classifyMove, mandatesApproval } from '../lifecycle/reachability.js';
 import { gateFor } from '../lifecycle/track.js';
 import { requireFeature, updateFeature } from '../store/features.js';
+import type { FeatureRow } from '../store/rows.js';
 import { currentFramework } from '../store/frameworks.js';
+import { mergeEvidence, requiresCiEvidence } from '../gates/mergeEvidence.js';
+import { createApproval, supersedePending } from '../store/approvals.js';
+import { latestCiEvidenceSinceVerify, latestFeatureCommitSha } from '../store/ciEvidence.js';
+import { currentPolicy } from '../store/policies.js';
 import { getPack, latestPack } from '../store/packs.js';
 import { insertArtifacts, insertTransition, sha256 } from '../store/transitions.js';
 import type { ServiceDeps } from './deps.js';
@@ -18,8 +24,55 @@ import { captureRequirements, requirementIdsFor } from './requirements.js';
 export interface AdvancePhaseInput {
   feature_id: string; actor: string; expected_phase: Phase; target_phase: string; artifacts?: Record<string, string>; evidence?: unknown;
   human_approved?: boolean; cycle_failed?: boolean; pack_id?: string | null; reason?: string | null; repin?: boolean; dry_run?: boolean;
+  token_id?: string | null;
 }
-export interface AdvancePhaseResult { result: 'pass' | 'fail'; findings: Finding[]; next_instructions: string | null; feature: FeatureState; warnings: string[] }
+export interface AdvancePhaseResult {
+  result: 'pass' | 'fail' | 'awaiting_approval'; findings: Finding[]; next_instructions: string | null; feature: FeatureState; warnings: string[];
+  approval_id?: string;
+}
+
+export const HUMAN_APPROVED_IGNORED = 'human_approved is ignored; approval is requested from a person on the server';
+
+export function serverApprovals(deps: Pick<ServiceDeps, 'authMode'>): boolean {
+  return (deps.authMode ?? 'off') !== 'off';
+}
+
+export function awaitingApprovalInstructions(featureId: string, from: string, to: string, approvalId: string): string {
+  return [
+    `The move ${from} -> ${to} for ${featureId} passed its checks and waits for a person.`,
+    `Ask a reviewer to approve ${approvalId} in the admin UI (Approvals) or with \`sdd-admin approvals approve ${approvalId}\`.`,
+    `Poll get_feature_status; do not start ${to} until current_phase is ${to}.`,
+  ].join('\n');
+}
+
+// Moves a feature through a passing forward transition; shared by advance_phase and approval decisions.
+export async function applyForwardMove(
+  tx: Queryable, feature: FeatureRow, track: TrackDecl, target: PhaseOrArchived, gate: GateDecl | null,
+  artifacts: Record<string, string>, transitionId: string, actor: string,
+): Promise<{ state: FeatureState; next: string }> {
+  await captureRequirements(tx, gate, artifacts, feature.id, transitionId, actor);
+  const updated = target === 'archived'
+    ? await updateFeature(tx, feature.id, { status: 'archived' })
+    : await updateFeature(tx, feature.id, { current_phase: target });
+  const { state } = await featureState(tx, updated);
+  const next = target === 'archived'
+    ? `Feature ${feature.id} is archived. Its packs, transitions and artifacts remain readable through get_feature_status and get_context.`
+    : renderPhaseInstructions({ feature_id: feature.id, framework: feature.framework, track: feature.track, phase: target, track_decl: track });
+  return { state, next };
+}
+
+// With auth on, CI evidence is merged into the verify evidence and, for compliance or high-risk work, required.
+async function resolveEvidence(tx: Queryable, feature: FeatureRow, hostEvidence: unknown): Promise<{
+  evidence: unknown; findings: Finding[]; sources: Record<string, 'ci' | 'host'> | null; ci_evidence_id: string | null;
+}> {
+  const app = (await tx.query<{ compliance: boolean }>('SELECT compliance FROM apps WHERE id = $1', [feature.app_id])).rows[0]!;
+  const policy = await currentPolicy(tx, feature.app_id);
+  const required = requiresCiEvidence({ compliance: app.compliance, high_risk: feature.high_risk, policyEvidence: policy?.policy.evidence });
+  const ci = await latestCiEvidenceSinceVerify(tx, feature.id);
+  const latestCommit = required && ci ? await latestFeatureCommitSha(tx, feature.id) : null;
+  const merged = mergeEvidence(hostEvidence, ci ? { evidence: ci.evidence, commit_sha: ci.commit_sha } : null, { required, latestCommit });
+  return { evidence: merged.evidence, findings: merged.findings, sources: merged.evidence ? merged.sources : null, ci_evidence_id: ci?.id ?? null };
+}
 
 export async function advancePhase(deps: ServiceDeps, input: AdvancePhaseInput): Promise<AdvancePhaseResult> {
   return withTransaction(deps.pool, async (tx) => {
@@ -72,34 +125,53 @@ export async function advancePhase(deps: ServiceDeps, input: AdvancePhaseInput):
       const gate = gateFor(track, feature.current_phase, target);
       const mandated = mandatesApproval(track, feature.current_phase, target, feature.high_risk);
       const requirements = await requirementIdsFor(tx, feature.id);
-      const outcome = runGate(gate, { artifacts, evidence: input.evidence ?? null, human_approved: input.human_approved ?? false, requirements }, mandated);
+      const onServer = serverApprovals(deps);
+      const needsApproval = mandated || (gate?.checks.some((c) => c.name === 'human_approved') ?? false);
+      if (onServer && input.human_approved) warnings.push(HUMAN_APPROVED_IGNORED);
+      const gateToRun = onServer && gate ? { ...gate, checks: gate.checks.filter((c) => c.name !== 'human_approved') } : gate;
+      const humanApproved = onServer ? false : input.human_approved ?? false;
+      const ev = onServer && gate?.checks.some((c) => c.name === 'verify_evidence')
+        ? await resolveEvidence(tx, feature, input.evidence)
+        : { evidence: input.evidence ?? null, findings: [] as Finding[], sources: null, ci_evidence_id: null };
+      const gateOutcome = runGate(gateToRun, { artifacts, evidence: ev.evidence, human_approved: humanApproved, requirements }, onServer ? false : mandated);
+      const allFindings = [...ev.findings, ...gateOutcome.findings];
+      const outcome = { result: allFindings.some((f) => f.severity === 'blocker') ? 'fail' as const : 'pass' as const, findings: allFindings };
+      const awaiting = onServer && needsApproval && outcome.result === 'pass';
+      const result = awaiting ? 'awaiting_approval' : outcome.result;
       if (input.dry_run) {
         const { state } = await featureState(tx, feature);
-        return { result: outcome.result, findings: outcome.findings, next_instructions: null, feature: state, warnings };
+        return { result, findings: outcome.findings, next_instructions: null, feature: state, warnings };
       }
       for (const f of outcome.findings) deps.metrics?.gate(f.check, f.severity === 'blocker' ? 'fail' : 'pass');
+      const uncovered = outcome.findings.filter((f) => f.check === 'requirement_coverage' && f.message.endsWith('is not covered by evidence.implements')).length;
+      if (uncovered > 0) deps.metrics?.requirementsUncovered(uncovered);
       const transition = await insertTransition(tx, {
-        feature_id: feature.id, from_phase: feature.current_phase, to_phase: target, direction, result: outcome.result, findings: outcome.findings,
-        evidence: input.evidence ?? null, pack_id: packId, artifact_hashes: artifactHashes, human_approved: input.human_approved ?? false, reason: input.reason ?? null,
+        feature_id: feature.id, from_phase: feature.current_phase, to_phase: target, direction, result, findings: outcome.findings,
+        evidence: ev.evidence, pack_id: packId, artifact_hashes: artifactHashes, human_approved: humanApproved, reason: input.reason ?? null, token_id: input.token_id ?? null,
+        ci_evidence_id: ev.ci_evidence_id, evidence_sources: ev.sources,
       }, input.actor);
       await insertArtifacts(tx, transition.id, artifacts, input.actor);
+      if (awaiting) {
+        await supersedePending(tx, feature.id, input.actor);
+        const approval = await createApproval(tx, { feature_id: feature.id, transition_id: transition.id, from_phase: feature.current_phase, to_phase: target }, input.actor);
+        deps.metrics?.approval('requested');
+        const { state } = await featureState(tx, feature);
+        return {
+          result: 'awaiting_approval', approval_id: approval.id, findings: outcome.findings, feature: state, warnings,
+          next_instructions: awaitingApprovalInstructions(feature.id, feature.current_phase, target, approval.id),
+        };
+      }
       if (outcome.result === 'fail') {
         const { state } = await featureState(tx, feature);
         return { result: 'fail', findings: outcome.findings, next_instructions: null, feature: state, warnings };
       }
-      await captureRequirements(tx, gate, artifacts, feature.id, transition.id, input.actor);
-      const updated = target === 'archived'
-        ? await updateFeature(tx, feature.id, { status: 'archived' })
-        : await updateFeature(tx, feature.id, { current_phase: target });
-      const { state } = await featureState(tx, updated);
-      const next = target === 'archived'
-        ? `Feature ${feature.id} is archived. Its packs, transitions and artifacts remain readable through get_feature_status and get_context.`
-        : renderPhaseInstructions({ feature_id: feature.id, framework: feature.framework, track: feature.track, phase: target, track_decl: track });
+      const { state, next } = await applyForwardMove(tx, feature, track, target, gate, artifacts, transition.id, input.actor);
       return { result: 'pass', findings: outcome.findings, next_instructions: next, feature: state, warnings };
     }
 
     // backward
     const to = target as Phase;
+    if (await supersedePending(tx, feature.id, input.actor) > 0) warnings.push('the pending approval request was superseded by this backward move');
     const cycle = applyBackwardMove({ failed_cycles: feature.failed_cycles, status: feature.status as 'active' | 'blocked' }, feature.current_phase, to, input.cycle_failed ?? false, input.reason!);
     if (input.cycle_failed) deps.metrics?.failedCycle();
     let packVersion = feature.framework_pack_version;
@@ -110,7 +182,7 @@ export async function advancePhase(deps: ServiceDeps, input: AdvancePhaseInput):
     }
     const transition = await insertTransition(tx, {
       feature_id: feature.id, from_phase: feature.current_phase, to_phase: to, direction, result: 'pass', findings: [], evidence: null, pack_id: packId,
-      artifact_hashes: artifactHashes, human_approved: input.human_approved ?? false, reason: input.reason ?? null,
+      artifact_hashes: artifactHashes, human_approved: input.human_approved ?? false, reason: input.reason ?? null, token_id: input.token_id ?? null,
     }, input.actor);
     await insertArtifacts(tx, transition.id, artifacts, input.actor);
     const updated = await updateFeature(tx, feature.id, {

@@ -1,11 +1,13 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { recordCommit } from '../../services/recordCommit.js';
+import { authorizeCall } from '../../auth/authorize.js';
+import type { AuthContext } from '../../auth/context.js';
 import { guarded } from '../encode.js';
-import { ActorSchema } from '../schemas.js';
+import { ActorSchema, WarningsShape } from '../schemas.js';
 import type { McpDeps } from '../server.js';
 
-export function registerRecordCommit(server: McpServer, deps: McpDeps): void {
+export function registerRecordCommit(server: McpServer, deps: McpDeps, auth: AuthContext): void {
   server.registerTool('record_commit', {
     title: 'Link a commit to routed work or a feature',
     description: [
@@ -27,13 +29,15 @@ export function registerRecordCommit(server: McpServer, deps: McpDeps): void {
       external_ref: z.string().trim().min(1).optional().describe('Ticket id already passed to route_task'),
     },
     outputSchema: {
-      commit_id: z.string(), routing_id: z.string().nullable(), feature_id: z.string().nullable(), deduplicated: z.boolean(),
+      commit_id: z.string(), routing_id: z.string().nullable(), feature_id: z.string().nullable(), deduplicated: z.boolean(), warnings: WarningsShape.optional(),
     },
   }, async (args) => guarded(deps.logger, 'record_commit', async () => {
-    const r = await recordCommit(deps, {
-      app: args.app, actor: args.actor, sha: args.sha, message: args.message, branch: args.branch ?? null, files_changed: args.files_changed ?? null,
+    const a = await authorizeCall(deps.pool, auth, { apps: [args.app] }, args.actor, true);
+    const recorded = await recordCommit(deps, {
+      app: args.app, actor: a.actor!, sha: args.sha, message: args.message, branch: args.branch ?? null, files_changed: args.files_changed ?? null,
       committed_at: args.committed_at ?? null, routing_id: args.routing_id ?? null, feature_id: args.feature_id ?? null, external_ref: args.external_ref ?? null,
     });
+    const r = { ...recorded, ...(a.warnings.length > 0 ? { warnings: a.warnings } : {}) };
     return { structured: { ...r }, text: JSON.stringify(r, null, 2) };
   }));
 }

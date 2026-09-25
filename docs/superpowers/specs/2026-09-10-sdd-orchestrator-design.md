@@ -757,6 +757,9 @@ Whatever a host keeps locally is a cache: the server is authoritative, and
 
 ### 11.3 Security posture
 
+Superseded in part by `docs/superpowers/specs/2026-09-25-trust-traceability-enforcement-design.md`:
+bearer tokens, server-side approvals and CI evidence (`SDD_AUTH_MODE`).
+
 Stated plainly for v1:
 
 - There is no authentication. The server must be reachable only on a trusted

@@ -90,9 +90,9 @@ Decisions taken before this draft, with the requester:
 `sdd-admin token create` issues a token and prints it once:
 
 ```bash
-sdd-admin token create --actor daniel --scope host,approver --name "daniel laptop" [--app checkout ...] [--expires 90d]
-sdd-admin token create --actor ci-checkout --scope ci --app checkout --name "checkout pipeline"
-sdd-admin token list [--actor daniel]
+sdd-admin token create --for daniel --scope host,approver --name "daniel laptop" [--app checkout ...] [--expires 90d]
+sdd-admin token create --for ci-checkout --scope ci --app checkout --name "checkout pipeline"
+sdd-admin token list [--for daniel]
 sdd-admin token revoke tk_01j… --reason "laptop lost"
 ```
 

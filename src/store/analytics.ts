@@ -20,7 +20,7 @@ export async function gateCheckStats(q: Queryable, appId: string | null = null):
      FROM phase_transitions pt
      JOIN features f ON f.id = pt.feature_id
      CROSS JOIN LATERAL jsonb_array_elements(pt.findings) AS finding
-     WHERE ($1::text IS NULL OR f.app_id = $1)
+     WHERE ($1::text IS NULL OR f.app_id = $1) AND pt.result <> 'awaiting_approval'
      GROUP BY finding->>'check' ORDER BY blocker_count DESC`,
     [appId],
   );
@@ -33,7 +33,7 @@ export async function flowCounts(q: Queryable, appId: string | null = null): Pro
     `SELECT pt.from_phase, pt.to_phase, pt.result, count(*)::int AS count
      FROM phase_transitions pt
      JOIN features f ON f.id = pt.feature_id
-     WHERE ($1::text IS NULL OR f.app_id = $1) AND pt.direction = 'forward'
+     WHERE ($1::text IS NULL OR f.app_id = $1) AND pt.direction = 'forward' AND pt.result <> 'awaiting_approval'
      GROUP BY pt.from_phase, pt.to_phase, pt.result ORDER BY pt.from_phase, pt.to_phase`,
     [appId],
   );

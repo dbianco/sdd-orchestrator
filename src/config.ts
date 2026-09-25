@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { AUTH_MODES, type AuthMode } from './auth/context.js';
 
 export const ACCEPTED_MODELS = {
   voyage: ['voyage-3', 'voyage-3-large', 'voyage-3.5', 'voyage-3.5-lite', 'voyage-code-3'],
@@ -20,6 +21,7 @@ export interface Config {
   allowedHosts: string[];
   tokenBudget: number;
   adminToken: string | null;
+  authMode: AuthMode;
 }
 
 const EnvSchema = z.object({
@@ -32,6 +34,7 @@ const EnvSchema = z.object({
   SDD_ALLOWED_HOSTS: z.string().default('localhost,127.0.0.1'),
   SDD_TOKEN_BUDGET: z.coerce.number().int().positive().default(6000),
   SDD_ADMIN_TOKEN: z.string().optional(),
+  SDD_AUTH_MODE: z.enum(AUTH_MODES).default('warn'),
 });
 
 const DEFAULT_MODEL: Record<EmbeddingProviderName, string> = {
@@ -60,5 +63,6 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     allowedHosts: e.SDD_ALLOWED_HOSTS.split(',').map((s) => s.trim()).filter(Boolean),
     tokenBudget: e.SDD_TOKEN_BUDGET,
     adminToken: e.SDD_ADMIN_TOKEN?.trim() ? e.SDD_ADMIN_TOKEN : null,
+    authMode: e.SDD_AUTH_MODE,
   };
 }

@@ -31,6 +31,8 @@ export interface Policy {
   framework: string | null;
   path_rules: PathRule[];
   risk_paths: string[];
+  approval?: { distinct_approver: boolean };
+  evidence?: 'ci' | 'host';
 }
 
 export interface PhaseMapping {

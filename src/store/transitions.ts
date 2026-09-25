@@ -7,8 +7,13 @@ import type { ArtifactRow, TransitionRow } from './rows.js';
 export const ARTIFACT_CONTENT_CAP = 256 * 1024;
 
 export interface NewTransition {
-  feature_id: string; from_phase: string; to_phase: string; direction: 'forward' | 'backward'; result: 'pass' | 'fail';
+  feature_id: string; from_phase: string; to_phase: string; direction: 'forward' | 'backward'; result: 'pass' | 'fail' | 'awaiting_approval';
   findings: Finding[]; evidence: unknown | null; pack_id: string | null; artifact_hashes: Record<string, string>; human_approved: boolean; reason: string | null;
+  token_id?: string | null;
+  approval_id?: string | null;
+  approved_by?: string | null;
+  ci_evidence_id?: string | null;
+  evidence_sources?: Record<string, 'ci' | 'host'> | null;
 }
 
 export function sha256(text: string): string {
@@ -17,10 +22,10 @@ export function sha256(text: string): string {
 
 export async function insertTransition(q: Queryable, t: NewTransition, actor: string): Promise<TransitionRow> {
   const r = await q.query<TransitionRow>(
-    `INSERT INTO phase_transitions (id, feature_id, from_phase, to_phase, direction, result, findings, evidence, pack_id, artifact_hashes, human_approved, reason, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
+    `INSERT INTO phase_transitions (id, feature_id, from_phase, to_phase, direction, result, findings, evidence, pack_id, artifact_hashes, human_approved, reason, created_by, token_id, approval_id, approved_by, ci_evidence_id, evidence_sources)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING *`,
     [newId('t'), t.feature_id, t.from_phase, t.to_phase, t.direction, t.result, JSON.stringify(t.findings), t.evidence == null ? null : JSON.stringify(t.evidence),
-      t.pack_id, JSON.stringify(t.artifact_hashes), t.human_approved, t.reason, actor],
+      t.pack_id, JSON.stringify(t.artifact_hashes), t.human_approved, t.reason, actor, t.token_id ?? null, t.approval_id ?? null, t.approved_by ?? null, t.ci_evidence_id ?? null, t.evidence_sources ? JSON.stringify(t.evidence_sources) : null],
   );
   return r.rows[0]!;
 }

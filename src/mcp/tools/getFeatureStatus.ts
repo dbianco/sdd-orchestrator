@@ -1,11 +1,13 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { getFeatureStatus } from '../../services/featureStatus.js';
+import { authorizeCall } from '../../auth/authorize.js';
+import type { AuthContext } from '../../auth/context.js';
 import { guarded } from '../encode.js';
-import { FeatureStateShape } from '../schemas.js';
+import { FeatureStateShape, WarningsShape } from '../schemas.js';
 import type { McpDeps } from '../server.js';
 
-export function registerGetFeatureStatus(server: McpServer, deps: McpDeps): void {
+export function registerGetFeatureStatus(server: McpServer, deps: McpDeps, auth: AuthContext): void {
   server.registerTool('get_feature_status', {
     title: 'Read a feature\'s state and history',
     description: [
@@ -22,9 +24,11 @@ export function registerGetFeatureStatus(server: McpServer, deps: McpDeps): void
       })),
       latest_pack_per_phase: z.record(z.string()),
       requirements: z.array(z.object({ id: z.string(), covered: z.boolean().nullable() })),
+      warnings: WarningsShape.optional(),
     },
   }, async (args) => guarded(deps.logger, 'get_feature_status', async () => {
-    const r = await getFeatureStatus(deps, args.feature_id);
+    const a = await authorizeCall(deps.pool, auth, { featureId: args.feature_id }, undefined, false);
+    const r = { ...(await getFeatureStatus(deps, args.feature_id)), ...(a.warnings.length > 0 ? { warnings: a.warnings } : {}) };
     return { structured: { ...r }, text: JSON.stringify(r, null, 2) };
   }));
 }

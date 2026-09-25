@@ -1,11 +1,13 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { authorizeCall } from '../auth/authorize.js';
+import type { AuthContext } from '../auth/context.js';
 import { PHASES } from '../domain/types.js';
 import { isDomainError } from '../errors.js';
 import { getContext } from '../services/getContext.js';
 import type { McpDeps } from './server.js';
 
-export function registerPrompts(server: McpServer, deps: McpDeps): void {
+export function registerPrompts(server: McpServer, deps: McpDeps, auth: AuthContext): void {
   for (const phase of PHASES) {
     server.registerPrompt(`sdd.${phase}`, {
       title: `SDD ${phase} phase`,
@@ -13,6 +15,7 @@ export function registerPrompts(server: McpServer, deps: McpDeps): void {
       argsSchema: { feature_id: z.string().min(1).describe('Feature id returned by start_feature') },
     }, async ({ feature_id }) => {
       try {
+        await authorizeCall(deps.pool, auth, { featureId: feature_id }, undefined, false);
         const r = await getContext(deps, { feature_id, actor: 'prompt', phase, scope: 'app' });
         return { messages: [{ role: 'user', content: { type: 'text', text: r.context_pack } }] };
       } catch (e) {

@@ -1,11 +1,13 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { routeTask } from '../../services/routeTask.js';
+import { authorizeCall } from '../../auth/authorize.js';
+import type { AuthContext } from '../../auth/context.js';
 import { guarded } from '../encode.js';
 import { ActorSchema, AttachedLayerShape, DecisionShape, LitePackShape, WarningsShape, WorkspaceShape } from '../schemas.js';
 import type { McpDeps } from '../server.js';
 
-export function registerRouteTask(server: McpServer, deps: McpDeps): void {
+export function registerRouteTask(server: McpServer, deps: McpDeps, auth: AuthContext): void {
   server.registerTool('route_task', {
     title: 'Route a task to an SDD framework',
     description: [
@@ -21,7 +23,7 @@ export function registerRouteTask(server: McpServer, deps: McpDeps): void {
       app: z.string().min(1).describe('App slug registered with sdd-admin'),
       workspace: WorkspaceShape,
       framework_preference: z.string().min(1).optional().describe('Framework name, optionally with a track: "bmad:quick"'),
-      actor: ActorSchema.optional(),
+      actor: ActorSchema,
       external_ref: z.string().trim().min(1).optional().describe('Ticket id (Linear, Jira); becomes the dedup identity for this work'),
       trigger_ref: z.string().min(1).optional().describe('What caused the work: incident id, CVE, alert'),
     },
@@ -35,10 +37,12 @@ export function registerRouteTask(server: McpServer, deps: McpDeps): void {
       routing_id: z.string(),
     },
   }, async (args) => guarded(deps.logger, 'route_task', async () => {
-    const r = await routeTask(deps, {
+    const a = await authorizeCall(deps.pool, auth, { apps: [args.app] }, args.actor, false);
+    const raw = await routeTask(deps, {
       task_description: args.task_description, app: args.app, workspace: args.workspace, framework_preference: args.framework_preference ?? null,
-      actor: args.actor ?? null, external_ref: args.external_ref ?? null, trigger_ref: args.trigger_ref ?? null,
+      actor: a.actor, external_ref: args.external_ref ?? null, trigger_ref: args.trigger_ref ?? null,
     });
+    const r = { ...raw, warnings: [...a.warnings, ...raw.warnings] };
     const structured = {
       decision: r.decision, clarifying_questions: r.clarifying_questions, guidance: r.guidance,
       lite_pack: r.lite_pack ? { rendered: r.lite_pack.rendered, token_count: r.lite_pack.token_count, budget: r.lite_pack.budget, degraded: r.lite_pack.degraded, over_budget: r.lite_pack.over_budget, items: r.lite_pack.items } : null,

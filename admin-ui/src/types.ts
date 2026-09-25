@@ -111,3 +111,20 @@ export interface RtmRow {
   files_changed: string[]; tests_passed: number | null; tests_failed: number | null; evidence_source: 'ci' | 'host' | null;
   spec_approved_by: string | null; verify_approved_by: string | null; archived_at: string | null;
 }
+
+export interface Me { actor: string; canApprove: boolean }
+
+export interface Approval {
+  id: string; feature_id: string; transition_id: string; from_phase: string; to_phase: string;
+  status: 'pending' | 'approved' | 'rejected' | 'superseded'; requested_by: string; decided_by: string | null; decided_at: string | null;
+  comment: string | null; created_at: string; app: string; feature_slug: string; framework: string; track: string | null;
+}
+
+export interface ApprovalDetail {
+  approval: Omit<Approval, 'app' | 'feature_slug' | 'framework' | 'track'>;
+  feature: { feature_id: string; slug: string; framework: string; track: string | null; high_risk: boolean };
+  findings: Finding[];
+  evidence: Record<string, unknown> | null;
+  artifacts: { name: string; byte_length: number; content: string | null }[];
+  requirements: string[] | null;
+}
