@@ -4,7 +4,7 @@ import { missingArtifact } from './checks/missingArtifact.js';
 import { humanApproved } from './checks/humanApproved.js';
 import type { CheckInput } from './types.js';
 
-export interface GateContext { artifacts: Record<string, string>; evidence: unknown; human_approved: boolean }
+export interface GateContext { artifacts: Record<string, string>; evidence: unknown; human_approved: boolean; requirements?: string[] }
 export interface GateResult { result: 'pass' | 'fail'; findings: Finding[] }
 
 export function runGate(gate: GateDecl | null, ctx: GateContext, mandatedApproval: boolean): GateResult {
@@ -14,6 +14,7 @@ export function runGate(gate: GateDecl | null, ctx: GateContext, mandatedApprova
     declaredArtifacts: gate?.artifacts ?? [],
     evidence: ctx.evidence as CheckInput['evidence'],
     human_approved: ctx.human_approved,
+    requirements: ctx.requirements ?? [],
   };
   if (gate) {
     findings.push(...missingArtifact.run({ ...base, params: {}, severity: 'blocker' }));

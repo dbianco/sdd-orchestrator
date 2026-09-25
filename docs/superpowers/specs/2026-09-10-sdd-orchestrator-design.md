@@ -514,7 +514,7 @@ and the end; retrieved material sits in the middle.
 |---|---|---|---|
 | 1 | Header: feature id, framework, track, phase and its alias, instruction block for this phase | Pinned framework version | No |
 | 2 | Always-on standards: company constitution and the feature's app steering rules, one constraint per line with its reason. Independent of `scope` | `standard` items with `tier: always_on`, current versions, company then app | No |
-| 3 | Phase template, verbatim | Pinned framework version | No |
+| 3 | Phase templates, verbatim (a phase may pin several since `docs/superpowers/specs/2026-09-25-trust-traceability-enforcement-design.md` §8) | Pinned framework version | No |
 | 4 | Retrieved knowledge: `app_memory`, retrieved `standard` (including quality layer and EARS), and non-template `framework_pack` items of the pinned version, filtered and ranked per 9.2, each with stable id, version and heading path | Retrieval | Yes, second |
 | 5 | Stack guide sections from the packs named in `attached_layers`, retrieved by the task query, never whole files | Retrieval, `stack_guide` kind | Yes, first |
 | 6 | Stop conditions and the next gate: the four default stop conditions (ambiguity between valid approaches, three failed fix attempts, existing behaviour contradicting acceptance criteria, irreversible data changes) plus `apps.stop_conditions`, then the checks and artifacts the next forward `advance_phase` will require | Engine | No |

@@ -1,0 +1,50 @@
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test:unit
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env: { POSTGRES_USER: sdd, POSTGRES_PASSWORD: sdd, POSTGRES_DB: sdd_test }
+        ports: ['55432:5432']
+        options: >-
+          --health-cmd "pg_isready -U sdd -d sdd_test" --health-interval 2s --health-timeout 5s --health-retries 30
+    env:
+      SDD_TEST_DATABASE_URL: postgres://sdd:sdd@localhost:55432/sdd_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run test:integration
+      - run: npm run test:contract
+  admin-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: admin-ui/package-lock.json }
+      - run: npm --prefix admin-ui ci
+      - run: npm run test:admin-ui
+      - run: npm run build:admin-ui
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build .

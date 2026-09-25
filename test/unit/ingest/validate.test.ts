@@ -72,4 +72,23 @@ describe('validatePack', () => {
     f.items.find((i) => i.frontMatter.id === 'mini.template.proposal')!.body = 'word '.repeat(3200);
     expect(validatePack(f, ctx).warnings[0]).toMatch(/template mini.template.proposal is \d+ tokens, above 3000/);
   });
+  it('rejects a phase declaring both template and templates, and unknown ids in templates', async () => {
+    const p = clone(await loadPack(`${fixtures}mini-framework`));
+    const track = p.manifest.tracks!.default!;
+    track.phases.specify = { alias: 'proposal', template: 'mini.template.proposal', templates: ['mini.template.proposal'] };
+    track.phases.implement = { alias: 'apply', templates: ['mini.template.apply', 'mini.template.missing'] };
+    const { errors } = validatePack(p, ctx);
+    expect(errors).toContain('track default: phase specify declares both template and templates');
+    expect(errors).toContain('track default: phase implement names template "mini.template.missing" which is not in this pack');
+  });
+  it('warns once when the templates of one phase are large together', async () => {
+    const p = clone(await loadPack(`${fixtures}mini-framework`));
+    const big = 'word '.repeat(1600);
+    p.items.find((i) => i.frontMatter.id === 'mini.template.proposal')!.body = big;
+    p.items.find((i) => i.frontMatter.id === 'mini.template.apply')!.body = big;
+    p.manifest.tracks!.default!.phases.specify = { alias: 'proposal', templates: ['mini.template.proposal', 'mini.template.apply'] };
+    const { errors, warnings } = validatePack(p, ctx);
+    expect(errors).toEqual([]);
+    expect(warnings.filter((w) => w.startsWith('templates for phase specify total'))).toHaveLength(1);
+  });
 });

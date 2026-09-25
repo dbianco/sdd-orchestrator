@@ -50,6 +50,12 @@ across sessions, branches and hosts.
   `refactor` track that requires characterization tests before any change and
   blocks the move out of `verify` if the evidence shows an existing test was
   modified (`max_existing_tests_modified: 0`).
+- **Requirement traceability.** The spec gate captures requirement ids
+  (`FR-001` in Spec Kit, `FR1` in BMAD, `R1` in the house flow, requirement
+  names in OpenSpec) and the gate out of `verify` checks them against
+  `evidence.implements`. `sdd-admin export rtm <app>`, the
+  `sdd://apps/{slug}/rtm` resource and the admin UI show, per app, which
+  requirement was covered by which evidence and who approved it.
 - **Cross-app knowledge reuse.** `search_memory` with `scope: "company"` or a
   list of app slugs answers "how do other apps handle X" without pulling in
   every other app's private decisions by default.
@@ -308,6 +314,7 @@ sdd-admin proposals approve p_42
 sdd-admin deprecate checkout.adr.0003 --successor checkout.adr.0009 --reason "superseded by streaming"
 sdd-admin deprecate-framework kiro --reason "no longer used"
 sdd-admin reindex                       # after switching embedding model
+sdd-admin export rtm checkout > rtm.csv # requirement traceability matrix
 ```
 
 ### 8. Browse adoption and flow metrics (optional)
@@ -328,6 +335,7 @@ open http://localhost:8080/admin   # any username, password = SDD_ADMIN_TOKEN
 ## Repository layout
 
 ```
+.github/workflows/        CI: typecheck, unit, integration, contract, admin UI, image
 docs/operations.md        deployment and operating notes
 docs/superpowers/specs/   design specifications
 docs/superpowers/plans/   implementation plans

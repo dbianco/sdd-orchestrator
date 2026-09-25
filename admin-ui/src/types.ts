@@ -58,6 +58,7 @@ export interface FeatureDetail {
     updated_at: string;
   };
   transitions: TransitionEntry[];
+  requirements: RequirementStatus[];
 }
 
 export interface Proposal {
@@ -101,4 +102,12 @@ export interface Commit {
   files_changed: string[];
   committed_at: string | null;
   created_at: string;
+}
+
+export interface RequirementStatus { id: string; covered: boolean | null }
+
+export interface RtmRow {
+  feature_id: string; slug: string; external_ref: string | null; req_id: string; covered: boolean | null;
+  files_changed: string[]; tests_passed: number | null; tests_failed: number | null; evidence_source: 'ci' | 'host' | null;
+  spec_approved_by: string | null; verify_approved_by: string | null; archived_at: string | null;
 }

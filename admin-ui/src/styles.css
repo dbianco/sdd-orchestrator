@@ -21,3 +21,8 @@ th, td { border: 1px solid #ccc; padding: 0.4rem 0.6rem; text-align: left; }
 .badge { display: inline-block; padding: 0.1rem 0.45rem; border-radius: 4px; background: #e5e7eb; font-size: 0.85em; white-space: nowrap; }
 .row-link { cursor: pointer; }
 .row-link:hover { background: #f3f4f6; }
+.badge-covered { background: #dcfce7; color: #14532d; }
+.badge-uncovered { background: #fee2e2; color: #7f1d1d; }
+.badge-pending { background: #e5e7eb; color: #374151; }
+.requirements { list-style: none; padding: 0; }
+.requirements li { margin: 0.2rem 0; }

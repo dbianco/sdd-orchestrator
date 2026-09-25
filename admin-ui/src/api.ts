@@ -1,4 +1,4 @@
-import type { AppSummary, Commit, FeatureDetail, FeatureSummary, FlowCount, Overview, Proposal, RoutingEvent, RoutingSummary } from './types';
+import type { AppSummary, Commit, FeatureDetail, FeatureSummary, FlowCount, Overview, Proposal, RoutingEvent, RoutingSummary, RtmRow } from './types';
 
 export class ApiError extends Error {}
 
@@ -45,4 +45,8 @@ export function getRouting(params: RoutingParams = {}): Promise<{ events: Routin
 
 export function getRoutingDetail(id: string): Promise<{ event: RoutingEvent; commits: Commit[] }> {
   return get<{ event: RoutingEvent; commits: Commit[] }>(`/admin/api/routing/${encodeURIComponent(id)}`);
+}
+
+export function getRtm(app: string): Promise<{ app: string; rows: RtmRow[] }> {
+  return get<{ app: string; rows: RtmRow[] }>(`/admin/api/apps/${encodeURIComponent(app)}/rtm`);
 }

@@ -10,8 +10,9 @@ import type { ServiceDeps } from '../../../src/services/deps.js';
 import type { Decision, Intent, Phase } from '../../../src/domain/types.js';
 
 const url = process.env.SDD_TEST_DATABASE_URL;
+const PACK_VERSION = '1.1.0';
 
-const evidence = { tests: { command: 'npm test', passed: 12, failed: 0 }, lint: 'pass', security: { status: 'pass', new_high: 0 }, files_changed: ['src/orders/export.ts', 'src/orders/export.test.ts'], implements: ['REQ-1'], existing_tests_modified: 0, characterization_tests: ['src/orders/export.characterization.test.ts'] };
+const evidence = { tests: { command: 'npm test', passed: 12, failed: 0 }, lint: 'pass', security: { status: 'pass', new_high: 0 }, files_changed: ['src/orders/export.ts', 'src/orders/export.test.ts'], implements: ['FR-001', 'CSV export', 'FR1', 'R1', '1'], existing_tests_modified: 0, characterization_tests: ['src/orders/export.characterization.test.ts'] };
 
 const proposal = '## Why\nExports are manual.\n\n## What Changes\n- Add a CSV export button.\n\n## Impact\nOrders page only.\n';
 const deltaSpec = '## ADDED Requirements\n\n### Requirement: CSV export\n\nThe system SHALL export up to 10000 rows within 2 s.\n\n#### Scenario: export\n\n- **WHEN** the user clicks export\n- **THEN** a CSV downloads\n\n## MODIFIED Requirements\n\n## REMOVED Requirements\n';
@@ -61,10 +62,10 @@ describe.skipIf(!url)('seed track lifecycles', () => {
     const [framework, track] = key.split('/') as [string, string];
     it(`${framework} ${track}: start to archived with every transition recorded`, async () => {
       const intent: Intent = track === 'hotfix' ? 'incident' : track === 'refactor' ? 'refactor' : 'feature';
-      const decision: Decision = { intent, framework, track, confidence: 'high', rule: 'test', reasons: [], high_risk: false, policy_version: null, framework_pack_version: '1.0.0' };
+      const decision: Decision = { intent, framework, track, confidence: 'high', rule: 'test', reasons: [], high_risk: false, policy_version: null, framework_pack_version: PACK_VERSION };
       const start = await startFeature(deps, { app: 'checkout', actor: 'walker', task_description: `Walk ${key}`, decision, trigger_ref: track === 'hotfix' ? 'INC-204' : null });
       expect(start.context_pack).toContain('## 3. Phase template');
-      const fw = (await getFrameworkVersion(deps.pool, framework, '1.0.0'))!;
+      const fw = (await getFrameworkVersion(deps.pool, framework, PACK_VERSION))!;
       const phases = phaseOrder(trackOf(fw, track));
       let current: Phase = 'specify';
       for (let i = 0; i < phases.length; i++) {
@@ -92,7 +93,7 @@ describe.skipIf(!url)('seed track lifecycles', () => {
   it('hotfix defers spec review to verify and requires it there', async () => {
     // high_risk stays false so the approval demanded at verify->integrate can only come from the
     // track's own spec_review: deferred, not from the high-risk branch of mandatesApproval.
-    const decision: Decision = { intent: 'incident', framework: 'openspec', track: 'hotfix', confidence: 'high', rule: 'test', reasons: [], high_risk: false, policy_version: null, framework_pack_version: '1.0.0' };
+    const decision: Decision = { intent: 'incident', framework: 'openspec', track: 'hotfix', confidence: 'high', rule: 'test', reasons: [], high_risk: false, policy_version: null, framework_pack_version: PACK_VERSION };
     const s = await startFeature(deps, { app: 'checkout', actor: 'w', task_description: 'outage', decision });
     const first = await advancePhase(deps, { feature_id: s.feature_id, actor: 'w', expected_phase: 'specify', target_phase: 'implement', artifacts: { 'proposal.md': hotfixProposal } });
     expect(first.result).toBe('pass');
@@ -102,12 +103,35 @@ describe.skipIf(!url)('seed track lifecycles', () => {
   });
 
   it('refactor tracks block when existing tests were modified', async () => {
-    const decision: Decision = { intent: 'refactor', framework: 'openspec', track: 'refactor', confidence: 'high', rule: 'test', reasons: [], high_risk: false, policy_version: null, framework_pack_version: '1.0.0' };
+    const decision: Decision = { intent: 'refactor', framework: 'openspec', track: 'refactor', confidence: 'high', rule: 'test', reasons: [], high_risk: false, policy_version: null, framework_pack_version: PACK_VERSION };
     const s = await startFeature(deps, { app: 'checkout', actor: 'w', task_description: 'refactor exports', decision });
     await advancePhase(deps, { feature_id: s.feature_id, actor: 'w', expected_phase: 'specify', target_phase: 'implement', artifacts: { 'proposal.md': refactorProposal, 'spec.md': emptyDelta }, human_approved: true });
     await advancePhase(deps, { feature_id: s.feature_id, actor: 'w', expected_phase: 'implement', target_phase: 'verify' });
     const r = await advancePhase(deps, { feature_id: s.feature_id, actor: 'w', expected_phase: 'verify', target_phase: 'integrate', evidence: { ...evidence, existing_tests_modified: 2 } });
     expect(r.result).toBe('fail');
     expect(r.findings[0]?.message).toMatch(/2 existing test file\(s\) modified, max 0/);
+  });
+
+  it.each([
+    ['openspec', 'default', ['OpenSpec delta spec template (openspec.template.spec)', 'OpenSpec tasks template (openspec.template.tasks)']],
+    ['bmad', 'full', ['BMAD architecture document template (bmad.template.architecture)']],
+    ['sdlc', 'default', ['sdlc scoping document template (sdlc.template.scoping)']],
+  ])('%s %s: the specify pack pins every document its gate requires', async (framework, track, headings) => {
+    const decision: Decision = { intent: 'feature', framework, track, confidence: 'high', rule: 'test', reasons: [], high_risk: false, policy_version: null, framework_pack_version: PACK_VERSION };
+    const s = await startFeature(deps, { app: 'checkout', actor: 'w', task_description: `pins ${framework}`, decision });
+    const pos3 = s.context_pack.slice(s.context_pack.indexOf('## 3.'), s.context_pack.indexOf('## 4.'));
+    for (const h of headings) expect(pos3).toContain(`### ${h}`);
+  });
+
+  it('spec-kit default blocks at verify when a captured requirement is not implemented', async () => {
+    const decision: Decision = { intent: 'feature', framework: 'spec-kit', track: 'default', confidence: 'high', rule: 'test', reasons: [], high_risk: false, policy_version: null, framework_pack_version: PACK_VERSION };
+    const s = await startFeature(deps, { app: 'checkout', actor: 'w', task_description: 'coverage gap', decision });
+    const steps: [Phase, string, Record<string, string>][] = [['specify', 'plan', { 'spec.md': specKitSpec }], ['plan', 'tasks', { 'plan.md': plan }], ['tasks', 'implement', { 'tasks.md': orderedTasks }], ['implement', 'verify', {}]];
+    for (const [from, to, artifacts] of steps) {
+      expect((await advancePhase(deps, { feature_id: s.feature_id, actor: 'w', expected_phase: from, target_phase: to, artifacts, human_approved: true })).result).toBe('pass');
+    }
+    const r = await advancePhase(deps, { feature_id: s.feature_id, actor: 'w', expected_phase: 'verify', target_phase: 'integrate', artifacts: { 'plan.md': plan }, evidence: { ...evidence, implements: ['FR-999'] } });
+    expect(r.result).toBe('fail');
+    expect(r.findings.filter((f) => f.severity === 'blocker').map((f) => f.message)).toEqual(['FR-001 is not covered by evidence.implements']);
   });
 });

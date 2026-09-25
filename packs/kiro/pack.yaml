@@ -1,7 +1,7 @@
 name: kiro
 kind: framework_pack
 framework: kiro
-version: 1.0.0
+version: 1.1.0
 # No source_url: nothing in this pack is derived word-for-word from Kiro's own
 # documentation (see README.md), and stamping the AWS-proprietary docs URL onto
 # every ingested row alongside `license: MIT` would misstate the provenance of
@@ -25,6 +25,7 @@ tracks:
         checks:
           - { name: placeholder_scan }
           - { name: required_sections, params: { artifact: requirements.md, sections: [Introduction, Requirements] } }
+          - { name: requirement_ids, params: { artifact: requirements.md, id_regex: '^###\s+Requirement\s+(?<id>\d+)\s*$' } }
       - transition: plan->tasks
         artifacts: [design.md]
         checks:
@@ -39,3 +40,4 @@ tracks:
         artifacts: []
         checks:
           - { name: verify_evidence }
+          - { name: requirement_coverage }

@@ -1,14 +1,14 @@
 name: sdlc
 kind: framework_pack
 framework: sdlc
-version: 1.0.0
+version: 1.1.0
 source_url: https://github.com/TextraAI/ai-sdlc
 license: MIT
 tracks:
   default:
     spec_review: required
     phases:
-      specify:   { alias: prd-and-scoping, command: "/sdlc:prd", template: sdlc.template.prd }
+      specify:   { alias: prd-and-scoping, command: "/sdlc:prd", templates: [sdlc.template.prd, sdlc.template.scoping] }
       plan:      { alias: jot-down, command: "/sdlc:jot-down", template: sdlc.template.jot-down }
       tasks:     { alias: task-breakdown, command: "/sdlc:task-breakdown", template: sdlc.template.tasks }
       implement: { alias: implement-task, command: "/sdlc:implement-task", template: sdlc.template.implement }
@@ -23,6 +23,7 @@ tracks:
           - { name: required_sections, params: { artifact: prd.md, sections: [Problem, Users, Requirements, Success Metrics] } }
           - { name: measurable_criteria, params: { artifact: prd.md, section: Success Metrics } }
           - { name: required_sections, params: { artifact: scoping.md, sections: [In Scope, Out of Scope] } }
+          - { name: requirement_ids, params: { artifact: prd.md, id_regex: '\*\*(?<id>R\d+)\*\*' } }
       - transition: plan->tasks
         artifacts: [jot-down.md]
         checks:
@@ -39,6 +40,7 @@ tracks:
         checks:
           - { name: verify_evidence }
           - { name: scope_drift, params: { plan_artifact: jot-down.md, files_section: Files } }
+          - { name: requirement_coverage }
       - transition: learn->archived
         artifacts: [retrospective.md]
         checks:

@@ -1,7 +1,7 @@
 name: spec-kit
 kind: framework_pack
 framework: spec-kit
-version: 1.0.0
+version: 1.1.0
 source_url: https://github.com/github/spec-kit
 license: MIT
 tracks:
@@ -22,6 +22,7 @@ tracks:
           - { name: placeholder_scan }
           - { name: required_sections, params: { artifact: spec.md, sections: [User Scenarios, Functional Requirements, Success Criteria] } }
           - { name: measurable_criteria, params: { artifact: spec.md, section: Success Criteria } }
+          - { name: requirement_ids, params: { artifact: spec.md, id_regex: '\*\*(?<id>FR-\d{3})\*\*' } }
       - transition: plan->tasks
         artifacts: [plan.md]
         checks:
@@ -37,6 +38,7 @@ tracks:
         checks:
           - { name: verify_evidence }
           - { name: scope_drift, params: { plan_artifact: plan.md, files_section: Project Structure } }
+          - { name: requirement_coverage }
   refactor:
     intents: [refactor]
     spec_review: required

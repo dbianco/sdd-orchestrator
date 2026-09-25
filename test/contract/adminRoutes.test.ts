@@ -90,6 +90,11 @@ describe.skipIf(!url)('admin routes', () => {
     const detail = (await (await fetch(`${listening.origin}/admin/api/features/${started.feature_id}`, { headers })).json()) as any;
     expect(detail.feature.slug).toBe(started.feature.slug);
     expect(detail.transitions).toEqual([]);
+    expect(detail.requirements).toEqual([]);
+
+    const rtm = (await (await fetch(`${listening.origin}/admin/api/apps/checkout/rtm`, { headers })).json()) as any;
+    expect(rtm).toEqual({ app: 'checkout', rows: [] });
+    expect((await fetch(`${listening.origin}/admin/api/apps/nope/rtm`, { headers })).status).toBe(404);
 
     const missingFeature = await fetch(`${listening.origin}/admin/api/features/f_nope`, { headers });
     expect(missingFeature.status).toBe(404);

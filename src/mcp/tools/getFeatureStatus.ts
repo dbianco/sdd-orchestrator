@@ -21,6 +21,7 @@ export function registerGetFeatureStatus(server: McpServer, deps: McpDeps): void
         reason: z.string().nullable(), created_by: z.string(), created_at: z.string(), findings_count: z.number().int(),
       })),
       latest_pack_per_phase: z.record(z.string()),
+      requirements: z.array(z.object({ id: z.string(), covered: z.boolean().nullable() })),
     },
   }, async (args) => guarded(deps.logger, 'get_feature_status', async () => {
     const r = await getFeatureStatus(deps, args.feature_id);

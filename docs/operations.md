@@ -94,3 +94,14 @@ upgrading. Re-ingesting the same pack version rewrites the stored tracks, adds
 no knowledge item versions for unchanged files, and leaves features that are
 already pinned to that version unaffected.
 
+## Framework packs 1.1.0: several templates and requirement checks
+
+The seed framework packs moved to `1.1.0`: specify phases pin every document
+their gate requires, and functional tracks capture requirement ids at the
+spec gate and check coverage out of `verify` (gate library version `2`).
+Run `sdd-admin ingest` for each framework pack after upgrading. Features
+started before stay pinned to `1.0.0` and keep its gates until they are
+archived; a backward move with `repin: true` moves one to `1.1.0`. A feature
+that reaches `verify` without captured requirements gets a warning, not a
+blocker.
+

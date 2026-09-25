@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
-import { getAppFeatures, getApps } from '../api';
-import type { AppSummary, FeatureSummary } from '../types';
+import { getAppFeatures, getApps, getRtm } from '../api';
+import type { AppSummary, FeatureSummary, RtmRow } from '../types';
 import { FeatureDetail } from './FeatureDetail';
+import { RtmTable } from './Requirements';
 
 export function AppsFeatures() {
   const [apps, setApps] = useState<AppSummary[] | null>(null);
   const [selectedApp, setSelectedApp] = useState<string | null>(null);
   const [features, setFeatures] = useState<FeatureSummary[] | null>(null);
+  const [rtm, setRtm] = useState<RtmRow[] | null>(null);
   const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -15,8 +17,9 @@ export function AppsFeatures() {
   }, []);
 
   useEffect(() => {
-    if (!selectedApp) { setFeatures(null); return; }
+    if (!selectedApp) { setFeatures(null); setRtm(null); return; }
     getAppFeatures(selectedApp).then((r) => setFeatures(r.features)).catch((e: Error) => setError(e.message));
+    getRtm(selectedApp).then((r) => setRtm(r.rows)).catch((e: Error) => setError(e.message));
   }, [selectedApp]);
 
   if (error) return <p className="error">Could not load apps: {error}</p>;
@@ -65,6 +68,8 @@ export function AppsFeatures() {
               </tbody>
             </table>
           )}
+          <h4>Traceability</h4>
+          {!rtm ? <p>Loading…</p> : <RtmTable rows={rtm} onOpenFeature={setSelectedFeatureId} />}
         </>
       )}
     </section>

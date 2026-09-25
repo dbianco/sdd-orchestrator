@@ -82,4 +82,12 @@ describe.skipIf(!url)('sdd-admin', () => {
     await writeFile(file, JSON.stringify({ path_rule: [{ glob: '**/payments/**', framework: 'bmad' }] }));
     await expect(admin('app', 'set-policy', 'checkout', file, '--reason', 'PCI')).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining(file) });
   });
+
+  it('exports an empty traceability matrix as CSV and JSON', async () => {
+    await admin('app', 'register', 'checkout', '--name', 'Checkout');
+    const { stdout } = await run('npx', ['tsx', 'src/cli/index.ts', 'export', 'rtm', 'checkout'], { env: { ...process.env, SDD_DATABASE_URL: url!, SDD_EMBEDDING_PROVIDER: 'fake' }, cwd: process.cwd() });
+    expect(stdout).toBe('feature_id,slug,external_ref,req_id,covered,files_changed,tests_passed,tests_failed,evidence_source,spec_approved_by,verify_approved_by,archived_at\n');
+    expect(await admin('export', 'rtm', 'checkout', '--format', 'json')).toEqual({ app: 'checkout', rows: [] });
+    await expect(admin('export', 'rtm', 'nope')).rejects.toMatchObject({ code: 1 });
+  });
 });

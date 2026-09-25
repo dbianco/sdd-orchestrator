@@ -12,6 +12,8 @@ describe('bmad pack', () => {
     const tracks = pack.manifest.tracks as Record<string, TrackDecl>;
     expect(Object.keys(tracks).sort()).toEqual(['full', 'quick']);
     expect(tracks.full!.is_default).toBe(true);
+    expect(pack.manifest.version).toBe('1.1.0');
+    expect(tracks.full!.phases.specify).toMatchObject({ templates: ['bmad.template.prd', 'bmad.template.architecture'] });
     expect(phaseOrder(tracks.quick!)).toEqual(['specify', 'implement', 'verify', 'integrate']);
     expect(phaseOrder(tracks.full!)).toEqual(['specify', 'plan', 'tasks', 'implement', 'verify', 'integrate', 'learn']);
     expect(tracks.quick!.phases.specify).toMatchObject({ alias: 'quick-spec', command: '/bmad-bmm-quick-spec' });

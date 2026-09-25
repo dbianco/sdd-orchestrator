@@ -16,6 +16,10 @@ describe('openspec pack', () => {
     expect(phaseOrder(tracks.refactor!)).toEqual(['specify', 'implement', 'verify', 'integrate']);
     expect(tracks.hotfix!.spec_review).toBe('deferred');
     expect(tracks.hotfix!.intents).toEqual(['incident']);
+    expect(pack.manifest.version).toBe('1.1.0');
+    expect(tracks.default!.phases.specify).toMatchObject({ templates: ['openspec.template.proposal', 'openspec.template.spec', 'openspec.template.tasks'] });
+    expect(tracks.refactor!.phases.specify).toMatchObject({ templates: ['openspec.template.refactor-proposal', 'openspec.template.spec'] });
+    expect(tracks.hotfix!.phases.specify).toMatchObject({ template: 'openspec.template.hotfix-proposal' });
     expect(tracks.refactor!.intents).toEqual(['refactor']);
     expect(tracks.default!.phases.specify).toMatchObject({ alias: 'proposal' });
     expect(tracks.default!.gates.map((g) => g.transition)).toEqual(['specify->implement', 'verify->integrate']);
