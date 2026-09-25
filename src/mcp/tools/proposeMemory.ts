@@ -1,11 +1,13 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { proposeMemory } from '../../services/proposeMemory.js';
+import { authorizeCall } from '../../auth/authorize.js';
+import type { AuthContext } from '../../auth/context.js';
 import { guarded } from '../encode.js';
-import { ActorSchema } from '../schemas.js';
+import { ActorSchema, WarningsShape } from '../schemas.js';
 import type { McpDeps } from '../server.js';
 
-export function registerProposeMemory(server: McpServer, deps: McpDeps): void {
+export function registerProposeMemory(server: McpServer, deps: McpDeps, auth: AuthContext): void {
   server.registerTool('propose_memory', {
     title: 'Propose new app memory or a standard',
     description: [
@@ -20,9 +22,11 @@ export function registerProposeMemory(server: McpServer, deps: McpDeps): void {
       title: z.string().min(1), body: z.string().min(1), stack_tags: z.array(z.string()).optional(),
       links: z.array(z.string()).optional().describe('Paths or ticket ids of archived artifacts'), supersedes: z.string().min(1).optional().describe('stable_id of an active item this one replaces'),
     },
-    outputSchema: { proposal_id: z.string(), status: z.literal('pending') },
+    outputSchema: { proposal_id: z.string(), status: z.literal('pending'), warnings: WarningsShape.optional() },
   }, async (args) => guarded(deps.logger, 'propose_memory', async () => {
-    const r = await proposeMemory(deps, { ...args, memory_type: args.memory_type ?? null, supersedes: args.supersedes ?? null });
+    const a = await authorizeCall(deps.pool, auth, { featureId: args.feature_id }, args.actor, true);
+    const proposed = await proposeMemory(deps, { ...args, actor: a.actor!, memory_type: args.memory_type ?? null, supersedes: args.supersedes ?? null });
+    const r = { ...proposed, ...(a.warnings.length > 0 ? { warnings: a.warnings } : {}) };
     return { structured: { ...r }, text: JSON.stringify(r, null, 2) };
   }));
 }

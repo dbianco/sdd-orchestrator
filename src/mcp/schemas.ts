@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { INTENTS, PHASES } from '../domain/types.js';
 
 export const PhaseSchema = z.enum(PHASES);
-export const ActorSchema = z.string().min(1).describe('Display identity of the person or agent making the call; attribution only');
+export const ActorSchema = z.string().min(1).optional().describe('Display identity for calls without a token; with a token the token\'s actor is recorded instead');
 export const ScopeSchema = z.union([z.literal('app'), z.literal('company'), z.array(z.string().min(1))])
   .describe('"app" = company items plus this app; "company" = company items only; ["slug", ...] = company items plus the listed apps');
 

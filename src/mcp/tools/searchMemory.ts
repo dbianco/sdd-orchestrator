@@ -1,11 +1,13 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { searchMemory } from '../../services/searchMemory.js';
+import { authorizeCall, scopeTarget } from '../../auth/authorize.js';
+import type { AuthContext } from '../../auth/context.js';
 import { guarded } from '../encode.js';
 import { ScopeSchema, WarningsShape } from '../schemas.js';
 import type { McpDeps } from '../server.js';
 
-export function registerSearchMemory(server: McpServer, deps: McpDeps): void {
+export function registerSearchMemory(server: McpServer, deps: McpDeps, auth: AuthContext): void {
   server.registerTool('search_memory', {
     title: 'Search the knowledge base',
     description: [
@@ -26,7 +28,9 @@ export function registerSearchMemory(server: McpServer, deps: McpDeps): void {
       degraded: z.boolean(), warnings: WarningsShape,
     },
   }, async (args) => guarded(deps.logger, 'search_memory', async () => {
-    const r = await searchMemory(deps, { query: args.query, app: args.app, scope: args.scope, kinds: args.kinds, limit: args.limit });
+    const a = await authorizeCall(deps.pool, auth, scopeTarget(args.scope, args.app), undefined, false);
+    const found = await searchMemory(deps, { query: args.query, app: args.app, scope: args.scope, kinds: args.kinds, limit: args.limit });
+    const r = { ...found, warnings: [...a.warnings, ...found.warnings] };
     return { structured: { ...r }, text: JSON.stringify(r, null, 2) };
   }));
 }

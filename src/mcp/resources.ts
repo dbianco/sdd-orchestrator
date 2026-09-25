@@ -1,4 +1,6 @@
 import { ResourceTemplate, type McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { authorizeCall } from '../auth/authorize.js';
+import type { AuthContext } from '../auth/context.js';
 import { isDomainError } from '../errors.js';
 import { getFeatureStatus } from '../services/featureStatus.js';
 import { requireApp } from '../store/apps.js';
@@ -24,12 +26,14 @@ const one = (v: string | string[] | undefined): string => {
   return Array.isArray(v) ? v[0]! : v;
 };
 
-export function registerResources(server: McpServer, deps: McpDeps): void {
+export function registerResources(server: McpServer, deps: McpDeps, auth: AuthContext): void {
   const q = deps.pool;
+  const allow = (target: Parameters<typeof authorizeCall>[2]) => authorizeCall(q, auth, target, undefined, false);
 
   server.registerResource('app', new ResourceTemplate('sdd://apps/{slug}', { list: undefined }),
     { title: 'App profile', description: 'App profile, current policy version and always-on standards', mimeType: 'application/json' },
     async (uri, { slug }) => wrap(async () => {
+      await allow({ apps: [one(slug)] });
       const app = await requireApp(q, one(slug));
       const policy = await currentPolicy(q, app.id);
       const alwaysOn = (await listAlwaysOn(q, app.id)).map((i) => ({ stable_id: i.stable_id, version: i.version, title: i.title, app_scoped: i.app_id !== null }));
@@ -39,17 +43,22 @@ export function registerResources(server: McpServer, deps: McpDeps): void {
   server.registerResource('app-rtm', new ResourceTemplate('sdd://apps/{slug}/rtm', { list: undefined }),
     { title: 'Traceability matrix', description: 'One row per feature requirement: coverage by verify evidence, files, tests and approvers', mimeType: 'application/json' },
     async (uri, { slug }) => wrap(async () => {
+      await allow({ apps: [one(slug)] });
       const app = await requireApp(q, one(slug));
       return jsonContent(uri, { app: app.slug, rows: await rtmRows(q, app.id) });
     }));
 
   server.registerResource('feature', new ResourceTemplate('sdd://features/{id}', { list: undefined }),
     { title: 'Feature state', description: 'Feature state and transition summaries', mimeType: 'application/json' },
-    async (uri, { id }) => wrap(async () => jsonContent(uri, await getFeatureStatus(deps, one(id)))));
+    async (uri, { id }) => wrap(async () => {
+      await allow({ featureId: one(id) });
+      return jsonContent(uri, await getFeatureStatus(deps, one(id)));
+    }));
 
   server.registerResource('framework', new ResourceTemplate('sdd://frameworks/{name}', { list: undefined }),
     { title: 'Framework', description: 'Current framework version: tracks, phases, artifacts and gates', mimeType: 'application/json' },
     async (uri, { name }) => wrap(async () => {
+      await allow({});
       const fw = await currentFramework(q, one(name));
       if (!fw) throw new Error(`UNKNOWN_FRAMEWORK: framework "${one(name)}" has no current version`);
       return jsonContent(uri, { name: fw.name, pack_version: fw.pack_version, gate_library_version: fw.gate_library_version, status: fw.status, tracks: fw.tracks });
@@ -60,6 +69,7 @@ export function registerResources(server: McpServer, deps: McpDeps): void {
     async (uri, { stable_id, version }) => wrap(async () => {
       const item = await itemVersion(q, one(stable_id), Number(one(version)));
       if (!item) throw new Error(`KNOWLEDGE_NOT_FOUND: knowledge item "${one(stable_id)}" version ${one(version)} not found`);
+      await allow({ appIds: item.app_id ? [item.app_id] : [] });
       return jsonContent(uri, item);
     }));
 
@@ -68,6 +78,7 @@ export function registerResources(server: McpServer, deps: McpDeps): void {
     async (uri, { stable_id }) => wrap(async () => {
       const item = await currentItem(q, one(stable_id));
       if (!item) throw new Error(`KNOWLEDGE_NOT_FOUND: knowledge item "${one(stable_id)}" not found or not current`);
+      await allow({ appIds: item.app_id ? [item.app_id] : [] });
       return jsonContent(uri, item);
     }));
 }

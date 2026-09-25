@@ -18,6 +18,7 @@ import { captureRequirements, requirementIdsFor } from './requirements.js';
 export interface AdvancePhaseInput {
   feature_id: string; actor: string; expected_phase: Phase; target_phase: string; artifacts?: Record<string, string>; evidence?: unknown;
   human_approved?: boolean; cycle_failed?: boolean; pack_id?: string | null; reason?: string | null; repin?: boolean; dry_run?: boolean;
+  token_id?: string | null;
 }
 export interface AdvancePhaseResult { result: 'pass' | 'fail'; findings: Finding[]; next_instructions: string | null; feature: FeatureState; warnings: string[] }
 
@@ -80,7 +81,7 @@ export async function advancePhase(deps: ServiceDeps, input: AdvancePhaseInput):
       for (const f of outcome.findings) deps.metrics?.gate(f.check, f.severity === 'blocker' ? 'fail' : 'pass');
       const transition = await insertTransition(tx, {
         feature_id: feature.id, from_phase: feature.current_phase, to_phase: target, direction, result: outcome.result, findings: outcome.findings,
-        evidence: input.evidence ?? null, pack_id: packId, artifact_hashes: artifactHashes, human_approved: input.human_approved ?? false, reason: input.reason ?? null,
+        evidence: input.evidence ?? null, pack_id: packId, artifact_hashes: artifactHashes, human_approved: input.human_approved ?? false, reason: input.reason ?? null, token_id: input.token_id ?? null,
       }, input.actor);
       await insertArtifacts(tx, transition.id, artifacts, input.actor);
       if (outcome.result === 'fail') {
@@ -110,7 +111,7 @@ export async function advancePhase(deps: ServiceDeps, input: AdvancePhaseInput):
     }
     const transition = await insertTransition(tx, {
       feature_id: feature.id, from_phase: feature.current_phase, to_phase: to, direction, result: 'pass', findings: [], evidence: null, pack_id: packId,
-      artifact_hashes: artifactHashes, human_approved: input.human_approved ?? false, reason: input.reason ?? null,
+      artifact_hashes: artifactHashes, human_approved: input.human_approved ?? false, reason: input.reason ?? null, token_id: input.token_id ?? null,
     }, input.actor);
     await insertArtifacts(tx, transition.id, artifacts, input.actor);
     const updated = await updateFeature(tx, feature.id, {
