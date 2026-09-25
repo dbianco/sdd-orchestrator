@@ -61,6 +61,7 @@ export async function approveRequest(deps: ServiceDeps, input: ApproveInput): Pr
       feature_id: feature.id, from_phase: request.from_phase, to_phase: request.to_phase, direction: 'forward', result: 'pass',
       findings: awaiting.findings, evidence: awaiting.evidence, pack_id: awaiting.pack_id, artifact_hashes: awaiting.artifact_hashes,
       human_approved: true, reason: input.comment ?? null, token_id: input.token_id ?? null, approval_id: request.id, approved_by: input.actor,
+      ci_evidence_id: awaiting.ci_evidence_id, evidence_sources: awaiting.evidence_sources,
     }, input.actor);
     const approval = await decideApproval(tx, request.id, { status: 'approved', decided_by: input.actor, comment: input.comment ?? null });
     const { state, next } = await applyForwardMove(tx, feature, track, target, gateFor(track, feature.current_phase, target), artifacts, transition.id, input.actor);
@@ -77,6 +78,7 @@ export async function rejectRequest(deps: ServiceDeps, input: RejectInput): Prom
       feature_id: feature.id, from_phase: request.from_phase, to_phase: request.to_phase, direction: 'forward', result: 'fail',
       findings: [...awaiting.findings, rejection], evidence: awaiting.evidence, pack_id: awaiting.pack_id, artifact_hashes: awaiting.artifact_hashes,
       human_approved: false, reason: input.reason, token_id: input.token_id ?? null, approval_id: request.id,
+      ci_evidence_id: awaiting.ci_evidence_id, evidence_sources: awaiting.evidence_sources,
     }, input.actor);
     const approval = await decideApproval(tx, request.id, { status: 'rejected', decided_by: input.actor, comment: input.reason });
     const { state } = await featureState(tx, feature);

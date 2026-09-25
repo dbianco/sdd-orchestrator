@@ -11,7 +11,10 @@ import { gateFor } from '../lifecycle/track.js';
 import { requireFeature, updateFeature } from '../store/features.js';
 import type { FeatureRow } from '../store/rows.js';
 import { currentFramework } from '../store/frameworks.js';
+import { mergeEvidence, requiresCiEvidence } from '../gates/mergeEvidence.js';
 import { createApproval, supersedePending } from '../store/approvals.js';
+import { latestCiEvidenceSinceVerify, latestFeatureCommitSha } from '../store/ciEvidence.js';
+import { currentPolicy } from '../store/policies.js';
 import { getPack, latestPack } from '../store/packs.js';
 import { insertArtifacts, insertTransition, sha256 } from '../store/transitions.js';
 import type { ServiceDeps } from './deps.js';
@@ -56,6 +59,19 @@ export async function applyForwardMove(
     ? `Feature ${feature.id} is archived. Its packs, transitions and artifacts remain readable through get_feature_status and get_context.`
     : renderPhaseInstructions({ feature_id: feature.id, framework: feature.framework, track: feature.track, phase: target, track_decl: track });
   return { state, next };
+}
+
+// With auth on, CI evidence is merged into the verify evidence and, for compliance or high-risk work, required.
+async function resolveEvidence(tx: Queryable, feature: FeatureRow, hostEvidence: unknown): Promise<{
+  evidence: unknown; findings: Finding[]; sources: Record<string, 'ci' | 'host'> | null; ci_evidence_id: string | null;
+}> {
+  const app = (await tx.query<{ compliance: boolean }>('SELECT compliance FROM apps WHERE id = $1', [feature.app_id])).rows[0]!;
+  const policy = await currentPolicy(tx, feature.app_id);
+  const required = requiresCiEvidence({ compliance: app.compliance, high_risk: feature.high_risk, policyEvidence: policy?.policy.evidence });
+  const ci = await latestCiEvidenceSinceVerify(tx, feature.id);
+  const latestCommit = required && ci ? await latestFeatureCommitSha(tx, feature.id) : null;
+  const merged = mergeEvidence(hostEvidence, ci ? { evidence: ci.evidence, commit_sha: ci.commit_sha } : null, { required, latestCommit });
+  return { evidence: merged.evidence, findings: merged.findings, sources: merged.evidence ? merged.sources : null, ci_evidence_id: ci?.id ?? null };
 }
 
 export async function advancePhase(deps: ServiceDeps, input: AdvancePhaseInput): Promise<AdvancePhaseResult> {
@@ -114,7 +130,12 @@ export async function advancePhase(deps: ServiceDeps, input: AdvancePhaseInput):
       if (onServer && input.human_approved) warnings.push(HUMAN_APPROVED_IGNORED);
       const gateToRun = onServer && gate ? { ...gate, checks: gate.checks.filter((c) => c.name !== 'human_approved') } : gate;
       const humanApproved = onServer ? false : input.human_approved ?? false;
-      const outcome = runGate(gateToRun, { artifacts, evidence: input.evidence ?? null, human_approved: humanApproved, requirements }, onServer ? false : mandated);
+      const ev = onServer && gate?.checks.some((c) => c.name === 'verify_evidence')
+        ? await resolveEvidence(tx, feature, input.evidence)
+        : { evidence: input.evidence ?? null, findings: [] as Finding[], sources: null, ci_evidence_id: null };
+      const gateOutcome = runGate(gateToRun, { artifacts, evidence: ev.evidence, human_approved: humanApproved, requirements }, onServer ? false : mandated);
+      const allFindings = [...ev.findings, ...gateOutcome.findings];
+      const outcome = { result: allFindings.some((f) => f.severity === 'blocker') ? 'fail' as const : 'pass' as const, findings: allFindings };
       const awaiting = onServer && needsApproval && outcome.result === 'pass';
       const result = awaiting ? 'awaiting_approval' : outcome.result;
       if (input.dry_run) {
@@ -124,7 +145,8 @@ export async function advancePhase(deps: ServiceDeps, input: AdvancePhaseInput):
       for (const f of outcome.findings) deps.metrics?.gate(f.check, f.severity === 'blocker' ? 'fail' : 'pass');
       const transition = await insertTransition(tx, {
         feature_id: feature.id, from_phase: feature.current_phase, to_phase: target, direction, result, findings: outcome.findings,
-        evidence: input.evidence ?? null, pack_id: packId, artifact_hashes: artifactHashes, human_approved: humanApproved, reason: input.reason ?? null, token_id: input.token_id ?? null,
+        evidence: ev.evidence, pack_id: packId, artifact_hashes: artifactHashes, human_approved: humanApproved, reason: input.reason ?? null, token_id: input.token_id ?? null,
+        ci_evidence_id: ev.ci_evidence_id, evidence_sources: ev.sources,
       }, input.actor);
       await insertArtifacts(tx, transition.id, artifacts, input.actor);
       if (awaiting) {

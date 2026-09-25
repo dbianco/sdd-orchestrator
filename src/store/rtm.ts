@@ -9,7 +9,7 @@ export interface RtmRow {
 interface Raw {
   feature_id: string; slug: string; external_ref: string | null; req_id: string;
   evidence: { implements?: unknown; files_changed?: unknown; tests?: { passed?: unknown; failed?: unknown } } | null;
-  verified: boolean; verify_approved: boolean | null; verify_by: string | null; spec_approved: boolean; spec_by: string; archived_at: Date | null;
+  verified: boolean; evidence_sources: Record<string, string> | null; verify_approved: boolean | null; verify_by: string | null; spec_approved: boolean; spec_by: string; archived_at: Date | null;
 }
 
 const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
@@ -18,13 +18,13 @@ const int = (v: unknown): number | null => (typeof v === 'number' ? v : null);
 export async function rtmRows(q: Queryable, appId: string): Promise<RtmRow[]> {
   const r = await q.query<Raw>(
     `SELECT f.id AS feature_id, f.slug, f.external_ref, r.req_id,
-       v.evidence, (v.id IS NOT NULL) AS verified, v.human_approved AS verify_approved, v.created_by AS verify_by,
+       v.evidence, v.evidence_sources, (v.id IS NOT NULL) AS verified, v.human_approved AS verify_approved, v.created_by AS verify_by,
        s.human_approved AS spec_approved, s.created_by AS spec_by, a.created_at AS archived_at
      FROM feature_requirements r
      JOIN features f ON f.id = r.feature_id
      JOIN phase_transitions s ON s.id = r.transition_id
      LEFT JOIN LATERAL (
-       SELECT id, evidence, human_approved, created_by FROM phase_transitions
+       SELECT id, evidence, evidence_sources, human_approved, created_by FROM phase_transitions
        WHERE feature_id = f.id AND from_phase = 'verify' AND direction = 'forward' AND result = 'pass'
        ORDER BY created_at DESC LIMIT 1) v ON true
      LEFT JOIN LATERAL (
@@ -42,7 +42,7 @@ export async function rtmRows(q: Queryable, appId: string): Promise<RtmRow[]> {
       covered: x.verified ? implemented.has(x.req_id.trim().toLowerCase()) : null,
       files_changed: strings(x.evidence?.files_changed),
       tests_passed: int(x.evidence?.tests?.passed), tests_failed: int(x.evidence?.tests?.failed),
-      evidence_source: x.evidence ? 'host' : null,
+      evidence_source: x.evidence ? (x.evidence_sources?.tests === 'ci' ? 'ci' : 'host') : null,
       spec_approved_by: x.spec_approved ? x.spec_by : null,
       verify_approved_by: x.verify_approved ? x.verify_by : null,
       archived_at: x.archived_at ? x.archived_at.toISOString() : null,
