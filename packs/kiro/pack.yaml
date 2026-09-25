@@ -25,6 +25,7 @@ tracks:
         checks:
           - { name: placeholder_scan }
           - { name: required_sections, params: { artifact: requirements.md, sections: [Introduction, Requirements] } }
+          - { name: requirement_ids, params: { artifact: requirements.md, id_regex: '^###\s+Requirement\s+(?<id>\d+)\s*$' } }
       - transition: plan->tasks
         artifacts: [design.md]
         checks:
@@ -39,3 +40,4 @@ tracks:
         artifacts: []
         checks:
           - { name: verify_evidence }
+          - { name: requirement_coverage }

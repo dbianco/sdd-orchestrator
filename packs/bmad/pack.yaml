@@ -45,6 +45,7 @@ tracks:
           - { name: required_sections, params: { artifact: prd.md, sections: [Goals, Requirements, Success Metrics] } }
           - { name: measurable_criteria, params: { artifact: prd.md, section: Success Metrics } }
           - { name: required_sections, params: { artifact: architecture.md, sections: [Decisions, Components] } }
+          - { name: requirement_ids, params: { artifact: prd.md, id_regex: '\*\*(?<id>N?FR\d+)\*\*' } }
       - transition: plan->tasks
         artifacts: [epics.md]
         checks:
@@ -59,6 +60,7 @@ tracks:
         artifacts: []
         checks:
           - { name: verify_evidence }
+          - { name: requirement_coverage }
       - transition: learn->archived
         artifacts: [retrospective.md]
         checks:

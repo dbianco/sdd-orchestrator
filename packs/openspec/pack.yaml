@@ -24,10 +24,12 @@ tracks:
           - { name: delta_markers, params: { artifact: spec.md } }
           - { name: measurable_criteria, params: { artifact: spec.md, section: ADDED Requirements } }
           - { name: required_sections, params: { artifact: tasks.md, sections: [Tasks] } }
+          - { name: requirement_ids, params: { artifact: spec.md, id_regex: '^###\s+Requirement:\s+(?<id>.+?)\s*$' } }
       - transition: verify->integrate
         artifacts: []
         checks:
           - { name: verify_evidence }
+          - { name: requirement_coverage, severity: warning }
   hotfix:
     intents: [incident]
     spec_review: deferred

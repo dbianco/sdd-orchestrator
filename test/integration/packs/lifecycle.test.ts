@@ -12,7 +12,7 @@ import type { Decision, Intent, Phase } from '../../../src/domain/types.js';
 const url = process.env.SDD_TEST_DATABASE_URL;
 const PACK_VERSION = '1.1.0';
 
-const evidence = { tests: { command: 'npm test', passed: 12, failed: 0 }, lint: 'pass', security: { status: 'pass', new_high: 0 }, files_changed: ['src/orders/export.ts', 'src/orders/export.test.ts'], implements: ['REQ-1'], existing_tests_modified: 0, characterization_tests: ['src/orders/export.characterization.test.ts'] };
+const evidence = { tests: { command: 'npm test', passed: 12, failed: 0 }, lint: 'pass', security: { status: 'pass', new_high: 0 }, files_changed: ['src/orders/export.ts', 'src/orders/export.test.ts'], implements: ['FR-001', 'CSV export', 'FR1', 'R1', '1'], existing_tests_modified: 0, characterization_tests: ['src/orders/export.characterization.test.ts'] };
 
 const proposal = '## Why\nExports are manual.\n\n## What Changes\n- Add a CSV export button.\n\n## Impact\nOrders page only.\n';
 const deltaSpec = '## ADDED Requirements\n\n### Requirement: CSV export\n\nThe system SHALL export up to 10000 rows within 2 s.\n\n#### Scenario: export\n\n- **WHEN** the user clicks export\n- **THEN** a CSV downloads\n\n## MODIFIED Requirements\n\n## REMOVED Requirements\n';
@@ -121,5 +121,17 @@ describe.skipIf(!url)('seed track lifecycles', () => {
     const s = await startFeature(deps, { app: 'checkout', actor: 'w', task_description: `pins ${framework}`, decision });
     const pos3 = s.context_pack.slice(s.context_pack.indexOf('## 3.'), s.context_pack.indexOf('## 4.'));
     for (const h of headings) expect(pos3).toContain(`### ${h}`);
+  });
+
+  it('spec-kit default blocks at verify when a captured requirement is not implemented', async () => {
+    const decision: Decision = { intent: 'feature', framework: 'spec-kit', track: 'default', confidence: 'high', rule: 'test', reasons: [], high_risk: false, policy_version: null, framework_pack_version: PACK_VERSION };
+    const s = await startFeature(deps, { app: 'checkout', actor: 'w', task_description: 'coverage gap', decision });
+    const steps: [Phase, string, Record<string, string>][] = [['specify', 'plan', { 'spec.md': specKitSpec }], ['plan', 'tasks', { 'plan.md': plan }], ['tasks', 'implement', { 'tasks.md': orderedTasks }], ['implement', 'verify', {}]];
+    for (const [from, to, artifacts] of steps) {
+      expect((await advancePhase(deps, { feature_id: s.feature_id, actor: 'w', expected_phase: from, target_phase: to, artifacts, human_approved: true })).result).toBe('pass');
+    }
+    const r = await advancePhase(deps, { feature_id: s.feature_id, actor: 'w', expected_phase: 'verify', target_phase: 'integrate', artifacts: { 'plan.md': plan }, evidence: { ...evidence, implements: ['FR-999'] } });
+    expect(r.result).toBe('fail');
+    expect(r.findings.filter((f) => f.severity === 'blocker').map((f) => f.message)).toEqual(['FR-001 is not covered by evidence.implements']);
   });
 });

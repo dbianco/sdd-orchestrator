@@ -16,7 +16,7 @@ describe('spec-kit pack', () => {
     expect(tracks.default!.phases.learn).toMatchObject({ alias: 'reconcile' });
     const verify = tracks.default!.gates.find((g) => g.transition === 'verify->integrate')!;
     expect(verify.artifacts).toEqual(['plan.md']);
-    expect(verify.checks.map((c) => c.name)).toEqual(['verify_evidence', 'scope_drift']);
+    expect(verify.checks.map((c) => c.name)).toEqual(['verify_evidence', 'scope_drift', 'requirement_coverage']);
     const refactorSpecify = tracks.refactor!.gates.find((g) => g.transition === 'specify->plan')!;
     expect(refactorSpecify.checks[1]).toMatchObject({ name: 'required_sections', params: { sections: ['Observed Behaviors', 'Assumed Contracts', 'Characterization Tests'] } });
     expect(pack.items.some((i) => i.frontMatter.id === 'spec-kit.template.refactor-spec')).toBe(true);

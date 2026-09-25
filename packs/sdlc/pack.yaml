@@ -23,6 +23,7 @@ tracks:
           - { name: required_sections, params: { artifact: prd.md, sections: [Problem, Users, Requirements, Success Metrics] } }
           - { name: measurable_criteria, params: { artifact: prd.md, section: Success Metrics } }
           - { name: required_sections, params: { artifact: scoping.md, sections: [In Scope, Out of Scope] } }
+          - { name: requirement_ids, params: { artifact: prd.md, id_regex: '\*\*(?<id>R\d+)\*\*' } }
       - transition: plan->tasks
         artifacts: [jot-down.md]
         checks:
@@ -39,6 +40,7 @@ tracks:
         checks:
           - { name: verify_evidence }
           - { name: scope_drift, params: { plan_artifact: jot-down.md, files_section: Files } }
+          - { name: requirement_coverage }
       - transition: learn->archived
         artifacts: [retrospective.md]
         checks:
