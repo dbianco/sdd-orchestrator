@@ -19,16 +19,16 @@ walkthroughs. A blank cell means not yet verified.
 
 | Capability | Claude Code | Cursor | Notes |
 |---|---|---|---|
-| Streamable HTTP connection | | | `.mcp.json` / `.cursor/mcp.json` |
-| stdio connection | | | local development only |
-| Tool: route_task | | | structuredContent and text block |
-| Tool: start_feature | | | pack returned inline |
+| Streamable HTTP connection | 2026-09-25, 2.1.282 headless | | `.mcp.json` / `.cursor/mcp.json`; Claude Code checked through the plugin's `.mcp.json` with `${SDD_URL}` expansion |
+| stdio connection | 2026-09-25, 2.1.282 headless | | local development only |
+| Tool: route_task | 2026-09-25, 2.1.282 headless | | structuredContent and text block; as `mcp__plugin_sdd_sdd__route_task` through the plugin |
+| Tool: start_feature | 2026-09-25, 2.1.282 headless | | pack returned inline |
 | Tool: get_context | | | works on archived features |
 | Tool: advance_phase | | | gate failure is a normal result |
 | Tool: search_memory | | | scope "company" and slug lists |
 | Tool: propose_memory | | | |
 | Tool: get_feature_status | | | |
-| Tool: list_features | | | |
+| Tool: list_features | 2026-09-25, 2.1.282 headless | | |
 | Tool: record_commit | | | after a route_task, call it with `external_ref` and a sha: expect `commit_id` and `deduplicated: false`; call again with the same sha for `deduplicated: true` |
 | Error results (`isError`) rendered readably | | | code, message, details |
 | Bearer token in MCP config (`SDD_AUTH_MODE=enforce`) | | | 401 without it; token actor recorded |
@@ -42,6 +42,15 @@ walkthroughs. A blank cell means not yet verified.
 | Resource: sdd://knowledge/{stable_id}/v/{version} | | | |
 | Prompt: sdd.specify ... sdd.learn as slash commands | | | never the only path |
 | Workspace facts script | | | `docs/verification/workspace-facts.sh` |
+| Plugin: edit refused before routing | 2026-09-25, 2.1.282 headless | n/a | reason shown to the agent: "No SDD work is routed on main. Call route_task…" |
+| Plugin: `.sdd/state.json` written from `route_task` | 2026-09-25, 2.1.282 headless | n/a | trivial routing recorded, edit then allowed |
+| Plugin: `enforcement: warn` passes the warning to the agent | 2026-09-25, 2.1.282 headless | n/a | write allowed, "SDD warning: …" quoted back by the agent |
+| Plugin: interactive walkthrough (specify, approval, implement, commit prompt) | | n/a | needs a person: install from the marketplace and run `walkthrough-openspec.md` |
+
+"headless" means `claude -p` with the plugin loaded by `--plugin-dir` (or the
+server in a project `.mcp.json`) against a live server seeded with the test
+fixtures. The PostToolUse payload those runs rely on is recorded under task 25
+of `docs/superpowers/plans/2026-09-25-trust-traceability-enforcement.md`.
 
 ## How to verify a row
 
