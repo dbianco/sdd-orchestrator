@@ -12,11 +12,13 @@ import type { AdminIdentity } from './adminAuth.js';
 import type { Logger } from '../logging.js';
 import type { ServiceDeps } from '../services/deps.js';
 import { listFeaturesService } from '../services/listFeatures.js';
-import { featureCounts, flowCounts, gateCheckStats, knowledgeCounts, proposalsSummary } from '../store/analytics.js';
+import { featureCounts, flowCounts, gateCheckStats, knowledgeCounts, proposalsSummary, valueMetrics, weekActivity } from '../store/analytics.js';
+import { CHECK_HINTS } from '../gates/hints.js';
 import { listApps, requireApp } from '../store/apps.js';
 import { listCommitsForRouting } from '../store/commits.js';
 import { requireFeature } from '../store/features.js';
-import { listProposals } from '../store/proposals.js';
+import { getProposal, listProposals, reviewProposal } from '../store/proposals.js';
+import { approveProposal } from '../services/approveProposal.js';
 import { listRoutingEvents, requireRoutingEventDetail, routingSummary } from '../store/routingEvents.js';
 import { rtmRows } from '../store/rtm.js';
 import { listTransitions } from '../store/transitions.js';
@@ -34,6 +36,7 @@ const STATUS_BY_CODE: Partial<Record<ErrorCode, number>> = {
   APP_NOT_FOUND: 404, FEATURE_NOT_FOUND: 404, ROUTING_EVENT_NOT_FOUND: 404, APPROVAL_NOT_FOUND: 404,
   FORBIDDEN: 403, APPROVAL_NOT_PENDING: 409, STALE_STATE: 409, FEATURE_ARCHIVED: 409,
 };
+const WeekQuery = z.object({ app: z.string().optional(), actor: z.string().min(1).optional(), days: z.coerce.number().int().min(1).max(90).default(7) });
 const ProposalsQuery = z.object({ status: z.enum(['pending', 'approved', 'rejected']).optional() });
 const DateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'expected YYYY-MM-DD');
 const RoutingQuery = z.object({
@@ -92,6 +95,19 @@ export function createAdminRouter(deps: ServiceDeps & { logger?: Logger }, legac
     ]);
     res.json({ features, checks, proposals, knowledge });
   }));
+
+  router.get('/api/metrics', handle(async (req, res) => {
+    const { app } = AppQuery.parse(req.query);
+    res.json(await valueMetrics(deps.pool, await resolveAppId(deps, app)));
+  }));
+
+  router.get('/api/week', handle(async (req, res) => {
+    const { app, actor, days } = WeekQuery.parse(req.query);
+    const me = res.locals.admin as { actor: string };
+    res.json(await weekActivity(deps.pool, actor ?? me.actor, await resolveAppId(deps, app), days));
+  }));
+
+  router.get('/api/gate-hints', (_req, res) => { res.json({ hints: CHECK_HINTS }); });
 
   router.get('/api/apps', handle(async (_req, res) => {
     const apps = await listApps(deps.pool);
@@ -195,6 +211,33 @@ export function createAdminRouter(deps: ServiceDeps & { logger?: Logger }, legac
     const { reason } = RejectBody.parse(req.body ?? {});
     const me = admin(res);
     res.json(await rejectRequest(deps, { approval_id: req.params.id as string, actor: me.actor, reason, apps: me.apps }));
+  }));
+
+  // Memory proposals: same rules as approvals (approver scope, JSON body, app-scoped tokens).
+  const pendingProposal = async (req: Request, res: Response) => {
+    const proposal = await getProposal(deps.pool, req.params.id as string);
+    if (!proposal) { res.status(404).json({ error: `no proposal with id "${req.params.id as string}"` }); return null; }
+    const scope = admin(res).apps;
+    if (scope && !scope.includes(proposal.app_id)) { res.status(403).json({ error: 'this token is not allowed for that app' }); return null; }
+    if (proposal.status !== 'pending') { res.status(409).json({ error: `proposal ${proposal.id} is already ${proposal.status}` }); return null; }
+    return proposal;
+  };
+
+  router.post('/api/proposals/:id/approve', express.json(), handle(async (req, res) => {
+    if (!canApprove(req, res)) return;
+    const proposal = await pendingProposal(req, res);
+    if (!proposal) return;
+    if (!deps.embedder) { res.status(503).json({ error: 'no embedding provider configured' }); return; }
+    const item = await approveProposal({ pool: deps.pool, embedder: deps.embedder }, proposal.id, admin(res).actor);
+    res.json({ proposal: await getProposal(deps.pool, proposal.id), item: { id: item.id, stable_id: item.stable_id, version: item.version, title: item.title } });
+  }));
+
+  router.post('/api/proposals/:id/reject', express.json(), handle(async (req, res) => {
+    if (!canApprove(req, res)) return;
+    const { reason } = RejectBody.parse(req.body ?? {});
+    const proposal = await pendingProposal(req, res);
+    if (!proposal) return;
+    res.json({ proposal: await reviewProposal(deps.pool, proposal.id, 'rejected', admin(res).actor, reason) });
   }));
 
   router.use(express.static(adminUiDist));

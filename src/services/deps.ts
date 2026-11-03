@@ -1,6 +1,7 @@
 import type pg from 'pg';
 import type { AuthMode } from '../auth/context.js';
 import type { EmbeddingProvider } from '../embedding/provider.js';
+import type { Notifier } from '../notify.js';
 
 export interface MetricsHooks {
   routed(rule: string): void;
@@ -19,6 +20,8 @@ export interface ServiceDeps {
   embedder: EmbeddingProvider | null;
   tokenBudget: number;
   metrics?: MetricsHooks;
+  // Optional outbound notifications (SDD_NOTIFY_WEBHOOK_URL); failures never affect the operation.
+  notifier?: Notifier;
   // Unset means 'off' (v1 behaviour); the server sets it from SDD_AUTH_MODE.
   authMode?: AuthMode;
 }

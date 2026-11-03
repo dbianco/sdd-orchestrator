@@ -5,6 +5,7 @@ import { runMigrations } from './db/migrate.js';
 import { createEmbeddingProvider } from './embedding/index.js';
 import { createLogger } from './logging.js';
 import { createMetrics } from './metrics.js';
+import { createNotifier } from './notify.js';
 import { runStdio } from './mcp/stdio.js';
 import type { HttpDeps } from './mcp/http.js';
 
@@ -15,7 +16,7 @@ export async function buildDeps(): Promise<HttpDeps> {
   const pool = createPool(config.databaseUrl);
   const embedder = createEmbeddingProvider(config.embedding);
   const { registry, hooks } = createMetrics();
-  return { pool, embedder, tokenBudget: config.tokenBudget, logger, metrics: hooks, registry, authMode: config.authMode };
+  return { pool, embedder, tokenBudget: config.tokenBudget, logger, metrics: hooks, registry, authMode: config.authMode, notifier: createNotifier({ webhookUrl: config.notifyWebhookUrl ?? null, publicUrl: config.publicUrl ?? null, logger }) };
 }
 
 async function main(): Promise<void> {

@@ -9,6 +9,7 @@ import { getAppBySlug } from '../store/apps.js';
 import { insertCiEvidence } from '../store/ciEvidence.js';
 import { upsertCommit } from '../store/commits.js';
 import { getFeature } from '../store/features.js';
+import { featurePrComment } from '../reports/prComment.js';
 import { resolveBearer } from './mcpAuth.js';
 
 const Body = z.object({
@@ -55,6 +56,31 @@ export function createCiRouter(deps: Deps): Router {
     } catch (e) {
       if (e instanceof ZodError) { res.status(400).json({ error: e.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ') }); return; }
       deps.logger?.error({ err: e }, 'ci evidence failed');
+      res.status(503).json({ error: 'unavailable' });
+    }
+  });
+
+  // Markdown for a pull-request comment; same ci-token and app checks as evidence uploads.
+  router.get('/pr-comment', async (req: Request, res: Response) => {
+    try {
+      const auth = await resolveBearer(deps, req.headers.authorization);
+      if (auth === null || auth === 'invalid' || auth.kind !== 'token') {
+        res.setHeader('WWW-Authenticate', 'Bearer realm="sdd"');
+        res.status(401).json({ error: 'a ci token is required' });
+        return;
+      }
+      if (!hasScope(auth.scopes, 'ci')) { res.status(403).json({ error: 'this token lacks the ci scope' }); return; }
+      const q = z.object({ app: z.string().min(1), feature_id: z.string().min(1) }).parse(req.query);
+      const app = await getAppBySlug(deps.pool, q.app);
+      if (!app) { res.status(404).json({ error: `no app "${q.app}"` }); return; }
+      if (auth.app_ids && !auth.app_ids.includes(app.id)) { res.status(403).json({ error: `this token is not allowed for app ${q.app}` }); return; }
+      const feature = await getFeature(deps.pool, q.feature_id);
+      if (!feature) { res.status(404).json({ error: `no feature with id "${q.feature_id}"` }); return; }
+      if (feature.app_id !== app.id) { res.status(403).json({ error: `feature ${feature.id} does not belong to app ${q.app}` }); return; }
+      res.json({ markdown: await featurePrComment(deps.pool, feature.id) });
+    } catch (e) {
+      if (e instanceof ZodError) { res.status(400).json({ error: e.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ') }); return; }
+      deps.logger?.error({ err: e }, 'pr comment failed');
       res.status(503).json({ error: 'unavailable' });
     }
   });

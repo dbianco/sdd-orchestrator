@@ -68,4 +68,17 @@ describe('Work', () => {
     fireEvent.click(await screen.findByText('Add CSV export'));
     expect(await screen.findByText('No commits reported yet.')).toBeInTheDocument();
   });
+
+  it('sorts by a clicked column header and reverses on a second click', async () => {
+    stubFetch([]);
+    render(<Work />);
+    await screen.findByText('Fix the date picker');
+    const tasks = () => screen.getAllByRole('row').slice(1).map((r) => r.querySelector('.cell-clip')?.textContent);
+    expect(tasks()).toEqual(['Fix the date picker', 'Add CSV export', 'Plan the reports page']); // newest first, ties in input order
+    fireEvent.click(screen.getByRole('button', { name: /^Task/ }));
+    expect(tasks()).toEqual(['Add CSV export', 'Fix the date picker', 'Plan the reports page']);
+    fireEvent.click(screen.getByRole('button', { name: /^Task/ }));
+    expect(tasks()).toEqual(['Plan the reports page', 'Fix the date picker', 'Add CSV export']);
+  });
 });
+

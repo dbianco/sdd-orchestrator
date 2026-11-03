@@ -70,3 +70,15 @@ your scanner can diff against the base branch, report that number instead.
   `verify` is used, and when CI evidence is required it must carry `tests`,
   `lint` and `security` and be for the feature's latest commit. A commit
   pushed after the run makes the evidence stale; rerun the pipeline.
+
+## Pull-request summary comment
+
+`scripts/sdd-pr-comment.mjs` posts one sticky comment on the pull request:
+requirement coverage, test results, who approved the spec, a pending approval
+if there is one, and, when a gate blocked the last move, each blocker with how
+to fix it. It reuses the same `ci` token as evidence uploads and finds the
+feature from the `SDD-Ref` trailer. Copy
+[`sdd-pr-comment.yml`](sdd-pr-comment.yml) into the repository's workflows.
+Try it locally with `--dry-run`, or print the same Markdown from the server
+host with `sdd-admin export pr-comment <feature_id>`.
+

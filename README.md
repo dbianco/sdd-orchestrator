@@ -92,6 +92,20 @@ node docs/verification/walkthrough.mjs --url http://localhost:8080 \
   --host-token sdd_... --approver-token sdd_... --ci-token sdd_...   # scripted host walkthrough
 ```
 
+## Seeing the benefit
+
+- **My week** (admin UI): what you moved through the flow and the problems the
+  gates caught before review, each with a plain-language fix.
+- **Overview → "Is the process paying off?"**: first-pass gate rate per week,
+  problems caught early, median approval wait.
+- **Pull-request comment**: requirement coverage, test results, approvals and
+  blockers (with fixes) on every PR; see
+  [`docs/ci/github-actions.md`](docs/ci/github-actions.md).
+- **Notifications**: set `SDD_NOTIFY_WEBHOOK_URL` (Slack, Teams or Discord
+  incoming webhook) to be pinged when an approval is requested.
+- **Admin UI shortcuts**: one project picker for every page, `Ctrl/⌘+K` to jump
+  anywhere, sortable tables with CSV export, and proposal review in the UI.
+
 ## Planned stack
 
 | Component | Choice |
@@ -105,6 +119,20 @@ node docs/verification/walkthrough.mjs --url http://localhost:8080 \
 ## Usage examples
 
 The interface below is the v1 contract.
+
+### Fastest start
+
+```bash
+docker compose up -d postgres
+export SDD_DATABASE_URL=postgres://sdd:sdd@localhost:5433/sdd   # SDD_EMBEDDING_PROVIDER=ollama if you have no Voyage key
+npm run admin -- init --app checkout --demo --write-config --advisory   # or: sdd-admin init ...
+```
+
+`sdd-admin init` migrates the database, registers your app, ingests the bundled
+framework packs, issues you a personal token and prints the three commands that
+connect Claude Code. `--demo` adds a sample "demo" app so the admin UI is not
+empty (remove it with `sdd-admin demo reset`); `--advisory` writes
+`"enforcement": "warn"` so nothing is blocked while you try it.
 
 ### 1. Run the server
 

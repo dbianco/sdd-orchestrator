@@ -180,3 +180,24 @@ details > pre { margin: 0 0.5rem 0.5rem; }
 .timeline > li:last-child { padding-bottom: 0; }
 .project-picker { display: flex; flex-direction: column; gap: 0.25rem; padding: 0 0.5rem 0.75rem; font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
 .project-picker select { width: 100%; text-transform: none; letter-spacing: 0; font-size: 0.9rem; color: var(--text); }
+.hint { margin: 0.15rem 0 0.5rem; padding: 0.4rem 0.6rem; border-left: 3px solid var(--accent); background: var(--accent-soft); color: var(--accent-text); border-radius: 0 6px 6px 0; }
+.spark { display: flex; align-items: flex-end; gap: 4px; height: 56px; margin-top: 0.6rem; }
+.spark > span { flex: 1; max-width: 56px; min-width: 6px; border-radius: 3px 3px 0 0; background: var(--accent); opacity: 0.85; }
+.spark > span.low { background: var(--amber); }
+.metric-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.75rem; }
+.metric strong { display: block; font-size: 1.5rem; letter-spacing: -0.02em; line-height: 1.2; }
+.metric span { color: var(--muted); font-size: 0.82rem; }
+.sub { color: var(--muted); font-size: 0.85rem; }
+button.sort { padding: 0; border: 0; background: none; font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; cursor: pointer; font-weight: inherit; }
+button.sort:hover:not(:disabled) { background: none; color: var(--text); }
+.palette-backdrop { position: fixed; inset: 0; z-index: 20; background: rgba(16, 24, 40, 0.45); display: flex; justify-content: center; align-items: flex-start; padding-top: 14vh; }
+.palette { width: min(560px, 92vw); background: var(--surface); border: 1px solid var(--border-strong); border-radius: 12px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3); overflow: hidden; }
+.palette input { width: 100%; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; padding: 0.9rem 1rem; font-size: 1rem; }
+.palette input:focus { box-shadow: none; }
+.palette ul { list-style: none; margin: 0; padding: 0.35rem; max-height: 50vh; overflow: auto; }
+.palette li { display: flex; justify-content: space-between; gap: 1rem; padding: 0.5rem 0.75rem; border-radius: 8px; cursor: pointer; }
+.palette li[aria-selected='true'] { background: var(--accent-soft); color: var(--accent-text); }
+.palette li span:last-child { color: var(--muted); font-size: 0.8rem; }
+kbd { font: 0.72rem var(--mono); padding: 0.05rem 0.35rem; border: 1px solid var(--border-strong); border-radius: 4px; background: var(--surface-2); color: var(--muted); }
+.proposal-body { white-space: pre-wrap; }
+.tiles-sentence .tile-label { text-transform: none; }

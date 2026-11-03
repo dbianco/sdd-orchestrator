@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { getApps, getRouting, type RoutingParams } from '../api';
-import { Badge, Empty, ErrorState, Loading, PageHead, Table, Time, useLoad } from '../ui';
+import { Badge, Empty, ErrorState, ExportCsv, Loading, PageHead, SortTh, Table, Time, useLoad, useSort } from '../ui';
 import { typeBadge } from './badge';
 import { RoutingDetail } from './RoutingDetail';
 
@@ -19,11 +19,16 @@ export function Work({ app }: { app?: string | null }) {
   const apply = (p: RoutingParams) => { setDraft(p); setApplied(p); };
   const globalApp = app !== undefined; // project chosen in the sidebar: hide the local picker
 
+  const q = search.trim().toLowerCase();
+  const filtered = routing.data?.events.filter((e) => !q || [e.task_description, e.external_ref ?? '', e.app_slug, e.framework, e.feature_slug ?? ''].some((v) => v.toLowerCase().includes(q)));
+
+  const fw = (e: { framework: string; decision: { track: string | null } }) => (e.framework === 'none' ? '' : `${e.framework}${e.decision.track ? `:${e.decision.track}` : ''}`);
+  const { sorted: events, sort, toggle } = useSort(filtered ?? [], {
+    routed: (e) => e.last_routed_at, app: (e) => e.app_slug, type: (e) => typeBadge(e), ticket: (e) => e.external_ref, task: (e) => e.task_description, framework: (e) => fw(e), feature: (e) => e.feature_status, commits: (e) => e.commit_count,
+  }, { key: 'routed', dir: 'desc' });
+
   if (routing.error) return <ErrorState message={`Could not load routed work: ${routing.error}`} onRetry={routing.reload} />;
   if (selectedId) return <RoutingDetail routingId={selectedId} onBack={() => setSelectedId(null)} />;
-
-  const q = search.trim().toLowerCase();
-  const events = routing.data?.events.filter((e) => !q || [e.task_description, e.external_ref ?? '', e.app_slug, e.framework, e.feature_slug ?? ''].some((v) => v.toLowerCase().includes(q)));
 
   return (
     <section>
@@ -52,7 +57,7 @@ export function Work({ app }: { app?: string | null }) {
         </div>
         {invalidRange && <span className="error">From must be on or before To.</span>}
       </div>
-      {!events || !routing.data ? (
+      {!filtered || !routing.data ? (
         <Loading />
       ) : routing.data.events.length === 0 ? (
         <Empty title="No routed work in this range." hint="Widen the dates or pick another app." />
@@ -66,11 +71,19 @@ export function Work({ app }: { app?: string | null }) {
               </div>
             ))}
           </div>
-          <input className="search" type="search" placeholder="Search task, ticket, app…" aria-label="Search work" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <div className="row">
+            <input className="search" type="search" placeholder="Search task, ticket, app…" aria-label="Search work" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <ExportCsv filename="work.csv" headers={['last_routed', 'app', 'type', 'ticket', 'task', 'framework', 'feature_status', 'feature_phase', 'commits']}
+              rows={events.map((e) => [e.last_routed_at, e.app_slug, typeBadge(e), e.external_ref, e.task_description, fw(e), e.feature_status, e.feature_phase, e.commit_count])} />
+          </div>
           {events.length === 0 ? <Empty title="Nothing matches your search." /> : (
             <Table>
               <thead>
-                <tr><th>Last routed</th><th>App</th><th>Type</th><th>Ticket</th><th>Task</th><th>Framework</th><th>Feature</th><th className="num">Commits</th></tr>
+                <tr>
+                  <SortTh id="routed" label="Last routed" sort={sort} onSort={toggle} /><SortTh id="app" label="App" sort={sort} onSort={toggle} /><SortTh id="type" label="Type" sort={sort} onSort={toggle} />
+                  <SortTh id="ticket" label="Ticket" sort={sort} onSort={toggle} /><SortTh id="task" label="Task" sort={sort} onSort={toggle} /><SortTh id="framework" label="Framework" sort={sort} onSort={toggle} />
+                  <SortTh id="feature" label="Feature" sort={sort} onSort={toggle} /><SortTh id="commits" label="Commits" className="num" sort={sort} onSort={toggle} />
+                </tr>
               </thead>
               <tbody>
                 {events.map((e) => (

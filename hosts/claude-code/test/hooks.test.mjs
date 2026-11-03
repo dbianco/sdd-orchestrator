@@ -75,6 +75,17 @@ describe('sdd hooks', () => {
     expect(warned.permissionDecision).toBeUndefined();
   });
 
+  it('lets a developer lower enforcement personally with SDD_ENFORCEMENT, and ignores invalid values', async () => {
+    const run = (env) => spawnSync('node', [join(HOOKS, 'pre-edit.mjs')], { input: JSON.stringify({ cwd: dir, tool_input: { file_path: join(dir, 'src/a.ts') } }), env: { ...process.env, CLAUDE_PROJECT_DIR: dir, ...env }, encoding: 'utf8' }).stdout;
+    expect(JSON.parse(run({})).hookSpecificOutput.permissionDecision).toBe('deny');
+    expect(JSON.parse(run({ SDD_ENFORCEMENT: 'warn' })).hookSpecificOutput.additionalContext).toMatch(/^SDD warning/);
+    expect(run({ SDD_ENFORCEMENT: 'off' })).toBe('');
+    expect(JSON.parse(run({ SDD_ENFORCEMENT: 'nonsense' })).hookSpecificOutput.permissionDecision).toBe('deny');
+    const start = (env) => JSON.parse(spawnSync('node', [join(HOOKS, 'session-start.mjs')], { input: JSON.stringify({ cwd: dir }), env: { ...process.env, CLAUDE_PROJECT_DIR: dir, ...env }, encoding: 'utf8' }).stdout).hookSpecificOutput.additionalContext;
+    expect(start({ SDD_ENFORCEMENT: 'warn' })).toMatch(/Advisory mode/);
+    expect(start({})).not.toMatch(/Advisory mode/);
+  });
+
   it('ask for record_commit after git commit, and for the trailer when it is missing', () => {
     sddResult('start_feature', { feature_id: 'f_1', routing_id: 'r_1', feature: feature({ current_phase: 'implement' }) });
     git('commit', '-q', '--allow-empty', '-m', 'add export');

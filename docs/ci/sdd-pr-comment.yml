@@ -1,0 +1,29 @@
+# Copy to .github/workflows/sdd-pr-comment.yml in the application repository.
+# Posts one sticky comment per pull request: requirement coverage, tests, approvals, and what blocks the next phase.
+name: sdd-summary
+on:
+  pull_request:
+  workflow_run:
+    workflows: [ci]          # re-post after CI evidence was reported, if you report it from a separate workflow
+    types: [completed]
+permissions:
+  pull-requests: write
+  contents: read
+jobs:
+  comment:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 1, ref: "${{ github.event.pull_request.head.sha || github.event.workflow_run.head_sha }}" }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Fetch the script
+        run: curl -fsSL https://raw.githubusercontent.com/dbianco/sdd-orchestrator/main/scripts/sdd-pr-comment.mjs -o sdd-pr-comment.mjs
+      - name: Post the SDD summary
+        env:
+          SDD_URL: ${{ vars.SDD_URL }}
+          SDD_CI_TOKEN: ${{ secrets.SDD_CI_TOKEN }}
+          SDD_APP: checkout            # your app slug
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number }}
+        run: node sdd-pr-comment.mjs

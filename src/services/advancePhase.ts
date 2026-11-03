@@ -74,7 +74,24 @@ async function resolveEvidence(tx: Queryable, feature: FeatureRow, hostEvidence:
   return { evidence: merged.evidence, findings: merged.findings, sources: merged.evidence ? merged.sources : null, ci_evidence_id: ci?.id ?? null };
 }
 
+async function notifyApproval(deps: ServiceDeps, approvalId: string): Promise<void> {
+  if (!deps.notifier) return;
+  try {
+    const row = (await deps.pool.query<{ app: string; feature: string; from_phase: string; to_phase: string; requested_by: string }>(
+      `SELECT a.slug AS app, f.slug AS feature, ar.from_phase, ar.to_phase, ar.requested_by
+       FROM approval_requests ar JOIN features f ON f.id = ar.feature_id JOIN apps a ON a.id = f.app_id WHERE ar.id = $1`, [approvalId])).rows[0];
+    if (row) deps.notifier.approvalRequested({ approval_id: approvalId, ...row });
+  } catch { /* notifications are best effort */ }
+}
+
+// Notifies only after the transaction committed, so a rolled-back request never pings anyone.
 export async function advancePhase(deps: ServiceDeps, input: AdvancePhaseInput): Promise<AdvancePhaseResult> {
+  const result = await advancePhaseTx(deps, input);
+  if (result.result === 'awaiting_approval' && result.approval_id) await notifyApproval(deps, result.approval_id);
+  return result;
+}
+
+async function advancePhaseTx(deps: ServiceDeps, input: AdvancePhaseInput): Promise<AdvancePhaseResult> {
   return withTransaction(deps.pool, async (tx) => {
     const feature = await requireFeature(tx, input.feature_id, { forUpdate: true });
     // Evaluation order differs from the plan's numbered ERROR_PRECEDENCE list:

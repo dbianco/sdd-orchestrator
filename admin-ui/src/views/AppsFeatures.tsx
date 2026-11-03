@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { getAppFeatures, getApps, getRtm } from '../api';
 import type { FeatureSummary } from '../types';
-import { Badge, Empty, ErrorState, Loading, PageHead, Table, Time, useLoad } from '../ui';
+import { Badge, Empty, ErrorState, ExportCsv, Loading, PageHead, SortTh, Table, Time, useLoad, useSort } from '../ui';
 import { FeatureDetail } from './FeatureDetail';
 import { RtmTable } from './Requirements';
 
@@ -13,6 +13,9 @@ function FeaturesTable({ features, onOpen }: { features: FeatureSummary[]; onOpe
   const shown = features.filter((f) =>
     (status === 'all' || f.status === status) &&
     (!q || [f.slug, f.intent, f.external_ref ?? '', f.framework, f.current_phase].some((v) => v.toLowerCase().includes(q))));
+  const { sorted, sort, toggle } = useSort(shown, {
+    slug: (f) => f.slug, status: (f) => f.status, phase: (f) => f.current_phase, framework: (f) => `${f.framework}:${f.track ?? ''}`, ticket: (f) => f.external_ref, updated: (f) => f.updated_at,
+  }, { key: 'updated', dir: 'desc' });
   return (
     <>
       <div className="filters">
@@ -22,12 +25,16 @@ function FeaturesTable({ features, onOpen }: { features: FeatureSummary[]; onOpe
             <button key={s} className="chip" aria-pressed={status === s} onClick={() => setStatus(s)}>{s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}</button>
           ))}
         </div>
+        <ExportCsv filename="features.csv" headers={['slug', 'intent', 'status', 'phase', 'framework', 'track', 'ticket', 'updated']} rows={sorted.map((f) => [f.slug, f.intent, f.status, f.current_phase, f.framework, f.track, f.external_ref, f.updated_at])} />
       </div>
       {shown.length === 0 ? <Empty title="No features match" hint="Try a different search or status." /> : (
         <Table>
-          <thead><tr><th>Feature</th><th>Status</th><th>Phase</th><th>Framework</th><th>Ticket</th><th>Updated</th></tr></thead>
+          <thead><tr>
+            <SortTh id="slug" label="Feature" sort={sort} onSort={toggle} /><SortTh id="status" label="Status" sort={sort} onSort={toggle} /><SortTh id="phase" label="Phase" sort={sort} onSort={toggle} />
+            <SortTh id="framework" label="Framework" sort={sort} onSort={toggle} /><SortTh id="ticket" label="Ticket" sort={sort} onSort={toggle} /><SortTh id="updated" label="Updated" sort={sort} onSort={toggle} />
+          </tr></thead>
           <tbody>
-            {shown.map((f) => (
+            {sorted.map((f) => (
               <tr key={f.feature_id}>
                 <td>
                   <button className="link" onClick={() => onOpen(f.feature_id)}>{f.slug}</button>

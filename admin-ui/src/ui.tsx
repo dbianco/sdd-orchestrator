@@ -119,6 +119,7 @@ export function Icon({ name }: { name: string }) {
     proposals: 'M12 3a6 6 0 0 0-4 10.5V17h8v-3.5A6 6 0 0 0 12 3zM9 21h6',
     work: 'M4 6h16M4 12h16M4 18h10',
     approvals: 'M20 6L9 17l-5-5',
+    week: 'M4 20V10M10 20V4M16 20v-7M22 20H2',
     refresh: 'M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7',
     sun: 'M12 4V2M12 22v-2M4 12H2M22 12h-2M5.6 5.6L4.2 4.2M19.8 19.8l-1.4-1.4M5.6 18.4l-1.4 1.4M19.8 4.2l-1.4 1.4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z',
   };
@@ -127,4 +128,56 @@ export function Icon({ name }: { name: string }) {
       <path d={paths[name] ?? ''} />
     </svg>
   );
+}
+
+export function formatHours(h: number | null | undefined): string {
+  if (h === null || h === undefined || Number.isNaN(h)) return '—';
+  if (h < 1) return `${Math.max(1, Math.round(h * 60))}m`;
+  if (h < 48) return `${Math.round(h * 10) / 10}h`;
+  return `${Math.round(h / 24)}d`;
+}
+
+export type SortDir = 'asc' | 'desc';
+type Accessor<T> = (row: T) => string | number | null | undefined;
+
+/** Client-side sorting: click a header to sort, click again to reverse. Missing values always sort last. */
+export function useSort<T>(rows: T[], accessors: Record<string, Accessor<T>>, initial?: { key: string; dir: SortDir }) {
+  const [sort, setSort] = useState<{ key: string; dir: SortDir } | null>(initial ?? null);
+  const acc = sort ? accessors[sort.key] : undefined;
+  const sorted = !sort || !acc ? rows : [...rows].sort((a, b) => {
+    const x = acc(a); const y = acc(b);
+    if (x === null || x === undefined) return y === null || y === undefined ? 0 : 1;
+    if (y === null || y === undefined) return -1;
+    const c = typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y), undefined, { numeric: true });
+    return sort.dir === 'asc' ? c : -c;
+  });
+  const toggle = (key: string) => setSort((s) => (s?.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }));
+  return { sorted, sort, toggle };
+}
+
+export function SortTh({ label, id, sort, onSort, className }: { label: string; id: string; sort: { key: string; dir: SortDir } | null; onSort: (key: string) => void; className?: string }) {
+  const active = sort?.key === id;
+  return (
+    <th className={className} aria-sort={active ? (sort!.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+      <button className="sort" onClick={() => onSort(id)} title={`Sort by ${label}`}>{label}<span aria-hidden="true">{active ? (sort!.dir === 'asc' ? ' ▲' : ' ▼') : ''}</span></button>
+    </th>
+  );
+}
+
+export function toCsv(headers: string[], rows: (string | number | boolean | null | undefined)[][]): string {
+  const cell = (v: string | number | boolean | null | undefined) => {
+    const s = v === null || v === undefined ? '' : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  return `${[headers, ...rows].map((r) => r.map(cell).join(',')).join('\n')}\n`;
+}
+
+export function ExportCsv({ filename, headers, rows }: { filename: string; headers: string[]; rows: (string | number | boolean | null | undefined)[][] }) {
+  const download = () => {
+    const url = URL.createObjectURL(new Blob([toCsv(headers, rows)], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  };
+  return <button onClick={download} title={`Download ${rows.length} row(s) as CSV`}>Export CSV</button>;
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { approveApproval, getApproval, getApprovals, getMe, rejectApproval } from '../api';
 import type { Me } from '../types';
+import { Findings } from './Findings';
 import { BackButton, Badge, Empty, ErrorState, Loading, PageHead, Table, Time, useLoad, useToast } from '../ui';
 
 function ApprovalDetail({ id, me, onDone, onBack }: { id: string; me: Me; onDone: (message: string) => void; onBack: () => void }) {
@@ -42,7 +43,7 @@ function ApprovalDetail({ id, me, onDone, onBack }: { id: string; me: Me; onDone
           {data.findings.length > 0 && (
             <div className="card">
               <h3>Warnings</h3>
-              <ul className="findings">{data.findings.map((f, i) => <li key={i}><code>{f.check}</code>: {f.message}</li>)}</ul>
+              <Findings findings={data.findings} />
             </div>
           )}
           {data.evidence && (

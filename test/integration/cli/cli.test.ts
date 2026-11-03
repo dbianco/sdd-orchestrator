@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { writeFile, mkdtemp, mkdir, cp } from 'node:fs/promises';
+import { writeFile, mkdtemp, mkdir, cp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { getTestPool, truncateAll, closeTestPool } from '../../helpers/db.js';
@@ -129,4 +129,33 @@ describe.skipIf(!url)('sdd-admin', () => {
     expect(await admin('approvals', 'reject', b, '--reason', 'unclear', '--actor', 'erin')).toMatchObject({ approval: { status: 'rejected' }, feature: { current_phase: 'specify' } });
     await expect(admin('approvals', 'approve', a, '--actor', 'erin')).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining('is approved') });
   });
+
+  it('init sets up an app, ingests packs, issues a token and writes the repo config once', async () => {
+    const repo = await mkdtemp(join(tmpdir(), 'sdd-repo-'));
+    const text = async () => (await run('npx', ['tsx', join(process.cwd(), 'src/cli/index.ts'), 'init', '--app', 'Demo App', '--packs', `${fixtures}mini-framework`, '--write-config', '--advisory', '--actor', 'dana'], {
+      env: { ...process.env, SDD_DATABASE_URL: url!, SDD_EMBEDDING_PROVIDER: 'fake' }, cwd: repo,
+    })).stdout;
+    const out = await text();
+    expect(out).toMatch(/Registered app "demo-app"/);
+    expect(out).toMatch(/export SDD_TOKEN=sdd_/);
+    expect(JSON.parse(await readFile(join(repo, '.sdd', 'config.json'), 'utf8'))).toEqual({ app: 'demo-app', enforcement: 'warn' });
+    expect(await readFile(join(repo, '.gitignore'), 'utf8')).toContain('.sdd/state.json');
+    const again = await text(); // idempotent: app and config are kept, only a new token is issued
+    expect(again).toMatch(/already registered/);
+    expect(again).toMatch(/already exists; left unchanged/);
+    const listed = await admin('token', 'list', '--for', 'dana') as { tokens: unknown[] };
+    expect(listed.tokens).toHaveLength(2);
+  });
+
+  it('seeds and resets demo data without touching other apps', async () => {
+    await admin('app', 'register', 'checkout', '--name', 'Checkout');
+    const seeded = await admin('demo', 'seed') as { app: string; features: number };
+    expect(seeded).toMatchObject({ app: 'demo', features: 5 });
+    await expect(admin('demo', 'seed')).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining('already exists') });
+    await expect(admin('demo', 'reset', '--app', 'checkout')).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining('refusing') });
+    expect(await admin('demo', 'reset')).toEqual({ app: 'demo', removed: true });
+    const list = await admin('app', 'list') as { apps: { slug: string }[] };
+    expect(list.apps.map((a) => a.slug)).toEqual(['checkout']);
+  });
 });
+

@@ -68,6 +68,9 @@ export interface Proposal {
   status: 'pending' | 'approved' | 'rejected';
   created_at: string;
   created_by: string;
+  payload?: { kind?: string; memory_type?: string | null; title?: string; body?: string; stack_tags?: string[]; links?: string[] };
+  reviewed_by?: string | null;
+  review_reason?: string | null;
 }
 
 export interface RoutingEvent {
@@ -128,3 +131,21 @@ export interface ApprovalDetail {
   artifacts: { name: string; byte_length: number; content: string | null }[];
   requirements: string[] | null;
 }
+
+export interface ValueMetrics {
+  weeks: { week: string; total: number; passed: number }[];
+  first_pass_rate: number | null;
+  caught: { failed_transitions: number; features: number };
+  approvals: { decided: number; pending: number; avg_hours: number | null; median_hours: number | null; oldest_pending_hours: number | null };
+}
+
+export interface WeekActivity {
+  actor: string; days: number; actors: string[];
+  shipped: { feature_id: string; slug: string; at: string }[];
+  worked_on: { feature_id: string; slug: string; status: string; current_phase: string }[];
+  transitions: { passed: number; failed: number };
+  caught: { check: string; count: number; example: string | null }[];
+  approvals: { decided: number; approved: number; rejected: number; requested: number; avg_wait_hours: number | null };
+}
+
+export interface CheckHint { title: string; fix: string }

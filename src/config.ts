@@ -22,6 +22,8 @@ export interface Config {
   tokenBudget: number;
   adminToken: string | null;
   authMode: AuthMode;
+  notifyWebhookUrl?: string | null;
+  publicUrl?: string | null;
 }
 
 const EnvSchema = z.object({
@@ -35,6 +37,8 @@ const EnvSchema = z.object({
   SDD_TOKEN_BUDGET: z.coerce.number().int().positive().default(6000),
   SDD_ADMIN_TOKEN: z.string().optional(),
   SDD_AUTH_MODE: z.enum(AUTH_MODES).default('warn'),
+  SDD_NOTIFY_WEBHOOK_URL: z.string().url().optional().or(z.literal('')),
+  SDD_PUBLIC_URL: z.string().url().optional().or(z.literal('')),
 });
 
 const DEFAULT_MODEL: Record<EmbeddingProviderName, string> = {
@@ -64,5 +68,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     tokenBudget: e.SDD_TOKEN_BUDGET,
     adminToken: e.SDD_ADMIN_TOKEN?.trim() ? e.SDD_ADMIN_TOKEN : null,
     authMode: e.SDD_AUTH_MODE,
+    notifyWebhookUrl: e.SDD_NOTIFY_WEBHOOK_URL || null,
+    publicUrl: e.SDD_PUBLIC_URL || null,
   };
 }
