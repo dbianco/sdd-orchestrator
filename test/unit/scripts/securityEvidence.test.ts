@@ -77,4 +77,22 @@ describe('security evidence from Trivy and Opengrep', () => {
     expect(JSON.parse(noBaseline.stdout)).toEqual({ status: 'pass', new_high: 3 });
     await expect(run([])).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining('--skipped') });
   });
+
+  it('tolerates reports with missing fields', () => {
+    expect(trivyHigh(undefined)).toEqual([]);
+    expect(trivyHigh({})).toEqual([]);
+    const found = trivyHigh({ Results: [{ Misconfigurations: [{ ID: 'X', Severity: 'HIGH' }], Secrets: [{ RuleID: 'k', Severity: 'CRITICAL' }] }] });
+    expect(found.map((f) => f.text)).toEqual(['HIGH X  (?)', 'CRITICAL secret k (?:?)']);
+    expect(found[0]!.key).toBe('trivy:misconfig:?:X');
+    expect(opengrepHigh(undefined)).toEqual([]);
+    expect(opengrepHigh({ results: [{ check_id: 'r', path: 'a', extra: {} }, { check_id: 'r', path: 'a' }, { check_id: 'r2', path: 'b', extra: { severity: 'error' } }] }).map((f) => f.text)).toEqual(['ERROR r2 (b:?)']);
+  });
+
+  it('builds a baseline from findings and treats a missing baseline as empty', () => {
+    const b = makeBaseline(opengrepHigh(opengrep), new Date('2026-11-03T00:00:00Z'));
+    expect(b).toEqual({ version: 1, generated_at: '2026-11-03T00:00:00.000Z', findings: { 'opengrep:cors-wildcard:src/app.py': 2 } });
+    expect(buildSecurity({ opengrep, baseline: null }).security.new_high).toBe(2);
+    expect(buildSecurity({ opengrep }).newFindings).toHaveLength(2);
+  });
 });
+

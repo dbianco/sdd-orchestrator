@@ -14,6 +14,7 @@ import { createMetrics } from '../../src/metrics.js';
 import type { Config } from '../../src/config.js';
 import type { Decision } from '../../src/domain/types.js';
 import { insertProposal } from '../../src/store/proposals.js';
+import { createApp } from '../../src/store/apps.js';
 import { createToken } from '../../src/store/tokens.js';
 import { seedDemo } from '../../src/cli/commands/demo.js';
 
@@ -308,6 +309,44 @@ describe.skipIf(!url)('admin routes', () => {
     const fid = (await startFeature(notifyDeps, { app: 'checkout', actor: 'dana', task_description: 'Notify me', decision })).feature_id;
     await advancePhase(notifyDeps, { feature_id: fid, actor: 'dana', expected_phase: 'specify', target_phase: 'implement', artifacts: { 'proposal.md': '## Why\nx\n\n## What Changes\ny\n' } });
     expect(events).toEqual([expect.objectContaining({ to_phase: 'implement', requested_by: 'dana' })]);
+  });
+
+  it('applies app scope, read-only logins and empty bodies to proposal and approval decisions', async () => {
+    const billing = await createApp(deps.pool, { slug: 'billing', name: 'Billing' }, 'test');
+    const scoped = (await createToken(deps.pool, { actor: 'erin', name: 't', scopes: ['approver'], app_ids: [billing.id], expires_at: null }, 'test')).secret;
+    const open = (await createToken(deps.pool, { actor: 'dana', name: 't', scopes: ['approver'], app_ids: null, expires_at: null }, 'test')).secret;
+    const listening = await listen(createHttpApp(deps, { ...baseConfig, adminToken: 's3cret', authMode: 'warn' }));
+    server = listening.server;
+    const fid = (await startFeature(deps, { app: 'checkout', actor: 'dana', task_description: 'CSV export', decision })).feature_id;
+    const appId = (await deps.pool.query<{ id: string }>(`SELECT id FROM apps WHERE slug = 'checkout'`)).rows[0]!.id;
+    const payload = { kind: 'app_memory', memory_type: 'decision', title: 'T', body: 'B', stack_tags: [], links: [] };
+    const pid = (await insertProposal(deps.pool, { app_id: appId, feature_id: fid, payload, supersedes: null }, 'agent')).id;
+    const call = (path: string, secret: string, init: RequestInit = {}) => fetch(`${listening.origin}/admin/api/${path}`, { ...init, headers: { Authorization: authHeader(secret), ...(init.method === 'POST' ? { 'Content-Type': 'application/json' } : {}) } });
+
+    // a token scoped to another app may not read or decide this app's proposals
+    expect((await call(`proposals/${pid}/approve`, scoped, { method: 'POST', body: '{}' })).status).toBe(403);
+    expect((await call(`proposals/${pid}/reject`, scoped, { method: 'POST', body: '{"reason":"x"}' })).status).toBe(403);
+    // the shared admin password is read-only
+    expect((await call(`proposals/${pid}/reject`, 's3cret', { method: 'POST', body: '{"reason":"x"}' })).status).toBe(403);
+    expect((await call('proposals/p_missing/reject', open, { method: 'POST', body: '{"reason":"x"}' })).status).toBe(404);
+    // an empty body is a validation error, not a crash
+    expect((await call(`proposals/${pid}/reject`, open, { method: 'POST' })).status).toBe(400);
+
+    const approvalId = (await advancePhase({ ...deps, authMode: 'warn' }, { feature_id: fid, actor: 'dana', expected_phase: 'specify', target_phase: 'implement', artifacts: { 'proposal.md': '## Why\nx\n\n## What Changes\ny\n' } })).approval_id!;
+    expect((await call(`approvals/${approvalId}`, scoped)).status).toBe(403);
+    const noBody = await call(`approvals/${approvalId}/approve`, open, { method: 'POST' }); // no body at all: comment is optional
+    expect(noBody.status).toBe(200);
+
+    // without an embedding provider a proposal cannot be accepted
+    const pid2 = (await insertProposal(deps.pool, { app_id: appId, feature_id: fid, payload: { ...payload, title: 'T2' }, supersedes: null }, 'agent')).id;
+    const noEmbed = await listen(createHttpApp({ ...deps, embedder: null }, { ...baseConfig, adminToken: 's3cret', authMode: 'warn' }));
+    const r = await fetch(`${noEmbed.origin}/admin/api/proposals/${pid2}/approve`, { method: 'POST', headers: { Authorization: authHeader(open), 'Content-Type': 'application/json' }, body: '{}' });
+    expect(r.status).toBe(503);
+    noEmbed.server.close();
+
+    // the week view defaults to the signed-in person
+    const week = (await (await call('week', open)).json()) as { actor: string };
+    expect(week.actor).toBe('dana');
   });
 });
 

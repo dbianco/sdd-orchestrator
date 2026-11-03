@@ -10,7 +10,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts', 'scripts/lib/**/*.mjs', 'hosts/claude-code/hooks/lib/**/*.mjs'],
-      exclude: ['src/**/*.d.ts', 'src/domain/types.ts'],
+      exclude: ['src/**/*.d.ts', 'src/domain/types.ts', 'src/cli/index.ts'],
       reporter: ['text-summary', 'json-summary', 'lcov'],
       reportsDirectory: 'coverage',
     },

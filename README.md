@@ -555,6 +555,7 @@ npm install
 npm run db:test:up                       # Postgres + pgvector on :55432
 export SDD_TEST_DATABASE_URL=postgres://sdd:sdd@localhost:55432/sdd_test
 npm test                                 # unit, integration and contract tests (needs pgvector 0.8+)
+npm run test:coverage                    # same, with a coverage report in coverage/ (lcov + summary)
 npm run typecheck
 npm run dev:stdio                        # server over stdio against SDD_DATABASE_URL
 npm run admin -- app list                # sdd-admin without building
@@ -569,6 +570,7 @@ The admin UI is a small React app in `admin-ui/`:
 npm --prefix admin-ui install
 npm --prefix admin-ui run dev            # http://localhost:5173/admin/, proxies /admin/api to :8080
 npm run test:admin-ui                    # component tests
+npm run test:admin-ui:coverage           # component tests with a coverage report
 npm run build:admin-ui                   # output served by the server from admin-ui/dist
 ```
 
