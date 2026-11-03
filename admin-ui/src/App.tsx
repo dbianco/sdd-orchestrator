@@ -8,6 +8,7 @@ import { Work } from './views/Work';
 import { Approvals } from './views/Approvals';
 import { MyWeek } from './views/MyWeek';
 import { Icon } from './ui';
+import { InfoPanel } from './InfoPanel';
 import { CommandPalette, type Command } from './CommandPalette';
 
 type Tab = 'overview' | 'week' | 'apps' | 'flow' | 'proposals' | 'work' | 'approvals';
@@ -131,6 +132,7 @@ export function App() {
       </aside>
       <main className="main">
         <div className="content" key={`${tab}:${version}:${app ?? ''}`}>
+          <InfoPanel tab={tab} />
           {tab === 'overview' && <Overview app={app} onNavigate={setTab} />}
           {tab === 'week' && <MyWeek app={app} />}
           {tab === 'apps' && <AppsFeatures app={app} />}

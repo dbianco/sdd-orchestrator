@@ -201,3 +201,11 @@ button.sort:hover:not(:disabled) { background: none; color: var(--text); }
 kbd { font: 0.72rem var(--mono); padding: 0.05rem 0.35rem; border: 1px solid var(--border-strong); border-radius: 4px; background: var(--surface-2); color: var(--muted); }
 .proposal-body { white-space: pre-wrap; }
 .tiles-sentence .tile-label { text-transform: none; }
+.info { display: flex; flex-direction: column; align-items: flex-end; gap: 0.5rem; margin-bottom: 0.75rem; }
+.info-toggle { padding: 0.2rem 0.65rem; border-radius: 999px; font-size: 0.8rem; color: var(--muted); background: transparent; }
+.info-toggle[aria-expanded='true'] { color: var(--accent-text); border-color: var(--accent); background: var(--accent-soft); }
+.info-panel { align-self: stretch; padding: 0.9rem 1.1rem; border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); }
+.info-panel p { margin: 0 0 0.25rem; }
+.info-panel h4 { margin: 0.9rem 0 0.3rem; }
+.info-panel ul { margin: 0; padding-left: 1.2rem; }
+.info-panel li { margin: 0.15rem 0; }
