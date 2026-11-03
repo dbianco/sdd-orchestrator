@@ -5,6 +5,10 @@ import { currentFramework, deprecateFramework, getFrameworkVersion, listCurrentF
 import { deprecateItem } from '../../../src/store/knowledge.js';
 import { startFeature } from '../../../src/services/startFeature.js';
 import { advancePhase } from '../../../src/services/advancePhase.js';
+import { createToken, revokeToken, updateTokenApps } from '../../../src/store/tokens.js';
+import { getContext } from '../../../src/services/getContext.js';
+import { recordCommit } from '../../../src/services/recordCommit.js';
+import { createApp } from '../../../src/store/apps.js';
 import { runEval } from '../../../src/eval/run.js';
 import type { Decision } from '../../../src/domain/types.js';
 import type { MetricsHooks } from '../../../src/services/deps.js';
@@ -92,4 +96,33 @@ describe.skipIf(!url)('store and service branches', () => {
     await seedAll(pool);
     expect(await runEval({ q: pool, embedder }, [])).toMatchObject({ cases: [], recall: 0, mrr: 0 });
   });
+
+  it('refuses to revoke an unknown token and keeps the apps when nothing is added', async () => {
+    const pool = await getTestPool();
+    await expect(revokeToken(pool, 'tk_nope', 'x', 'cli')).rejects.toThrow('token tk_nope does not exist');
+    const { row } = await createToken(pool, { actor: 'bob', name: 'n', scopes: ['host'], app_ids: ['app_1'], expires_at: null }, 'x');
+    expect((await updateTokenApps(pool, row.id, {})).app_ids).toEqual(['app_1']);
+  });
+
+  it('refuses a phase the track skips and reports degraded packs from get_context', async () => {
+    const pool = await getTestPool();
+    await seedAll(pool);
+    const hooks = metrics();
+    const deps = { pool, embedder: null, tokenBudget: 6000, metrics: hooks };
+    const fid = (await startFeature(deps, { app: 'checkout', actor: 'd', task_description: 'x', decision })).feature_id;
+    await expect(getContext(deps, { feature_id: fid, actor: 'd', phase: 'plan' })).rejects.toThrow(/phase plan is skipped in track default/);
+    await pool.query(`UPDATE apps SET token_budget = 50 WHERE slug = 'checkout'`);
+    await getContext(deps, { feature_id: fid, actor: 'd' });
+    expect(hooks.degradedPack).toHaveBeenCalled();
+    expect(hooks.overBudgetPack).toHaveBeenCalled();
+  });
+
+  it('refuses a commit for a feature that belongs to another app', async () => {
+    const pool = await getTestPool();
+    await seedAll(pool);
+    await createApp(pool, { slug: 'billing', name: 'Billing' }, 'seed');
+    const fid = (await startFeature({ pool, embedder, tokenBudget: 6000 }, { app: 'checkout', actor: 'd', task_description: 'x', decision })).feature_id;
+    await expect(recordCommit({ pool, embedder, tokenBudget: 6000 }, { app: 'billing', actor: 'd', sha: 'abc1234', message: 'm', feature_id: fid })).rejects.toThrow('belongs to another app');
+  });
 });
+

@@ -13,6 +13,8 @@ export default defineConfig({
       exclude: ['src/**/*.d.ts', 'src/domain/types.ts', 'src/cli/index.ts'],
       reporter: ['text-summary', 'json-summary', 'lcov'],
       reportsDirectory: 'coverage',
+      // Regression guard: only enforced with --coverage (npm run test:coverage).
+      thresholds: { statements: 95, lines: 95, functions: 95, branches: 94 },
     },
   },
 });

@@ -13,6 +13,7 @@ export default defineConfig({
       exclude: ['src/**/*.test.{ts,tsx}', 'src/main.tsx', 'src/setupTests.ts', 'src/testUtils.ts', 'src/types.ts'],
       reporter: ['text-summary', 'json-summary', 'lcov'],
       reportsDirectory: 'coverage',
+      thresholds: { statements: 95, lines: 95, functions: 95, branches: 95 },
     },
   },
 });
