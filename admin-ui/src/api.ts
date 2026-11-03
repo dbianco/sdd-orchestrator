@@ -1,4 +1,4 @@
-import type { Approval, ApprovalDetail, AppSummary, Commit, Me, FeatureDetail, FeatureSummary, FlowCount, Overview, Proposal, RoutingEvent, RoutingSummary, RtmRow } from './types';
+import type { CheckHint, ValueMetrics, WeekActivity, Approval, ApprovalDetail, AppSummary, Commit, Me, FeatureDetail, FeatureSummary, FlowCount, Overview, Proposal, RoutingEvent, RoutingSummary, RtmRow } from './types';
 
 export class ApiError extends Error {}
 
@@ -78,4 +78,24 @@ export function approveApproval(id: string, comment?: string): Promise<unknown> 
 
 export function rejectApproval(id: string, reason: string): Promise<unknown> {
   return post(`/admin/api/approvals/${encodeURIComponent(id)}/reject`, { reason });
+}
+
+export function getMetrics(app?: string | null): Promise<ValueMetrics> {
+  return get<ValueMetrics>(`/admin/api/metrics${app ? `?app=${encodeURIComponent(app)}` : ''}`);
+}
+
+export function getWeek(params: { app?: string | null; actor?: string; days?: number } = {}): Promise<WeekActivity> {
+  const qs = new URLSearchParams();
+  if (params.app) qs.set('app', params.app);
+  if (params.actor) qs.set('actor', params.actor);
+  if (params.days) qs.set('days', String(params.days));
+  const s = qs.toString();
+  return get<WeekActivity>(`/admin/api/week${s ? `?${s}` : ''}`);
+}
+
+let hintsCache: Promise<Record<string, CheckHint>> | null = null;
+/** Remediation text per gate check; fetched once and tolerant of older servers. */
+export function getGateHints(): Promise<Record<string, CheckHint>> {
+  hintsCache ??= get<{ hints?: Record<string, CheckHint> }>('/admin/api/gate-hints').then((r) => r.hints ?? {}).catch(() => ({}));
+  return hintsCache;
 }

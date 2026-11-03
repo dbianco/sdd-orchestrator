@@ -21,4 +21,17 @@ describe('FeatureDetail', () => {
     fireEvent.click(screen.getByText('← Back'));
     expect(onBack).toHaveBeenCalledOnce();
   });
+
+  it('shows how to fix each gate finding', async () => {
+    const payload = {
+      feature: { feature_id: 'f_1', slug: 'add-csv', app_id: 'a_1', framework: 'mini', track: 'default', current_phase: 'verify', status: 'active', blocked_reason: null, updated_at: '2026-09-17T00:00:00.000Z' },
+      transitions: [{ id: 't_1', from_phase: 'verify', to_phase: 'integrate', direction: 'forward', result: 'fail', findings: [{ check: 'verify_evidence', severity: 'blocker', location: null, message: '2 tests failed' }], human_approved: false, reason: null, created_at: '2026-09-17T00:00:00.000Z' }],
+      requirements: [], hints: { verify_evidence: { title: 'Verification evidence incomplete', fix: 'Run the tests and pass evidence.' } },
+    };
+    vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve({ ok: true, json: () => Promise.resolve(url.startsWith('/admin/api/gate-hints') ? { hints: payload.hints } : payload) })));
+    render(<FeatureDetail featureId="f_9" onBack={() => undefined} />);
+    expect(await screen.findByText(/2 tests failed/)).toBeInTheDocument();
+    expect(await screen.findByText('Verification evidence incomplete.')).toBeInTheDocument();
+  });
 });
+

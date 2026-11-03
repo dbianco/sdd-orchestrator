@@ -31,8 +31,14 @@ In each repository, commit `.sdd/config.json` and ignore the state file:
 .sdd/state.json
 ```
 
-`enforcement` is `block` (default), `warn` (explain instead of refusing) or
-`off`. A repository without `.sdd/config.json` is not affected.
+`enforcement` is `block` (default), `warn` (advisory: explain instead of
+refusing) or `off`. A repository without `.sdd/config.json` is not affected.
+
+**Trying it out without being blocked.** Set `SDD_ENFORCEMENT=warn` in your own
+shell (or use `sdd-admin init --advisory`, which writes `"enforcement": "warn"`)
+to get the same guidance as warnings while every edit still goes through.
+`SDD_ENFORCEMENT` overrides the committed config for you only; move the team to
+`block` once the workflow feels right.
 
 ## What the hooks allow
 

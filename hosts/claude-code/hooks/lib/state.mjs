@@ -4,6 +4,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const SDD_TOOL = /^mcp__(?:plugin_sdd_)?sdd__([a-z_]+)$/;
+const ENFORCEMENT = new Set(['block', 'warn', 'off']);
 const FEATURE_TOOLS = new Set(['start_feature', 'advance_phase', 'get_context', 'get_feature_status']);
 
 export function sddToolName(toolName) {
@@ -23,7 +24,10 @@ export function currentBranch(cwd) {
 export async function readConfig(projectDir) {
   try {
     const c = JSON.parse(await readFile(join(projectDir, '.sdd', 'config.json'), 'utf8'));
-    return { enforcement: 'block', ...c };
+    // SDD_ENFORCEMENT is a personal override (e.g. `warn` while trying the workflow); it needs no committed change.
+    const personal = process.env.SDD_ENFORCEMENT;
+    const enforcement = ENFORCEMENT.has(personal) ? personal : c.enforcement;
+    return { ...c, enforcement: ENFORCEMENT.has(enforcement) ? enforcement : 'block' };
   } catch { return null; }
 }
 

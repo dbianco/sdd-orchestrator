@@ -6,12 +6,14 @@ import { Flow } from './views/Flow';
 import { Proposals } from './views/Proposals';
 import { Work } from './views/Work';
 import { Approvals } from './views/Approvals';
+import { MyWeek } from './views/MyWeek';
 import { Icon } from './ui';
 
-type Tab = 'overview' | 'apps' | 'flow' | 'proposals' | 'work' | 'approvals';
+type Tab = 'overview' | 'week' | 'apps' | 'flow' | 'proposals' | 'work' | 'approvals';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
+  { id: 'week', label: 'My week' },
   { id: 'apps', label: 'Apps & Features' },
   { id: 'work', label: 'Work' },
   { id: 'approvals', label: 'Approvals' },
@@ -119,6 +121,7 @@ export function App() {
       <main className="main">
         <div className="content" key={`${tab}:${version}:${app ?? ''}`}>
           {tab === 'overview' && <Overview app={app} onNavigate={setTab} />}
+          {tab === 'week' && <MyWeek app={app} />}
           {tab === 'apps' && <AppsFeatures app={app} />}
           {tab === 'flow' && <Flow app={app} />}
           {tab === 'proposals' && <Proposals app={app} />}

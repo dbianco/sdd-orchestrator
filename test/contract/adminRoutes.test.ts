@@ -14,6 +14,7 @@ import { createMetrics } from '../../src/metrics.js';
 import type { Config } from '../../src/config.js';
 import type { Decision } from '../../src/domain/types.js';
 import { createToken } from '../../src/store/tokens.js';
+import { seedDemo } from '../../src/cli/commands/demo.js';
 
 const url = process.env.SDD_TEST_DATABASE_URL;
 // admin-ui/dist is gitignored and only exists after `npm --prefix admin-ui run build`,
@@ -225,4 +226,31 @@ describe.skipIf(!url)('admin routes', () => {
     expect(((await inverted.json()) as any).error).toContain('from must be on or before to');
     expect((await fetch(`${listening.origin}/admin/api/routing?from=yesterday`, { headers })).status).toBe(400);
   });
+
+  it('serves value metrics, a per-person week and gate hints', async () => {
+    await seedDemo(deps.pool, 'demo', 'test');
+    const listening = await listen(createHttpApp(deps, { ...baseConfig, adminToken: 's3cret', authMode: 'warn' }));
+    server = listening.server;
+    const get = async (path: string) => (await fetch(`${listening.origin}/admin/api/${path}`, { headers: { Authorization: authHeader('s3cret') } })).json() as Promise<Record<string, any>>;
+
+    const m = await get('metrics?app=demo');
+    expect(m.first_pass_rate).toBeGreaterThan(0);
+    expect(m.first_pass_rate).toBeLessThan(1);
+    expect(m.caught.failed_transitions).toBeGreaterThanOrEqual(4);
+    expect(m.approvals).toMatchObject({ pending: 1, decided: 4 });
+    expect(m.approvals.median_hours).toBeCloseTo(3, 0);
+
+    const w = await get('week?app=demo&actor=dana&days=30');
+    expect(w.actor).toBe('dana');
+    expect(w.actors).toEqual(expect.arrayContaining(['dana', 'erin']));
+    expect(w.shipped.map((s: { slug: string }) => s.slug)).toEqual(['refund-policy-page']);
+    expect(w.caught).toEqual(expect.arrayContaining([expect.objectContaining({ check: 'requirement_coverage', count: 1 })]));
+    const none = await get('week?app=demo&actor=nobody');
+    expect(none).toMatchObject({ transitions: { passed: 0, failed: 0 }, shipped: [], caught: [] });
+
+    const hints = await get('gate-hints');
+    expect(hints.hints.requirement_coverage.fix).toMatch(/implements/);
+    expect((await fetch(`${listening.origin}/admin/api/week?days=0`, { headers: { Authorization: authHeader('s3cret') } })).status).toBe(400);
+  });
 });
+

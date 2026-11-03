@@ -9,7 +9,8 @@ run(async () => {
   if (!config) return;
   const branch = currentBranch(dir);
   const s = await readBranchState(dir, branch);
-  const lines = [`This repository follows the SDD Orchestrator (app "${config.app}", edit enforcement "${config.enforcement}"). Follow the sdd-workflow skill.`];
+  const advisory = config.enforcement === 'warn' ? ' Advisory mode: edits are never blocked, but heed the warnings and follow the workflow.' : '';
+  const lines = [`This repository follows the SDD Orchestrator (app "${config.app}", edit enforcement "${config.enforcement}"). Follow the sdd-workflow skill.${advisory}`];
   if (s?.feature_id) {
     const phase = s.phase_alias && s.phase_alias !== s.current_phase ? `${s.current_phase} (${s.phase_alias})` : s.current_phase;
     lines.push(`Branch ${branch}: feature ${s.feature_id} is in ${phase}, status ${s.status}.`);

@@ -1,5 +1,6 @@
 import { getFeatureDetail } from '../api';
 import { BackButton, Badge, Empty, ErrorState, Loading, Time, useLoad } from '../ui';
+import { Findings } from './Findings';
 import { RequirementList } from './Requirements';
 
 export function FeatureDetail({ featureId, onBack }: { featureId: string; onBack: () => void }) {
@@ -41,11 +42,7 @@ export function FeatureDetail({ featureId, onBack }: { featureId: string; onBack
                     </div>
                     {t.reason && <div className="muted">{t.reason}</div>}
                     {t.findings.length > 0 && (
-                      <ul className="findings">
-                        {t.findings.map((f, i) => (
-                          <li key={i}><span className={`sev-${f.severity}`}>{f.severity}</span> <code>{f.check}</code>{f.message ? ` — ${f.message}` : ''}{f.location ? ` (${f.location})` : ''}</li>
-                        ))}
-                      </ul>
+                      <Findings findings={t.findings} />
                     )}
                   </li>
                 ))}

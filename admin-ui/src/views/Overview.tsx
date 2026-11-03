@@ -1,10 +1,11 @@
-import { getOverview } from '../api';
-import { Badge, Empty, ErrorState, Loading, PageHead, SplitBar, toneOf, useLoad } from '../ui';
+import { getMetrics, getOverview } from '../api';
+import { Badge, Empty, ErrorState, formatHours, Loading, PageHead, SplitBar, toneOf, useLoad } from '../ui';
 
 const STATUS_ORDER = ['active', 'blocked', 'archived'];
 
 export function Overview({ app, onNavigate }: { app?: string | null; onNavigate?: (tab: 'proposals' | 'approvals') => void }) {
   const { data, error, reload } = useLoad(() => getOverview(app ?? undefined), [app]);
+  const metrics = useLoad(() => getMetrics(app).catch(() => null), [app]).data;
 
   if (error) return <ErrorState message={`Could not load the overview: ${error}`} onRetry={reload} />;
   if (!data) return <Loading />;
@@ -41,6 +42,24 @@ export function Overview({ app, onNavigate }: { app?: string | null; onNavigate?
         <div className="alert" style={{ background: 'var(--amber-bg)', color: 'var(--amber)', borderColor: 'var(--amber)' }}>
           <span>{pending} memory {pending === 1 ? 'proposal is' : 'proposals are'} waiting for review.</span>
           <button onClick={() => onNavigate('proposals')}>Review proposals</button>
+        </div>
+      )}
+      {metrics && Array.isArray(metrics.weeks) && metrics.weeks.length > 0 && (
+        <div className="card">
+          <h3>Is the process paying off?</h3>
+          <div className="metric-row">
+            <div className="metric"><strong>{metrics.first_pass_rate === null ? '—' : `${Math.round(metrics.first_pass_rate * 100)}%`}</strong><span>phase moves pass the gate on the first try</span></div>
+            <div className="metric"><strong>{metrics.caught.failed_transitions}</strong><span>problems caught before review (last 8 weeks)</span></div>
+            <div className="metric"><strong>{formatHours(metrics.approvals.median_hours)}</strong><span>median wait for an approval</span></div>
+            <div className="metric"><strong>{metrics.approvals.pending}</strong><span>approvals waiting{metrics.approvals.oldest_pending_hours ? ` (oldest ${formatHours(metrics.approvals.oldest_pending_hours)})` : ''}</span></div>
+          </div>
+          <div className="spark" role="img" aria-label="First-pass rate by week">
+            {metrics.weeks.map((w) => {
+              const rate = w.total === 0 ? 0 : w.passed / w.total;
+              return <span key={w.week} className={rate < 0.5 ? 'low' : ''} style={{ height: `${Math.max(8, rate * 100)}%` }} title={`Week of ${w.week}: ${Math.round(rate * 100)}% first-pass (${w.passed}/${w.total})`} />;
+            })}
+          </div>
+          <p className="sub">First-pass rate per week. A rising line means specs and evidence are getting right the first time.</p>
         </div>
       )}
       <div className="grid">

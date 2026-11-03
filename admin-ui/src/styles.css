@@ -180,3 +180,11 @@ details > pre { margin: 0 0.5rem 0.5rem; }
 .timeline > li:last-child { padding-bottom: 0; }
 .project-picker { display: flex; flex-direction: column; gap: 0.25rem; padding: 0 0.5rem 0.75rem; font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
 .project-picker select { width: 100%; text-transform: none; letter-spacing: 0; font-size: 0.9rem; color: var(--text); }
+.hint { margin: 0.15rem 0 0.5rem; padding: 0.4rem 0.6rem; border-left: 3px solid var(--accent); background: var(--accent-soft); color: var(--accent-text); border-radius: 0 6px 6px 0; }
+.spark { display: flex; align-items: flex-end; gap: 4px; height: 56px; margin-top: 0.6rem; }
+.spark > span { flex: 1; min-width: 6px; border-radius: 3px 3px 0 0; background: var(--accent); opacity: 0.85; }
+.spark > span.low { background: var(--amber); }
+.metric-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.75rem; }
+.metric strong { display: block; font-size: 1.5rem; letter-spacing: -0.02em; line-height: 1.2; }
+.metric span { color: var(--muted); font-size: 0.82rem; }
+.sub { color: var(--muted); font-size: 0.85rem; }
