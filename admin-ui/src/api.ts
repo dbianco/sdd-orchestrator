@@ -1,4 +1,4 @@
-import type { CheckHint, ValueMetrics, WeekActivity, Approval, ApprovalDetail, AppSummary, Commit, Me, FeatureDetail, FeatureSummary, FlowCount, Overview, Proposal, RoutingEvent, RoutingSummary, RtmRow } from './types';
+import type { RightSizing, DriftEntry, CycleMetrics, CheckHint, ValueMetrics, WeekActivity, Approval, ApprovalDetail, AppSummary, Commit, Me, FeatureDetail, FeatureSummary, FlowCount, Overview, Proposal, RoutingEvent, RoutingSummary, RtmRow } from './types';
 
 export class ApiError extends Error {}
 
@@ -106,4 +106,16 @@ export function approveProposal(id: string): Promise<unknown> {
 
 export function rejectProposal(id: string, reason: string): Promise<unknown> {
   return post(`/admin/api/proposals/${encodeURIComponent(id)}/reject`, { reason });
+}
+
+export function getCycle(app?: string | null): Promise<CycleMetrics> {
+  return get<CycleMetrics>(`/admin/api/cycle${app ? `?app=${encodeURIComponent(app)}` : ''}`);
+}
+
+export function getDrift(app?: string | null): Promise<{ drift: DriftEntry[] }> {
+  return get<{ drift: DriftEntry[] }>(`/admin/api/drift${app ? `?app=${encodeURIComponent(app)}` : ''}`);
+}
+
+export function getRightSizing(app?: string | null): Promise<RightSizing> {
+  return get<RightSizing>(`/admin/api/rightsizing${app ? `?app=${encodeURIComponent(app)}` : ''}`);
 }

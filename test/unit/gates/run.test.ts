@@ -5,10 +5,10 @@ import { runGate } from '../../../src/gates/run.js';
 describe('library', () => {
   it('exposes exactly the spec checks', () => {
     expect(Object.keys(GATE_LIBRARY).sort()).toEqual([
-      'delta_markers', 'human_approved', 'measurable_criteria', 'missing_artifact', 'placeholder_scan',
+      'artifact_traceability', 'delta_markers', 'human_approved', 'measurable_criteria', 'missing_artifact', 'placeholder_scan',
       'required_sections', 'requirement_coverage', 'requirement_ids', 'scope_drift', 'task_done_checks', 'task_ordering', 'verify_evidence',
     ]);
-    expect(GATE_LIBRARY_VERSION).toBe('2');
+    expect(GATE_LIBRARY_VERSION).toBe('3');
   });
   it('validates declarations', () => {
     expect(validateGateDecl({ transition: 'specify->implement', artifacts: ['a.md'], checks: [{ name: 'nope' }] })).toEqual(['unknown check "nope"']);

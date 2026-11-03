@@ -13,6 +13,8 @@ export const PAGE_INFO: Record<string, PageInfo> = {
       'Read the status tiles: active, blocked and archived features.',
       'Follow the amber banner to review memory proposals that agents suggested.',
       'Check "Is the process paying off?": how often phase moves pass the gate on the first try, problems caught before review, and how long approvals wait.',
+      'See where the time goes: time per phase and per track, how much of it is spec work, and how much was lost to rework.',
+      'Check the right-sizing card: small changes that went through a full track and could have used the light path.',
       'See which gate checks block the most work, and what the knowledge base holds.',
     ],
     tips: ['Pick a project in the sidebar to scope every number on this page.', 'Press Ctrl/⌘+K to jump anywhere.'],
@@ -70,6 +72,17 @@ export const PAGE_INFO: Record<string, PageInfo> = {
       'Export the list as CSV.',
     ],
     tips: ['Accepted proposals are indexed and show up in future context packs for that app.'],
+  },
+  drift: {
+    title: 'Spec drift',
+    summary: 'Archived specs whose files were changed again afterwards, so the accepted spec may no longer describe the code.',
+    actions: [
+      'Start with "likely stale": someone changed these files through work routed without a feature, so no spec was updated.',
+      '"Review" means only other features touched the files; their own specs probably cover it, but check the original still fits.',
+      'Open a row to see each file and the commits that changed it, then open the feature to read its spec history.',
+      'Export the list as CSV for a documentation review.',
+    ],
+    tips: ['Lockfiles are ignored. A flagged spec is a prompt to re-read it, not proof it is wrong.'],
   },
   flow: {
     title: 'Flow',

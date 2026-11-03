@@ -12,7 +12,9 @@ import type { AdminIdentity } from './adminAuth.js';
 import type { Logger } from '../logging.js';
 import type { ServiceDeps } from '../services/deps.js';
 import { listFeaturesService } from '../services/listFeatures.js';
-import { featureCounts, flowCounts, gateCheckStats, knowledgeCounts, proposalsSummary, valueMetrics, weekActivity } from '../store/analytics.js';
+import { featureCounts, flowCounts, gateCheckStats, knowledgeCounts, proposalsSummary, valueMetrics, weekActivity, cycleMetrics } from '../store/analytics.js';
+import { rightSizingReport } from '../lifecycle/rightSizing.js';
+import { driftReport } from '../store/drift.js';
 import { CHECK_HINTS } from '../gates/hints.js';
 import { listApps, requireApp } from '../store/apps.js';
 import { listCommitsForRouting } from '../store/commits.js';
@@ -37,6 +39,8 @@ const STATUS_BY_CODE: Partial<Record<ErrorCode, number>> = {
   FORBIDDEN: 403, APPROVAL_NOT_PENDING: 409, STALE_STATE: 409, FEATURE_ARCHIVED: 409,
 };
 const WeekQuery = z.object({ app: z.string().optional(), actor: z.string().min(1).optional(), days: z.coerce.number().int().min(1).max(90).default(7) });
+const CycleQuery = z.object({ app: z.string().optional(), days: z.coerce.number().int().min(1).max(365).default(90) });
+const DriftQuery = z.object({ app: z.string().optional(), limit: z.coerce.number().int().min(1).max(500).default(100) });
 const ProposalsQuery = z.object({ status: z.enum(['pending', 'approved', 'rejected']).optional() });
 const DateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'expected YYYY-MM-DD');
 const RoutingQuery = z.object({
@@ -99,6 +103,21 @@ export function createAdminRouter(deps: ServiceDeps & { logger?: Logger }, legac
   router.get('/api/metrics', handle(async (req, res) => {
     const { app } = AppQuery.parse(req.query);
     res.json(await valueMetrics(deps.pool, await resolveAppId(deps, app)));
+  }));
+
+  router.get('/api/cycle', handle(async (req, res) => {
+    const { app, days } = CycleQuery.parse(req.query);
+    res.json(await cycleMetrics(deps.pool, await resolveAppId(deps, app), days));
+  }));
+
+  router.get('/api/rightsizing', handle(async (req, res) => {
+    const { app } = AppQuery.parse(req.query);
+    res.json(await rightSizingReport(deps.pool, await resolveAppId(deps, app)));
+  }));
+
+  router.get('/api/drift', handle(async (req, res) => {
+    const { app, limit } = DriftQuery.parse(req.query);
+    res.json({ drift: await driftReport(deps.pool, await resolveAppId(deps, app), limit) });
   }));
 
   router.get('/api/week', handle(async (req, res) => {

@@ -1,10 +1,92 @@
-import { getMetrics, getOverview } from '../api';
-import { Badge, Empty, ErrorState, formatHours, Loading, PageHead, SplitBar, toneOf, useLoad } from '../ui';
+import { getCycle, getMetrics, getOverview, getRightSizing } from '../api';
+import type { CycleMetrics, RightSizing } from '../types';
+import { Badge, Empty, ErrorState, formatHours, Loading, PageHead, SplitBar, Table, toneOf, useLoad } from '../ui';
+
+const PHASE_ORDER = ['specify', 'plan', 'tasks', 'implement', 'verify', 'integrate', 'learn'];
+const pct = (n: number | null) => (n === null ? '—' : `${Math.round(n * 100)}%`);
+
+/** Time per phase and track, spec vs build: shows what the process costs, with rework as the price of failed gates. */
+function CycleCard({ cycle }: { cycle: CycleMetrics }) {
+  const phases = PHASE_ORDER.filter((p) => cycle.phase_median_hours[p] !== undefined);
+  const max = Math.max(1, ...phases.map((p) => cycle.phase_median_hours[p]!));
+  const specShare = cycle.spec_share;
+  return (
+    <div className="card">
+      <h3>Where does the time go?</h3>
+      <div className="metric-row">
+        <div className="metric"><strong>{formatHours(cycle.median_cycle_hours)}</strong><span>median time from start to archived ({cycle.archived} finished)</span></div>
+        <div className="metric"><strong>{formatHours(cycle.median_spec_hours)}</strong><span>median in specify, plan and tasks</span></div>
+        <div className="metric"><strong>{formatHours(cycle.median_build_hours)}</strong><span>median building and verifying</span></div>
+        <div className="metric"><strong>{pct(specShare)}</strong><span>of active time goes to the spec</span></div>
+      </div>
+      {specShare !== null && (
+        <div style={{ marginTop: '0.75rem' }}>
+          <SplitBar parts={[{ label: 'Spec phases', value: Math.round(specShare * 100), tone: 'blue' }, { label: 'Build phases', value: Math.round((1 - specShare) * 100), tone: 'green' }]} />
+        </div>
+      )}
+      <h4>Median time per phase</h4>
+      {phases.map((p) => (
+        <div className="hbar" key={p}>
+          <span className="name">{p}</span>
+          <span className="track"><span className="fill" style={{ display: 'block', width: `${(cycle.phase_median_hours[p]! / max) * 100}%` }} /></span>
+          <span className="num">{formatHours(cycle.phase_median_hours[p])}</span>
+        </div>
+      ))}
+      <h4>By track</h4>
+      <Table>
+        <thead><tr><th>Track</th><th className="num">Features</th><th className="num">Median cycle</th><th className="num">Spec share</th><th className="num">Failed gate attempts / feature</th></tr></thead>
+        <tbody>
+          {cycle.by_track.map((t) => (
+            <tr key={`${t.framework}:${t.track}`}>
+              <td>{t.framework}{t.track ? <span className="muted">:{t.track}</span> : null}</td>
+              <td className="num">{t.features}</td><td className="num">{formatHours(t.median_cycle_hours)}</td><td className="num">{pct(t.spec_share)}</td><td className="num">{t.avg_failed_attempts}</td>
+            </tr>
+          ))}
+        </tbody>
+      </Table>
+      <p className="sub">
+        {cycle.rework.features_with_rework === 0
+          ? 'No feature needed rework after a failed gate.'
+          : `${cycle.rework.features_with_rework} feature(s) went through rework: a median of ${formatHours(cycle.rework.median_rework_hours)} passed between the first failed gate and the pass.`}
+        {cycle.rework.backward_moves > 0 ? ` ${cycle.rework.backward_moves} backward move(s) sent a feature back to an earlier phase, usually a spec amendment after learning something while building.` : ''}
+        {' '}A high spec share on small changes is a hint to use the light path for that kind of work.
+      </p>
+    </div>
+  );
+}
+
+/** Small changes that went through a full spec track: a hint to use the light path for that kind of work. */
+function RightSizingCard({ sizing }: { sizing: RightSizing }) {
+  return (
+    <div className="card">
+      <h3>Right-sizing the process</h3>
+      <p>
+        <strong>{sizing.tiny} of {sizing.archived_full_track}</strong> finished full-track features ({pct(sizing.share)}) were tiny changes:
+        {` ${sizing.thresholds.max_files} files or fewer and ${sizing.thresholds.max_requirements} requirements or fewer. `}
+        Similar work can be routed with <code>workspace.intent: "trivial"</code> to get the light pack without spec phases.
+      </p>
+      <Table>
+        <thead><tr><th>Feature</th><th>Track</th><th className="num">Files</th><th className="num">Requirements</th><th className="num">Time to archive</th></tr></thead>
+        <tbody>
+          {sizing.entries.map((e) => (
+            <tr key={e.feature_id}>
+              <td>{e.slug}</td><td>{e.framework}{e.track ? <span className="muted">:{e.track}</span> : null}</td>
+              <td className="num">{e.files}</td><td className="num">{e.requirements}</td><td className="num">{formatHours(e.cycle_hours)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </Table>
+      <p className="sub">Compliance apps and high-risk features are excluded: they need the full process whatever the size.</p>
+    </div>
+  );
+}
 
 const STATUS_ORDER = ['active', 'blocked', 'archived'];
 
 export function Overview({ app, onNavigate }: { app?: string | null; onNavigate?: (tab: 'proposals' | 'approvals') => void }) {
   const { data, error, reload } = useLoad(() => getOverview(app ?? undefined), [app]);
+  const sizing = useLoad(() => getRightSizing(app).catch(() => null), [app]).data;
+  const cycle = useLoad(() => getCycle(app).catch(() => null), [app]).data;
   const metrics = useLoad(() => getMetrics(app).catch(() => null), [app]).data;
 
   if (error) return <ErrorState message={`Could not load the overview: ${error}`} onRetry={reload} />;
@@ -44,6 +126,8 @@ export function Overview({ app, onNavigate }: { app?: string | null; onNavigate?
           <button onClick={() => onNavigate('proposals')}>Review proposals</button>
         </div>
       )}
+      {sizing && Array.isArray(sizing.entries) && sizing.tiny > 0 && <RightSizingCard sizing={sizing} />}
+      {cycle && Array.isArray(cycle.by_track) && cycle.features > 0 && <CycleCard cycle={cycle} />}
       {metrics && Array.isArray(metrics.weeks) && metrics.weeks.length > 0 && (
         <div className="card">
           <h3>Is the process paying off?</h3>

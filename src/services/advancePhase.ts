@@ -19,6 +19,7 @@ import { getPack, latestPack } from '../store/packs.js';
 import { insertArtifacts, insertTransition, sha256 } from '../store/transitions.js';
 import type { ServiceDeps } from './deps.js';
 import { featureState, type FeatureState } from './featureState.js';
+import { featureChangeSize, isFullTrack, isTinyChange, rightSizingSuggestion } from '../lifecycle/rightSizing.js';
 import { captureRequirements, requirementIdsFor } from './requirements.js';
 
 export interface AdvancePhaseInput {
@@ -45,6 +46,15 @@ export function awaitingApprovalInstructions(featureId: string, from: string, to
   ].join('\n');
 }
 
+// Tells the host when a full-track feature turned out to be a tiny change, so it can pick the light path next time.
+async function archiveSizingHint(tx: Queryable, feature: FeatureRow): Promise<string> {
+  if (feature.high_risk || !isFullTrack(feature.track)) return '';
+  const app = (await tx.query<{ compliance: boolean }>('SELECT compliance FROM apps WHERE id = $1', [feature.app_id])).rows[0];
+  if (!app || app.compliance) return '';
+  const size = await featureChangeSize(tx, feature.id);
+  return isTinyChange(size.files, size.requirements) ? `\n${rightSizingSuggestion({ ...size, framework: feature.framework, track: feature.track })}` : '';
+}
+
 // Moves a feature through a passing forward transition; shared by advance_phase and approval decisions.
 export async function applyForwardMove(
   tx: Queryable, feature: FeatureRow, track: TrackDecl, target: PhaseOrArchived, gate: GateDecl | null,
@@ -56,7 +66,7 @@ export async function applyForwardMove(
     : await updateFeature(tx, feature.id, { current_phase: target });
   const { state } = await featureState(tx, updated);
   const next = target === 'archived'
-    ? `Feature ${feature.id} is archived. Its packs, transitions and artifacts remain readable through get_feature_status and get_context.`
+    ? `Feature ${feature.id} is archived. Its packs, transitions and artifacts remain readable through get_feature_status and get_context.${await archiveSizingHint(tx, feature)}`
     : renderPhaseInstructions({ feature_id: feature.id, framework: feature.framework, track: feature.track, phase: target, track_decl: track });
   return { state, next };
 }

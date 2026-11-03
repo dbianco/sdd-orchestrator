@@ -120,6 +120,7 @@ export function Icon({ name }: { name: string }) {
     work: 'M4 6h16M4 12h16M4 18h10',
     approvals: 'M20 6L9 17l-5-5',
     week: 'M4 20V10M10 20V4M16 20v-7M22 20H2',
+    drift: 'M12 3l9 16H3zM12 10v4M12 17h.01',
     refresh: 'M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7',
     sun: 'M12 4V2M12 22v-2M4 12H2M22 12h-2M5.6 5.6L4.2 4.2M19.8 19.8l-1.4-1.4M5.6 18.4l-1.4 1.4M19.8 4.2l-1.4 1.4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z',
   };

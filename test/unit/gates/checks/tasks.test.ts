@@ -71,3 +71,47 @@ describe('task_ordering', () => {
     expect(!result.success && result.error.issues[0]?.message).toMatch(/named group "id"/);
   });
 });
+
+import { artifactTraceability } from '../../../../src/gates/checks/artifactTraceability.js';
+
+describe('artifact_traceability', () => {
+  const sdlc = { task_regex: '^- \\[[ xX]\\] (?<id>T\\d+)', ref_regex: '\\(AC:\\s*(?<ids>R\\d+(?:\\s*,\\s*R\\d+)*)\\)', id_regex: 'R\\d+' };
+  const run = (md: string, params: Record<string, unknown>, requirements: string[], severity: 'blocker' | 'warning' = 'blocker') =>
+    artifactTraceability.run({ ...input(md, params), requirements, severity });
+
+  it('passes when every requirement is cited by a task and every citation exists', () => {
+    expect(run('- [ ] T1 a (AC: R1)\n- [x] T2 b (AC: R2, R3)', sdlc, ['R1', 'R2', 'R3'])).toEqual([]);
+  });
+
+  it('flags a requirement that no task references, at the requirement', () => {
+    expect(run('- [ ] T1 a (AC: R1)', sdlc, ['R1', 'R2']).map((f) => [f.location, f.message])).toEqual([['R2', 'R2 is not referenced by any task in tasks.md']]);
+  });
+
+  it('flags a task that cites a requirement the feature does not have, once per task', () => {
+    const f = run('- [ ] T1 a (AC: R1, R9)\n- [ ] T2 b (AC: R9)', sdlc, ['R1']);
+    expect(f.map((x) => [x.location, x.message])).toEqual([
+      ['tasks.md:1', 'task T1 references R9, which is not a requirement of this feature'],
+      ['tasks.md:2', 'task T2 references R9, which is not a requirement of this feature'],
+    ]);
+  });
+
+  it('matches ids case-insensitively and supports a single-id ref_regex with a configurable severity', () => {
+    const kit = { task_regex: '^- \\[[ xX]\\] (?<id>T\\d+)', ref_regex: '\\b(?<id>FR-\\d{3})\\b' };
+    const f = run('- [ ] T001 export, covers FR-001 and FR-009', kit, ['fr-001', 'FR-002'], 'warning');
+    expect(f.map((x) => [x.severity, x.message])).toEqual([
+      ['warning', 'task T001 references FR-009, which is not a requirement of this feature'],
+      ['warning', 'FR-002 is not referenced by any task in tasks.md'],
+    ]);
+  });
+
+  it('only warns when no requirements were captured, and skips a missing artifact', () => {
+    expect(run('- [ ] T1 a', sdlc, []).map((f) => f.severity)).toEqual(['warning']);
+    expect(artifactTraceability.run({ ...input('', sdlc), artifacts: {}, requirements: ['R1'] })).toEqual([]);
+  });
+
+  it('validates its params', () => {
+    expect(artifactTraceability.params.safeParse({ artifact: 'x', task_regex: '^(?<id>T)', ref_regex: 'AC (?<ids>R\\d)' }).success).toBe(false);
+    expect(artifactTraceability.params.safeParse({ artifact: 'x', task_regex: '^T', ref_regex: '(?<id>R)' }).success).toBe(false);
+    expect(artifactTraceability.params.safeParse({ artifact: 'x', task_regex: '^(?<id>T)', ref_regex: 'nothing' }).success).toBe(false);
+  });
+});

@@ -10,8 +10,8 @@ import type { ServiceDeps } from '../../../src/services/deps.js';
 import type { Decision, Intent, Phase } from '../../../src/domain/types.js';
 
 const url = process.env.SDD_TEST_DATABASE_URL;
-// spec-kit, bmad and sdlc are at 1.1.1 (task_ordering fixes, issues #12 and #13); the others are unchanged.
-const PACK_VERSIONS: Record<string, string> = { 'spec-kit': '1.1.1', bmad: '1.1.1', sdlc: '1.1.1' };
+// spec-kit and sdlc are at 1.2.0 (artifact_traceability), bmad at 1.1.1 (task fixes); the others are unchanged.
+const PACK_VERSIONS: Record<string, string> = { 'spec-kit': '1.2.0', bmad: '1.1.1', sdlc: '1.2.0' };
 const packVersion = (framework: string): string => PACK_VERSIONS[framework] ?? '1.1.0';
 
 const evidence = { tests: { command: 'npm test', passed: 12, failed: 0 }, lint: 'pass', security: { status: 'pass', new_high: 0 }, files_changed: ['src/orders/export.ts', 'src/orders/export.test.ts'], implements: ['FR-001', 'CSV export', 'FR1', 'R1', '1'], existing_tests_modified: 0, characterization_tests: ['src/orders/export.characterization.test.ts'] };

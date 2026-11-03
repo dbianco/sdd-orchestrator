@@ -1,3 +1,4 @@
+import { featureCycle, summarizeCycles, type CycleMetrics, type FeatureFacts } from '../analytics/cycle.js';
 import type { Queryable } from '../db/pool.js';
 
 export interface FeatureCountRow { status: string; current_phase: string; framework: string; track: string | null; count: number }
@@ -138,4 +139,21 @@ export async function weekActivity(q: Queryable, actor: string, appId: string | 
     actor, days, actors: actors.rows.map((r) => r.actor), shipped: shipped.rows, worked_on: worked.rows, transitions: counts.rows[0]!, caught: caught.rows,
     approvals: { decided: d.approved + d.rejected, approved: d.approved, rejected: d.rejected, requested: requested.rows[0]!.requested, avg_wait_hours: requested.rows[0]!.avg_wait_hours },
   };
+}
+
+/** Cycle time and process overhead for features created in the last `days` days. */
+export async function cycleMetrics(q: Queryable, appId: string | null = null, days = 90): Promise<CycleMetrics> {
+  const r = await q.query<{ feature_id: string; framework: string; track: string | null; feature_created: Date; from_phase: string | null; to_phase: string | null; direction: 'forward' | 'backward' | null; result: string | null; at: Date | null }>(
+    `SELECT f.id AS feature_id, f.framework, f.track, f.created_at AS feature_created,
+            pt.from_phase, pt.to_phase, pt.direction, pt.result, pt.created_at AS at
+     FROM features f LEFT JOIN phase_transitions pt ON pt.feature_id = f.id
+     WHERE ($1::text IS NULL OR f.app_id = $1) AND f.created_at >= now() - make_interval(days => $2::int)
+     ORDER BY f.id, pt.created_at, pt.id`, [appId, days]);
+  const byFeature = new Map<string, FeatureFacts>();
+  for (const row of r.rows) {
+    const f = byFeature.get(row.feature_id) ?? { feature_id: row.feature_id, framework: row.framework, track: row.track, created_at: row.feature_created, transitions: [] };
+    if (row.at && row.from_phase && row.to_phase && row.direction && row.result) f.transitions.push({ from_phase: row.from_phase, to_phase: row.to_phase, direction: row.direction, result: row.result, at: row.at });
+    byFeature.set(row.feature_id, f);
+  }
+  return summarizeCycles([...byFeature.values()].map(featureCycle));
 }
