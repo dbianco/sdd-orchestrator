@@ -1,72 +1,94 @@
-import { useEffect, useState } from 'react';
 import { getOverview } from '../api';
-import type { Overview as OverviewData } from '../types';
+import { Badge, Empty, ErrorState, Loading, PageHead, SplitBar, toneOf, useLoad } from '../ui';
 
-export function Overview() {
-  const [data, setData] = useState<OverviewData | null>(null);
-  const [error, setError] = useState<string | null>(null);
+const STATUS_ORDER = ['active', 'blocked', 'archived'];
 
-  useEffect(() => {
-    getOverview().then(setData).catch((e: Error) => setError(e.message));
-  }, []);
+export function Overview({ onNavigate }: { onNavigate?: (tab: 'proposals' | 'approvals') => void }) {
+  const { data, error, reload } = useLoad(() => getOverview(), []);
 
-  if (error) return <p className="error">Could not load the overview: {error}</p>;
-  if (!data) return <p>Loading…</p>;
+  if (error) return <ErrorState message={`Could not load the overview: ${error}`} onRetry={reload} />;
+  if (!data) return <Loading />;
 
   const byStatus = new Map<string, number>();
   for (const row of data.features) byStatus.set(row.status, (byStatus.get(row.status) ?? 0) + row.count);
+  const statuses = [...byStatus].sort((a, b) => (STATUS_ORDER.indexOf(a[0]) + 1 || 99) - (STATUS_ORDER.indexOf(b[0]) + 1 || 99));
   const proposalsByStatus = new Map(data.proposals.map((p) => [p.status, p.count]));
+  const pending = proposalsByStatus.get('pending') ?? 0;
+  const approved = proposalsByStatus.get('approved') ?? 0;
+  const rejected = proposalsByStatus.get('rejected') ?? 0;
   const worstChecks = [...data.checks].filter((c) => c.blocker_count > 0).sort((a, b) => b.blocker_count - a.blocker_count).slice(0, 5);
+  const maxBlockers = worstChecks[0]?.blocker_count ?? 1;
   const knowledgeByKind = new Map<string, number>();
   for (const row of data.knowledge) knowledgeByKind.set(row.kind, (knowledgeByKind.get(row.kind) ?? 0) + row.count);
+  const maxKnowledge = Math.max(1, ...knowledgeByKind.values());
 
   return (
-    <section>
-      <h2>Overview</h2>
-      {byStatus.size === 0 ? (
-        <p>No features yet.</p>
+    <section className="stack">
+      <PageHead title="Overview" subtitle="Where every feature stands, and what needs a human." />
+      {statuses.length === 0 ? (
+        <Empty title="No features yet." hint="Features appear here once an agent starts one with start_feature." />
       ) : (
         <div className="tiles">
-          {[...byStatus].map(([status, count]) => (
-            <div className="tile" key={status}>
+          {statuses.map(([status, count]) => (
+            <div className={`tile tone-${toneOf(status)}`} key={status}>
               <span className="tile-value">{count}</span>
               <span className="tile-label">{status}</span>
             </div>
           ))}
         </div>
       )}
-      <h3>Proposals</h3>
-      <p>
-        {proposalsByStatus.get('pending') ?? 0} pending, {proposalsByStatus.get('approved') ?? 0} approved,{' '}
-        {proposalsByStatus.get('rejected') ?? 0} rejected
-      </p>
-      <h3>Checks with the most blockers</h3>
-      {worstChecks.length === 0 ? (
-        <p>No gate failures recorded.</p>
-      ) : (
-        <table>
-          <thead>
-            <tr><th>Check</th><th>Blockers</th><th>Warnings</th></tr>
-          </thead>
-          <tbody>
-            {worstChecks.map((c) => (
-              <tr key={c.check}><td>{c.check}</td><td>{c.blocker_count}</td><td>{c.warning_count}</td></tr>
-            ))}
-          </tbody>
-        </table>
+      {pending > 0 && onNavigate && (
+        <div className="alert" style={{ background: 'var(--amber-bg)', color: 'var(--amber)', borderColor: 'var(--amber)' }}>
+          <span>{pending} memory {pending === 1 ? 'proposal is' : 'proposals are'} waiting for review.</span>
+          <button onClick={() => onNavigate('proposals')}>Review proposals</button>
+        </div>
       )}
-      <h3>Knowledge base</h3>
-      {knowledgeByKind.size === 0 ? (
-        <p>No knowledge items yet.</p>
-      ) : (
-        <table>
-          <thead><tr><th>Kind</th><th>Count</th></tr></thead>
-          <tbody>
-            {[...knowledgeByKind].map(([kind, count]) => (
-              <tr key={kind}><td>{kind}</td><td>{count}</td></tr>
+      <div className="grid">
+        <div className="card">
+          <h3>Proposals</h3>
+          <p className="muted">{`${pending} pending, ${approved} approved, ${rejected} rejected`}</p>
+          {pending + approved + rejected > 0 && (
+            <SplitBar parts={[{ label: 'Pending', value: pending, tone: 'amber' }, { label: 'Approved', value: approved, tone: 'green' }, { label: 'Rejected', value: rejected, tone: 'red' }]} />
+          )}
+        </div>
+        <div className="card">
+          <h3>Checks with the most blockers</h3>
+          {worstChecks.length === 0 ? (
+            <p className="muted">No gate failures recorded.</p>
+          ) : (
+            worstChecks.map((c) => (
+              <div className="hbar" key={c.check} title={`${c.blocker_count} blockers, ${c.warning_count} warnings`}>
+                <span className="name mono">{c.check}</span>
+                <span className="track"><span className="fill" style={{ display: 'block', width: `${(c.blocker_count / maxBlockers) * 100}%`, background: 'var(--red)' }} /></span>
+                <span className="num">{c.blocker_count}</span>
+              </div>
+            ))
+          )}
+        </div>
+        <div className="card">
+          <h3>Knowledge base</h3>
+          {knowledgeByKind.size === 0 ? (
+            <p className="muted">No knowledge items yet.</p>
+          ) : (
+            [...knowledgeByKind].map(([kind, count]) => (
+              <div className="hbar" key={kind}>
+                <span className="name">{kind}</span>
+                <span className="track"><span className="fill" style={{ display: 'block', width: `${(count / maxKnowledge) * 100}%` }} /></span>
+                <span className="num">{count}</span>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+      {data.features.length > 0 && (
+        <div className="card">
+          <h3>Features by phase</h3>
+          <div className="row">
+            {Object.entries(data.features.reduce<Record<string, number>>((acc, f) => ({ ...acc, [f.current_phase]: (acc[f.current_phase] ?? 0) + f.count }), {})).map(([phase, n]) => (
+              <span key={phase} className="row" style={{ gap: '0.35rem' }}><Badge value={phase} tone="gray" plain /><span className="muted">×{n}</span></span>
             ))}
-          </tbody>
-        </table>
+          </div>
+        </div>
       )}
     </section>
   );
