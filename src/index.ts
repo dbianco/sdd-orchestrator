@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { realpathSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { loadConfig } from './config.js';
 import { createPool } from './db/pool.js';
 import { runMigrations } from './db/migrate.js';
@@ -19,11 +21,15 @@ export async function buildDeps(): Promise<HttpDeps> {
   return { pool, embedder, tokenBudget: config.tokenBudget, logger, metrics: hooks, registry, authMode: config.authMode, notifier: createNotifier({ webhookUrl: config.notifyWebhookUrl ?? null, publicUrl: config.publicUrl ?? null, logger }) };
 }
 
-async function main(): Promise<void> {
+export async function main(argv: string[] = process.argv): Promise<void> {
   const deps = await buildDeps();
-  if (process.argv.includes('--stdio')) { await runStdio(deps); return; }
+  if (argv.includes('--stdio')) { await runStdio(deps); return; }
   const { runHttp } = await import('./mcp/http.js');
   await runHttp(deps, loadConfig(process.env));
 }
 
-main().catch((e) => { process.stderr.write(`${e instanceof Error ? e.stack ?? e.message : String(e)}\n`); process.exit(1); });
+// Start only when executed (node dist/index.js, or through the sdd-orchestrator bin symlink), not when imported by tests.
+const entry = process.argv[1] ? realpathSync(process.argv[1]) : '';
+if (entry === fileURLToPath(import.meta.url)) {
+  main().catch((e) => { process.stderr.write(`${e instanceof Error ? e.stack ?? e.message : String(e)}\n`); process.exit(1); });
+}

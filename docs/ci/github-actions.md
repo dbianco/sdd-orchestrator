@@ -35,6 +35,7 @@ skipped with a notice, so the step is safe on every branch.
         run: npx vitest run --reporter=json --outputFile=test-results.json || true
       - name: Lint
         run: npm run lint && echo pass > lint.txt || echo fail > lint.txt
+      # Or use Trivy and Opengrep with a baseline: see ../security-evidence.md
       - name: Security scan
         run: npm audit --json > audit.json || true
       - name: Build evidence.json

@@ -1,5 +1,6 @@
 import type { Queryable } from '../db/pool.js';
 import type { EmbeddingProvider } from '../embedding/provider.js';
+import { failedReason, type DegradedReason } from './degraded.js';
 import type { Phase } from '../domain/types.js';
 import { exactIdSearch, mergeAndRank, vectorSearch, type RetrievalFilter, type RetrievedChunk } from '../store/retrieval.js';
 
@@ -17,21 +18,21 @@ export function knowledgeFilter(f: { scope: RetrievalFilter['scope']; framework:
 
 export interface RetrieveDeps { q: Queryable; embedder: EmbeddingProvider | null }
 export interface RetrieveInput { query: string; ids: string[]; filter: RetrievalFilter; minSimilarity: number; limit?: number }
-export interface RetrieveResult { chunks: RetrievedChunk[]; degraded: boolean }
+export interface RetrieveResult { chunks: RetrievedChunk[]; degraded: boolean; reason: DegradedReason | null }
 
 export async function retrieve(deps: RetrieveDeps, input: RetrieveInput): Promise<RetrieveResult> {
   const exact = await exactIdSearch(deps.q, input.ids, input.filter);
   let vector: RetrievedChunk[] = [];
-  let degraded = false;
+  let reason: DegradedReason | null = null;
   if (deps.embedder && input.query.trim().length > 0) {
     try {
       const [embedding] = await deps.embedder.embed([input.query], 'query');
       vector = await vectorSearch(deps.q, embedding!, input.filter, { candidates: RETRIEVAL_CANDIDATES, minSimilarity: input.minSimilarity });
-    } catch {
-      degraded = true;
+    } catch (e) {
+      reason = failedReason(deps.embedder, e);
     }
   } else {
-    degraded = true;
+    reason = deps.embedder ? { kind: 'no_query' } : { kind: 'not_configured' };
   }
-  return { chunks: mergeAndRank(exact, vector, input.limit ?? RETRIEVAL_LIMIT), degraded };
+  return { chunks: mergeAndRank(exact, vector, input.limit ?? RETRIEVAL_LIMIT), degraded: reason !== null, reason };
 }

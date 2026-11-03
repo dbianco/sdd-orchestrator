@@ -70,6 +70,7 @@ describe.skipIf(!url)('GET /api/ci/pr-comment', () => {
     expect((await get(`app=billing&feature_id=${csv}`, ci)).status).toBe(403);
     expect((await get('app=demo&feature_id=f_nope', ci)).status).toBe(404);
     expect((await get('app=demo', ci)).status).toBe(400);
+    expect((await get(`app=ghost&feature_id=${csv}`, ci)).status).toBe(404);
   });
 
   it('the script prints the summary in --dry-run and skips commits without an SDD-Ref', async () => {

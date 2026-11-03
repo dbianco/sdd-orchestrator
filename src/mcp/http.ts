@@ -1,4 +1,5 @@
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import type { Server } from 'node:http';
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import type { Config } from '../config.js';
 import type { Registry } from 'prom-client';
@@ -64,12 +65,12 @@ export function createHttpApp(baseDeps: HttpDeps, config: Config): Express {
   return app;
 }
 
-export async function runHttp(deps: HttpDeps, config: Config): Promise<void> {
+export async function runHttp(deps: HttpDeps, config: Config): Promise<Server> {
   const app = createHttpApp(deps, config);
-  await new Promise<void>((resolve) => {
-    app.listen(config.listen.port, config.listen.host, () => {
+  return new Promise<Server>((resolve) => {
+    const server = app.listen(config.listen.port, config.listen.host, () => {
       deps.logger.info({ host: config.listen.host, port: config.listen.port }, 'streamable http listening');
-      resolve();
+      resolve(server);
     });
   });
 }

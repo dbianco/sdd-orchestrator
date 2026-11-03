@@ -14,6 +14,11 @@ export interface CallTarget {
 }
 export interface AuthorizedCall { actor: string | null; token_id: string | null; warnings: string[] }
 
+/** Names the likely cause and the fix, so a developer is not left guessing why a new app is refused. */
+export function notScopedMessage(slug: string, tokenId?: string): string {
+  return `this token is not scoped to app ${slug}. Ask an admin to widen it in place: sdd-admin token update ${tokenId ?? '<token-id>'} --add-app ${slug} (ids are shown by "sdd-admin token list"). No new secret is needed; if you were given a new token instead, restart your session, because the plugin reads SDD_TOKEN at startup.`;
+}
+
 const forbidden = (message: string, details: Record<string, unknown> = {}) => new DomainError('FORBIDDEN', message, details);
 
 export function callWarnings(auth: AuthContext): string[] {
@@ -32,7 +37,7 @@ export function resolveActor(auth: AuthContext, payloadActor: string | undefined
 
 function assertAllowedIds(auth: Extract<AuthContext, { kind: 'token' }>, ids: string[], label: (id: string) => string): void {
   if (auth.app_ids === null) return;
-  for (const id of ids) if (!auth.app_ids.includes(id)) throw forbidden(`this token is not allowed for app ${label(id)}`, { app: label(id) });
+  for (const id of ids) if (!auth.app_ids.includes(id)) throw forbidden(notScopedMessage(label(id), auth.token_id), { app: label(id) });
 }
 
 // Unrestricted tokens and unauthenticated calls pass; unknown apps and features are left to the service,
@@ -49,7 +54,7 @@ export async function authorizeCall(q: Queryable, auth: AuthContext, target: Cal
         const ids = new Map(r.rows.map((x) => [x.slug, x.id]));
         for (const slug of target.apps) {
           const id = ids.get(slug);
-          if (!id || !auth.app_ids.includes(id)) throw forbidden(`this token is not allowed for app ${slug}`, { app: slug });
+          if (!id || !auth.app_ids.includes(id)) throw forbidden(notScopedMessage(slug, auth.token_id), { app: slug });
         }
       }
       if (target.featureId) {

@@ -1,5 +1,6 @@
 import type { GateDecl } from '../domain/types.js';
 import type { CheckDefinition } from './types.js';
+import { artifactTraceability } from './checks/artifactTraceability.js';
 import { deltaMarkers } from './checks/deltaMarkers.js';
 import { humanApproved } from './checks/humanApproved.js';
 import { measurableCriteria } from './checks/measurableCriteria.js';
@@ -13,11 +14,11 @@ import { taskDoneChecks } from './checks/taskDoneChecks.js';
 import { taskOrdering } from './checks/taskOrdering.js';
 import { verifyEvidence } from './checks/verifyEvidence.js';
 
-export const GATE_LIBRARY_VERSION = '2';
+export const GATE_LIBRARY_VERSION = '3';
 
 export const GATE_LIBRARY: Record<string, CheckDefinition> = Object.fromEntries(
   [missingArtifact, placeholderScan, requiredSections, measurableCriteria, taskDoneChecks, taskOrdering,
-    deltaMarkers, verifyEvidence, scopeDrift, humanApproved, requirementIds, requirementCoverage].map((c) => [c.name, c]),
+    deltaMarkers, verifyEvidence, scopeDrift, humanApproved, requirementIds, requirementCoverage, artifactTraceability].map((c) => [c.name, c]),
 );
 
 export function getCheck(name: string): CheckDefinition | undefined {

@@ -1,6 +1,7 @@
 import { Command, Option } from 'commander';
 import { featurePrComment } from '../../reports/prComment.js';
 import { requireFeature } from '../../store/features.js';
+import { driftReport } from '../../store/drift.js';
 import { requireApp } from '../../store/apps.js';
 import { rtmCsv, rtmRows } from '../../store/rtm.js';
 import { openCli, print } from '../context.js';
@@ -21,6 +22,11 @@ export function exportCommand(): Command {
     .action(async (featureId: string) => {
       const ctx = await openCli({ needEmbedder: false });
       try { await requireFeature(ctx.pool, featureId); process.stdout.write(await featurePrComment(ctx.pool, featureId)); } finally { await ctx.close(); }
+    });
+  cmd.command('drift [app]').description('Archived specs whose files were changed again afterwards (possibly stale)')
+    .action(async (slug: string | undefined) => {
+      const ctx = await openCli({ needEmbedder: false });
+      try { print({ drift: await driftReport(ctx.pool, slug ? (await requireApp(ctx.pool, slug)).id : null) }); } finally { await ctx.close(); }
     });
   return cmd;
 }

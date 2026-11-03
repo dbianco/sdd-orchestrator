@@ -14,6 +14,7 @@ import { createMetrics } from '../../src/metrics.js';
 import type { Config } from '../../src/config.js';
 import type { Decision } from '../../src/domain/types.js';
 import { insertProposal } from '../../src/store/proposals.js';
+import { createApp } from '../../src/store/apps.js';
 import { createToken } from '../../src/store/tokens.js';
 import { seedDemo } from '../../src/cli/commands/demo.js';
 
@@ -249,6 +250,31 @@ describe.skipIf(!url)('admin routes', () => {
     const none = await get('week?app=demo&actor=nobody');
     expect(none).toMatchObject({ transitions: { passed: 0, failed: 0 }, shipped: [], caught: [] });
 
+    const cycle = await get('cycle?app=demo&days=60');
+    expect(cycle).toMatchObject({ features: 5, archived: 1 });
+    expect(cycle.spec_share).toBeGreaterThan(0);
+    expect(cycle.by_track.map((t: { track: string }) => t.track)).toEqual(expect.arrayContaining(['default', 'hotfix']));
+    expect(cycle.rework.failed_attempts).toBeGreaterThanOrEqual(5);
+    expect(cycle.phase_median_hours.implement).toBeGreaterThan(0);
+    expect((await fetch(`${listening.origin}/admin/api/cycle?days=0`, { headers: { Authorization: authHeader('s3cret') } })).status).toBe(400);
+
+    const drift = (await get('drift?app=demo')).drift as { slug: string; level: string; unspecced_commits: number; other_feature_commits: number; files: { file: string; commits: { sha: string; feature_slug: string | null }[] }[] }[];
+    expect(drift.map((d) => d.slug)).toEqual(['refund-policy-page']); // only archived specs; the others are still in flight
+    expect(drift[0]).toMatchObject({ level: 'likely', unspecced_commits: 1, other_feature_commits: 1 });
+    const byFile = Object.fromEntries(drift[0]!.files.map((f) => [f.file, f.commits]));
+    expect(byFile['src/legal/refunds.tsx']).toEqual([expect.objectContaining({ sha: 'd4e5f6a7b8c9', feature_slug: null })]);
+    expect(byFile['src/legal/index.ts']).toEqual([expect.objectContaining({ sha: 'e5f6a7b8c9d0', feature_slug: 'add-csv-export' })]);
+    // lockfile churn is never drift
+    const refund = (await deps.pool.query<{ id: string; app_id: string }>(`SELECT id, app_id FROM features WHERE slug = 'refund-policy-page'`)).rows[0]!;
+    const trivialRouting = (await deps.pool.query<{ id: string }>(`SELECT id FROM routing_events WHERE identity_key = 'demo:trivial-refund-typo'`)).rows[0]!.id;
+    await deps.pool.query(`INSERT INTO commits (id, app_id, sha, message, files_changed, committed_at, feature_id, routing_id, created_by) VALUES ('cm_l1', $1, 'aaaa111', 'deps', ARRAY['package-lock.json'], now() - interval '20 days', $2, NULL, 't'), ('cm_l2', $1, 'bbbb222', 'bump', ARRAY['package-lock.json'], now(), NULL, $3, 't')`, [refund.app_id, refund.id, trivialRouting]);
+    expect(((await get('drift?app=demo')).drift[0].files as { file: string }[]).map((f) => f.file)).not.toContain('package-lock.json');
+    expect((await get('drift')).drift.length).toBe(1);
+
+    const sizing = await get('rightsizing?app=demo');
+    expect(sizing).toMatchObject({ archived_full_track: 1, tiny: 1, share: 1, thresholds: { max_files: 3, max_requirements: 2 } });
+    expect(sizing.entries).toEqual([expect.objectContaining({ slug: 'refund-policy-page', files: 2, requirements: 2 })]);
+
     const hints = await get('gate-hints');
     expect(hints.hints.requirement_coverage.fix).toMatch(/implements/);
     expect((await fetch(`${listening.origin}/admin/api/week?days=0`, { headers: { Authorization: authHeader('s3cret') } })).status).toBe(400);
@@ -283,6 +309,44 @@ describe.skipIf(!url)('admin routes', () => {
     const fid = (await startFeature(notifyDeps, { app: 'checkout', actor: 'dana', task_description: 'Notify me', decision })).feature_id;
     await advancePhase(notifyDeps, { feature_id: fid, actor: 'dana', expected_phase: 'specify', target_phase: 'implement', artifacts: { 'proposal.md': '## Why\nx\n\n## What Changes\ny\n' } });
     expect(events).toEqual([expect.objectContaining({ to_phase: 'implement', requested_by: 'dana' })]);
+  });
+
+  it('applies app scope, read-only logins and empty bodies to proposal and approval decisions', async () => {
+    const billing = await createApp(deps.pool, { slug: 'billing', name: 'Billing' }, 'test');
+    const scoped = (await createToken(deps.pool, { actor: 'erin', name: 't', scopes: ['approver'], app_ids: [billing.id], expires_at: null }, 'test')).secret;
+    const open = (await createToken(deps.pool, { actor: 'dana', name: 't', scopes: ['approver'], app_ids: null, expires_at: null }, 'test')).secret;
+    const listening = await listen(createHttpApp(deps, { ...baseConfig, adminToken: 's3cret', authMode: 'warn' }));
+    server = listening.server;
+    const fid = (await startFeature(deps, { app: 'checkout', actor: 'dana', task_description: 'CSV export', decision })).feature_id;
+    const appId = (await deps.pool.query<{ id: string }>(`SELECT id FROM apps WHERE slug = 'checkout'`)).rows[0]!.id;
+    const payload = { kind: 'app_memory', memory_type: 'decision', title: 'T', body: 'B', stack_tags: [], links: [] };
+    const pid = (await insertProposal(deps.pool, { app_id: appId, feature_id: fid, payload, supersedes: null }, 'agent')).id;
+    const call = (path: string, secret: string, init: RequestInit = {}) => fetch(`${listening.origin}/admin/api/${path}`, { ...init, headers: { Authorization: authHeader(secret), ...(init.method === 'POST' ? { 'Content-Type': 'application/json' } : {}) } });
+
+    // a token scoped to another app may not read or decide this app's proposals
+    expect((await call(`proposals/${pid}/approve`, scoped, { method: 'POST', body: '{}' })).status).toBe(403);
+    expect((await call(`proposals/${pid}/reject`, scoped, { method: 'POST', body: '{"reason":"x"}' })).status).toBe(403);
+    // the shared admin password is read-only
+    expect((await call(`proposals/${pid}/reject`, 's3cret', { method: 'POST', body: '{"reason":"x"}' })).status).toBe(403);
+    expect((await call('proposals/p_missing/reject', open, { method: 'POST', body: '{"reason":"x"}' })).status).toBe(404);
+    // an empty body is a validation error, not a crash
+    expect((await call(`proposals/${pid}/reject`, open, { method: 'POST' })).status).toBe(400);
+
+    const approvalId = (await advancePhase({ ...deps, authMode: 'warn' }, { feature_id: fid, actor: 'dana', expected_phase: 'specify', target_phase: 'implement', artifacts: { 'proposal.md': '## Why\nx\n\n## What Changes\ny\n' } })).approval_id!;
+    expect((await call(`approvals/${approvalId}`, scoped)).status).toBe(403);
+    const noBody = await call(`approvals/${approvalId}/approve`, open, { method: 'POST' }); // no body at all: comment is optional
+    expect(noBody.status).toBe(200);
+
+    // without an embedding provider a proposal cannot be accepted
+    const pid2 = (await insertProposal(deps.pool, { app_id: appId, feature_id: fid, payload: { ...payload, title: 'T2' }, supersedes: null }, 'agent')).id;
+    const noEmbed = await listen(createHttpApp({ ...deps, embedder: null }, { ...baseConfig, adminToken: 's3cret', authMode: 'warn' }));
+    const r = await fetch(`${noEmbed.origin}/admin/api/proposals/${pid2}/approve`, { method: 'POST', headers: { Authorization: authHeader(open), 'Content-Type': 'application/json' }, body: '{}' });
+    expect(r.status).toBe(503);
+    noEmbed.server.close();
+
+    // the week view defaults to the signed-in person
+    const week = (await (await call('week', open)).json()) as { actor: string };
+    expect(week.actor).toBe('dana');
   });
 });
 

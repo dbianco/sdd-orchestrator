@@ -192,4 +192,29 @@ describe.skipIf(!url)('advancePhase', () => {
     expect(row).toMatchObject({ created_by: 'prompt', focus: 'ADR-1', scope: 'company', phase: 'specify' });
     await expect(getContext(deps, { feature_id: fid, actor: 'd', phase: 'plan' })).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
   });
+
+  describe('right-sizing hint at archive', () => {
+    const walkToArchive = async (files: string[]) => {
+      await advancePhase(deps, { feature_id: fid, actor: 'd', expected_phase: 'specify', target_phase: 'implement', artifacts: { 'proposal.md': goodProposal }, human_approved: true });
+      await advancePhase(deps, { feature_id: fid, actor: 'd', expected_phase: 'implement', target_phase: 'verify' });
+      await advancePhase(deps, { feature_id: fid, actor: 'd', expected_phase: 'verify', target_phase: 'integrate', evidence: { ...evidence, files_changed: files } });
+      return advancePhase(deps, { feature_id: fid, actor: 'd', expected_phase: 'integrate', target_phase: 'archived' });
+    };
+
+    it('suggests the light path when a full-track feature turned out tiny', async () => {
+      const a = await walkToArchive(['src/a.ts', 'package-lock.json']); // the lockfile does not count
+      expect(a.next_instructions).toContain('Right-sizing: this change touched 1 file(s) for 0 requirement(s)');
+      expect(a.next_instructions).toContain('workspace.intent "trivial"');
+    });
+
+    it('stays quiet for a bigger change', async () => {
+      expect((await walkToArchive(['a.ts', 'b.ts', 'c.ts', 'd.ts'])).next_instructions).not.toContain('Right-sizing');
+    });
+
+    it('stays quiet for a compliance app', async () => {
+      await deps.pool.query(`UPDATE apps SET compliance = true WHERE slug = 'checkout'`);
+      expect((await walkToArchive(['src/a.ts'])).next_instructions).not.toContain('Right-sizing');
+    });
+  });
 });
+

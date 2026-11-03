@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { getTestPool, truncateAll, closeTestPool } from '../../helpers/db.js';
 import { hashToken } from '../../../src/auth/tokens.js';
-import { createToken, findActiveTokenByHash, listTokens, revokeToken, touchToken } from '../../../src/store/tokens.js';
+import { createToken, findActiveTokenByHash, listTokens, revokeToken, touchToken, updateTokenApps } from '../../../src/store/tokens.js';
 import type pg from 'pg';
 
 const url = process.env.SDD_TEST_DATABASE_URL;
@@ -44,4 +44,17 @@ describe.skipIf(!url)('tokens store', () => {
   it('rejects unknown scopes at the database', async () => {
     await expect(pool.query(`INSERT INTO api_tokens (id, actor, name, scopes, token_hash, created_by) VALUES ('tk_x', 'a', 'n', ARRAY['root'], 'h', 'x')`)).rejects.toThrow(/check/i);
   });
+
+  it('widens or replaces a token\'s apps in place and refuses revoked or unrestricted tokens (issue #10)', async () => {
+    const t = await createToken(pool, { actor: 'bob', name: 'n', scopes: ['host'], app_ids: ['app_1'], expires_at: null }, 'x');
+    expect((await updateTokenApps(pool, t.row.id, { add: ['app_2', 'app_1'] })).app_ids).toEqual(['app_1', 'app_2']);
+    expect((await updateTokenApps(pool, t.row.id, { set: ['app_3'] })).app_ids).toEqual(['app_3']);
+    expect((await findActiveTokenByHash(pool, hashToken(t.secret)))?.app_ids).toEqual(['app_3']); // same secret keeps working
+    const open = await createToken(pool, { actor: 'a', name: 'n', scopes: ['host'], app_ids: null, expires_at: null }, 'x');
+    await expect(updateTokenApps(pool, open.row.id, { add: ['app_1'] })).rejects.toThrow(/already covers every app/);
+    await revokeToken(pool, t.row.id, 'lost', 'x');
+    await expect(updateTokenApps(pool, t.row.id, { add: ['app_1'] })).rejects.toThrow(/revoked/);
+    await expect(updateTokenApps(pool, 'tk_nope', { add: ['app_1'] })).rejects.toThrow(/does not exist/);
+  });
 });
+

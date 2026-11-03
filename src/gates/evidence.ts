@@ -33,7 +33,7 @@ export function renderVerifyEvidenceHint(rawParams: Record<string, unknown>): st
     'Evidence object shape:',
     '- tests.command (string), tests.passed (number), tests.failed (number)',
     "- lint: 'pass' | 'fail'",
-    "- security.status: 'pass' | 'fail' | 'skipped'; security.new_high (number)",
+    "- security.status: 'pass' | 'fail' | 'skipped'; security.new_high (number of new high-severity findings from any scanner; Trivy and Opengrep are the reference, see docs/security-evidence.md)",
     '- security.skipped_reason is required when security.status is "skipped"',
     '- files_changed (string[]), implements (string[] of requirement/story ids) are optional but expected',
     `- security.new_high: max ${params.max_new_high} new high severity finding(s)`,

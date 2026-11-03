@@ -26,7 +26,10 @@ const FEATURES: Demo[] = [
       { from: 'implement', to: 'verify', result: 'pass', at: ago(5), by: 'dana' },
       { from: 'verify', to: 'integrate', result: 'fail', at: ago(1), by: 'dana', findings: [{ check: 'requirement_coverage', severity: 'blocker', location: 'FR-003', message: 'FR-003 is not covered by evidence.implements' }] },
     ],
-    commits: [{ sha: 'a1b2c3d4e5f6', message: 'feat(orders): stream CSV export', files: ['src/orders/export.ts', 'src/orders/export.test.ts'], at: ago(6) }],
+    commits: [
+      { sha: 'a1b2c3d4e5f6', message: 'feat(orders): stream CSV export', files: ['src/orders/export.ts', 'src/orders/export.test.ts'], at: ago(6) },
+      { sha: 'e5f6a7b8c9d0', message: 'chore(legal): link the export help page', files: ['src/legal/index.ts'], at: ago(0, 12) },
+    ],
   },
   {
     slug: 'fix-checkout-timeout', intent: 'Hotfix: checkout times out on slow cards', framework: 'openspec', track: 'hotfix', phase: 'learn', status: 'active', ref: 'DEMO-102',
@@ -48,6 +51,7 @@ const FEATURES: Demo[] = [
       { from: 'verify', to: 'integrate', result: 'pass', at: ago(14), by: 'dana', approved: true },
       { from: 'integrate', to: 'archived', result: 'pass', at: ago(2), by: 'dana' },
     ],
+    commits: [{ sha: 'c3d4e5f6a7b8', message: 'feat(legal): refund policy page', files: ['src/legal/refunds.tsx', 'src/legal/index.ts'], at: ago(16) }],
   },
   {
     slug: 'saved-cards', intent: 'Let returning customers reuse saved cards', framework: 'bmad', track: 'default', phase: 'specify', status: 'active', ref: 'DEMO-110',
@@ -118,6 +122,14 @@ async function insert(pool: pg.Pool, appId: string, actor: string): Promise<{ fe
           VALUES ($1,$2,$3,$4,'approved','erin',$5,$5,'agent')`, [newId('p'), appId, fid, JSON.stringify({ kind: 'app_memory', memory_type: 'decision', title: 'Policy pages live under /legal', body: 'Static policy pages are served from /legal.', stack_tags: [], links: [] }), ago(2)]);
       }
     }
+    // A trivial fix routed without a feature, touching a file of an archived spec: the drift report flags it.
+    const trivial = newId('r');
+    await c.query(
+      `INSERT INTO routing_events (id, app_id, identity_key, task_description, decision, intent, framework, lite, route_count, first_routed_at, last_routed_at, created_at, updated_at, created_by)
+       VALUES ($1,$2,'demo:trivial-refund-typo','Fix the refund policy typo',$3,'trivial','none',true,1,$4,$4,$4,$4,'erin')`,
+      [trivial, appId, JSON.stringify({ intent: 'trivial', framework: 'none', track: null, confidence: 'high', rule: '4-trivial', reasons: ['host set intent trivial'], high_risk: false, policy_version: null, framework_pack_version: '1.0.0' }), ago(1)]);
+    await c.query(`INSERT INTO commits (id, app_id, sha, branch, message, files_changed, committed_at, routing_id, created_at, updated_at, created_by)
+      VALUES ($1,$2,'d4e5f6a7b8c9','main','fix: refund policy typo',$3,$4,$5,$4,$4,'erin')`, [newId('cm'), appId, ['src/legal/refunds.tsx'], ago(1), trivial]);
   });
   return { features: FEATURES.length, transitions };
 }

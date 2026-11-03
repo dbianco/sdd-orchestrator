@@ -47,8 +47,23 @@ const DEFAULT_MODEL: Record<EmbeddingProviderName, string> = {
   fake: 'fake-1024',
 };
 
+const ENV_HINTS: Record<string, string> = {
+  SDD_DATABASE_URL: 'SDD_DATABASE_URL is not set. The server and sdd-admin connect directly to Postgres: set it to the database URL, e.g. postgres://user:password@host:5432/sdd. (SDD_URL and SDD_TOKEN are different: they are read by the Claude Code plugin, not by sdd-admin.)',
+};
+
+/** One readable line per invalid variable instead of a raw schema-validation array. */
+function describeEnvIssues(issues: z.ZodIssue[]): string {
+  return issues.map((i) => {
+    const name = String(i.path[0] ?? 'environment');
+    const unset = i.code === 'invalid_type' && (i as { received?: string }).received === 'undefined';
+    return unset && ENV_HINTS[name] ? ENV_HINTS[name]! : `${name}: ${i.message}`;
+  }).join('\n');
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv): Config {
-  const e = EnvSchema.parse(env);
+  const parsed = EnvSchema.safeParse(env);
+  if (!parsed.success) throw new Error(describeEnvIssues(parsed.error.issues));
+  const e = parsed.data;
   const provider = e.SDD_EMBEDDING_PROVIDER;
   const model = e.SDD_EMBEDDING_MODEL ?? DEFAULT_MODEL[provider];
   if (!(ACCEPTED_MODELS[provider] as readonly string[]).includes(model)) {

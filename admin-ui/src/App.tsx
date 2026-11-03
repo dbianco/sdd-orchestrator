@@ -7,10 +7,12 @@ import { Proposals } from './views/Proposals';
 import { Work } from './views/Work';
 import { Approvals } from './views/Approvals';
 import { MyWeek } from './views/MyWeek';
+import { Drift } from './views/Drift';
 import { Icon } from './ui';
+import { InfoPanel } from './InfoPanel';
 import { CommandPalette, type Command } from './CommandPalette';
 
-type Tab = 'overview' | 'week' | 'apps' | 'flow' | 'proposals' | 'work' | 'approvals';
+type Tab = 'overview' | 'week' | 'drift' | 'apps' | 'flow' | 'proposals' | 'work' | 'approvals';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
@@ -20,6 +22,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'approvals', label: 'Approvals' },
   { id: 'proposals', label: 'Proposals' },
   { id: 'flow', label: 'Flow' },
+  { id: 'drift', label: 'Spec drift' },
 ];
 
 const tabFromHash = (): Tab => {
@@ -131,8 +134,10 @@ export function App() {
       </aside>
       <main className="main">
         <div className="content" key={`${tab}:${version}:${app ?? ''}`}>
+          <InfoPanel tab={tab} />
           {tab === 'overview' && <Overview app={app} onNavigate={setTab} />}
           {tab === 'week' && <MyWeek app={app} />}
+          {tab === 'drift' && <Drift app={app} />}
           {tab === 'apps' && <AppsFeatures app={app} />}
           {tab === 'flow' && <Flow app={app} />}
           {tab === 'proposals' && <Proposals app={app} />}

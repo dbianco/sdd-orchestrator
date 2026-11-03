@@ -123,7 +123,30 @@ describe.skipIf(!url)('assembleContextPack', () => {
     expect(pack.degraded).toBe(true);
     expect(pack.rendered).toContain('checkout.adr.0007');
     expect(pack.rendered).not.toContain('quality.tdd');
-    expect(warnings.some((w) => /degraded/.test(w))).toBe(true);
+    expect(warnings.some((w) => /off by configuration.*SDD_EMBEDDING_PROVIDER/.test(w))).toBe(true);
+  });
+
+  it('names the provider, model and error when the embedder fails at runtime (issue #11)', async () => {
+    const pool = await getTestPool();
+    const { app, feature } = await fixture(pool);
+    const failing = { provider: 'voyage' as const, model: 'voyage-3.5', embed: async () => { throw new Error('voyage request timed out after 30000ms'); }, healthy: async () => false };
+    const { pack, warnings } = await assembleContextPack({ q: pool, embedder: failing, defaultBudget: 6000 }, { feature, app, phase: 'specify', focus: 'csv export', scope: 'app', createdBy: 'daniel' });
+    expect(pack.degraded).toBe(true);
+    const w = warnings.find((x) => /degraded at runtime/.test(x));
+    expect(w).toContain('"voyage" (model voyage-3.5) failed: voyage request timed out after 30000ms');
+    expect(w).toMatch(/VOYAGE_API_KEY/);
+    expect(w).toMatch(/sdd-admin doctor/);
+  });
+
+  it('warns about an unconfigured embedder on the first pack only, but still marks the pack degraded', async () => {
+    const pool = await getTestPool();
+    const { app, feature } = await fixture(pool);
+    const deps = { q: pool, embedder: null, defaultBudget: 6000 };
+    const first = await assembleContextPack(deps, { feature, app, phase: 'specify', focus: 'ADR-7', scope: 'app', createdBy: 'daniel' });
+    const later = await assembleContextPack(deps, { feature, app, phase: 'specify', focus: 'ADR-7', scope: 'app', createdBy: 'daniel', quietWhenNotConfigured: true });
+    expect(first.warnings.some((w) => /off by configuration/.test(w))).toBe(true);
+    expect(later.pack.degraded).toBe(true);
+    expect(later.warnings.some((w) => /retrieval/.test(w))).toBe(false);
   });
 
   it('honours scope company and slug lists', async () => {

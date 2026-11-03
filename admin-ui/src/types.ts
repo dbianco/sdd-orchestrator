@@ -149,3 +149,31 @@ export interface WeekActivity {
 }
 
 export interface CheckHint { title: string; fix: string }
+
+export interface TrackCycle {
+  framework: string; track: string | null; features: number; archived: number;
+  median_cycle_hours: number | null; median_spec_hours: number | null; median_build_hours: number | null;
+  spec_share: number | null; avg_failed_attempts: number;
+}
+
+export interface CycleMetrics {
+  features: number; archived: number;
+  median_cycle_hours: number | null; median_spec_hours: number | null; median_build_hours: number | null;
+  spec_share: number | null;
+  phase_median_hours: Record<string, number>;
+  rework: { features_with_rework: number; median_rework_hours: number | null; failed_attempts: number; backward_moves: number };
+  by_track: TrackCycle[];
+}
+
+export interface DriftCommit { sha: string; message: string; at: string; feature_slug: string | null }
+export interface DriftEntry {
+  feature_id: string; slug: string; app: string; archived_at: string; level: 'likely' | 'review';
+  unspecced_commits: number; other_feature_commits: number; last_changed_at: string;
+  files: { file: string; commits: DriftCommit[] }[];
+}
+
+export interface RightSizing {
+  thresholds: { max_files: number; max_requirements: number };
+  archived_full_track: number; tiny: number; share: number | null;
+  entries: { feature_id: string; slug: string; framework: string; track: string | null; files: number; requirements: number; cycle_hours: number | null }[];
+}

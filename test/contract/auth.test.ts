@@ -6,7 +6,7 @@ import { createApp } from '../../src/store/apps.js';
 import { startFeature } from '../../src/services/startFeature.js';
 import { embedder } from '../helpers/seed.js';
 import type { Decision } from '../../src/domain/types.js';
-import { createToken } from '../../src/store/tokens.js';
+import { createToken, updateTokenApps } from '../../src/store/tokens.js';
 
 const url = process.env.SDD_TEST_DATABASE_URL;
 const decision: Decision = { intent: 'feature', framework: 'mini', track: 'default', confidence: 'high', rule: 'r', reasons: [], high_risk: false, policy_version: null, framework_pack_version: '1.0.0' };
@@ -48,6 +48,23 @@ describe.skipIf(!url)('authentication over Streamable HTTP', () => {
       expect(errorOf(await client.callTool({ name: 'search_memory', arguments: { query: 'x', app: 'billing', scope: 'company' } })).code).toBe('FORBIDDEN');
       expect(structuredOf<{ features: unknown[] }>(await client.callTool({ name: 'list_features', arguments: { app: 'billing' } })).features).toEqual([]);
     }, { env: enforce, headers: bearer(billingOnly) });
+  });
+
+  it('tells a restricted token how to get an app added, and honours the widened scope with the same secret (issue #10)', async () => {
+    const pool = await getTestPool();
+    const billing = await createApp(pool, { slug: 'billing', name: 'Billing', default_stack: [] }, 'test');
+    const checkout = (await pool.query<{ id: string }>(`SELECT id FROM apps WHERE slug = 'checkout'`)).rows[0]!.id;
+    const { row, secret } = await createToken(pool, { actor: 'bob', name: 'b', scopes: ['host'], app_ids: [billing.id], expires_at: null }, 'test');
+    await withClient('http', async (client) => {
+      const refused = errorOf(await client.callTool({ name: 'list_features', arguments: { app: 'checkout' } }));
+      expect(refused.code).toBe('FORBIDDEN');
+      expect(refused.message).toContain(`sdd-admin token update ${row.id} --add-app checkout`);
+      expect(refused.message).toMatch(/restart your session/);
+    }, { env: enforce, headers: bearer(secret) });
+    await updateTokenApps(pool, row.id, { add: [checkout] });
+    await withClient('http', async (client) => {
+      expect(structuredOf<{ features: unknown[] }>(await client.callTool({ name: 'list_features', arguments: { app: 'checkout' } })).features).toEqual([]);
+    }, { env: enforce, headers: bearer(secret) });
   });
 
   it('records the token actor and token id, warning when the payload names someone else', async () => {

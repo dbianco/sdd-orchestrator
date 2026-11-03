@@ -1,0 +1,43 @@
+import { userInfo } from 'node:os';
+import { Command } from 'commander';
+import { appCommand } from './commands/app.js';
+import { approvalsCommand } from './commands/approvals.js';
+import { demoCommand } from './commands/demo.js';
+import { deprecateCommand, deprecateFrameworkCommand } from './commands/deprecate.js';
+import { doctorCommand } from './commands/doctor.js';
+import { evalCommand } from './commands/eval.js';
+import { exportCommand } from './commands/export.js';
+import { initCommand } from './commands/init.js';
+import { ingestCommand } from './commands/ingest.js';
+import { ingestAllCommand } from './commands/ingestAll.js';
+import { proposalsCommand } from './commands/proposals.js';
+import { reindexCommand } from './commands/reindex.js';
+import { tokenCommand } from './commands/token.js';
+import { fail } from './context.js';
+
+const defaultActor = (() => { try { return userInfo().username; } catch { return 'unknown'; } })();
+const actorOption = (c: Command): Command => c.option('--actor <name>', 'display identity recorded as created_by', defaultActor);
+
+export function buildProgram(): Command {
+  const program = new Command('sdd-admin').description('SDD Orchestrator admin CLI');
+  program.addCommand(initCommand(actorOption));
+  program.addCommand(doctorCommand());
+  program.addCommand(appCommand(actorOption));
+  program.addCommand(demoCommand(actorOption));
+  program.addCommand(ingestCommand(actorOption));
+  program.addCommand(ingestAllCommand(actorOption));
+  program.addCommand(deprecateCommand(actorOption));
+  program.addCommand(deprecateFrameworkCommand(actorOption));
+  program.addCommand(proposalsCommand(actorOption));
+  program.addCommand(reindexCommand(actorOption));
+  program.addCommand(exportCommand());
+  program.addCommand(evalCommand());
+  program.addCommand(tokenCommand(actorOption));
+  program.addCommand(approvalsCommand(actorOption));
+
+  return program;
+}
+
+export async function runCli(argv: string[]): Promise<void> {
+  await buildProgram().parseAsync(argv).catch((e: unknown) => fail(e instanceof Error ? e.message : String(e)));
+}

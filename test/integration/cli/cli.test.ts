@@ -157,5 +157,20 @@ describe.skipIf(!url)('sdd-admin', () => {
     const list = await admin('app', 'list') as { apps: { slug: string }[] };
     expect(list.apps.map((a) => a.slug)).toEqual(['checkout']);
   });
+
+  it('updates a token\'s apps in place and lists app slugs (issue #10)', async () => {
+    await admin('app', 'register', 'checkout', '--name', 'Checkout');
+    await admin('app', 'register', 'billing', '--name', 'Billing');
+    const created = await admin('token', 'create', '--for', 'bob', '--scope', 'host', '--name', 'laptop', '--app', 'checkout') as { token: { id: string; app_slugs: string[] }; secret: string };
+    expect(created.token.app_slugs).toEqual(['checkout']);
+    const updated = await admin('token', 'update', created.token.id, '--add-app', 'billing') as { token: { app_slugs: string[] } };
+    expect(updated.token.app_slugs).toEqual(['checkout', 'billing']);
+    expect(JSON.stringify(updated)).not.toContain(created.secret);
+    const listed = await admin('token', 'list', '--for', 'bob') as { tokens: { app_slugs: string[] }[] };
+    expect(listed.tokens[0]!.app_slugs).toEqual(['checkout', 'billing']);
+    expect(((await admin('token', 'update', created.token.id, '--app', 'billing')) as { token: { app_slugs: string[] } }).token.app_slugs).toEqual(['billing']);
+    await expect(admin('token', 'update', created.token.id)).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining('--add-app') });
+    await expect(admin('token', 'update', created.token.id, '--add-app', 'nope')).rejects.toMatchObject({ code: 1 });
+  });
 });
 
