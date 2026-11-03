@@ -87,8 +87,8 @@ function ApprovalDetail({ id, me, onDone, onBack }: { id: string; me: Me; onDone
   );
 }
 
-export function Approvals() {
-  const list = useLoad(getApprovals, []);
+export function Approvals({ app }: { app?: string | null }) {
+  const list = useLoad(() => getApprovals(app), [app]);
   const me = useLoad(getMe, []);
   const [selected, setSelected] = useState<string | null>(null);
   const { show, toast } = useToast();

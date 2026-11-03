@@ -3,8 +3,8 @@ import { Badge, Empty, ErrorState, Loading, PageHead, SplitBar, toneOf, useLoad 
 
 const STATUS_ORDER = ['active', 'blocked', 'archived'];
 
-export function Overview({ onNavigate }: { onNavigate?: (tab: 'proposals' | 'approvals') => void }) {
-  const { data, error, reload } = useLoad(() => getOverview(), []);
+export function Overview({ app, onNavigate }: { app?: string | null; onNavigate?: (tab: 'proposals' | 'approvals') => void }) {
+  const { data, error, reload } = useLoad(() => getOverview(app ?? undefined), [app]);
 
   if (error) return <ErrorState message={`Could not load the overview: ${error}`} onRetry={reload} />;
   if (!data) return <Loading />;

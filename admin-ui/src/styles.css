@@ -178,3 +178,5 @@ details > pre { margin: 0 0.5rem 0.5rem; }
 .stack > h4 { margin: 0.5rem 0 0; }
 .table-wrap td:not(.cell-clip) { white-space: nowrap; }
 .timeline > li:last-child { padding-bottom: 0; }
+.project-picker { display: flex; flex-direction: column; gap: 0.25rem; padding: 0 0.5rem 0.75rem; font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.project-picker select { width: 100%; text-transform: none; letter-spacing: 0; font-size: 0.9rem; color: var(--text); }

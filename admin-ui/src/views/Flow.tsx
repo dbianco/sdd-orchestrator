@@ -10,8 +10,8 @@ function cellColor(count: number, failCount: number): string {
   return `color-mix(in srgb, var(--red) ${pct}%, var(--surface))`;
 }
 
-export function Flow() {
-  const { data, error, reload } = useLoad(() => getFlow(), []);
+export function Flow({ app }: { app?: string | null }) {
+  const { data, error, reload } = useLoad(() => getFlow(app ?? undefined), [app]);
 
   if (error) return <ErrorState message={`Could not load flow data: ${error}`} onRetry={reload} />;
   if (!data) return <Loading />;

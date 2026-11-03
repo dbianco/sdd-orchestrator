@@ -7,16 +7,17 @@ import { RoutingDetail } from './RoutingDetail';
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 const daysAgo = (n: number) => isoDay(new Date(Date.now() - n * 86_400_000));
 
-export function Work() {
+export function Work({ app }: { app?: string | null }) {
   const apps = useLoad(getApps, []);
-  const [draft, setDraft] = useState<RoutingParams>({});
-  const [applied, setApplied] = useState<RoutingParams>({});
+  const [draft, setDraft] = useState<RoutingParams>({ app: app ?? undefined });
+  const [applied, setApplied] = useState<RoutingParams>({ app: app ?? undefined });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const routing = useLoad(() => getRouting(applied), [applied]);
 
   const invalidRange = Boolean(draft.from && draft.to && draft.from > draft.to);
   const apply = (p: RoutingParams) => { setDraft(p); setApplied(p); };
+  const globalApp = app !== undefined; // project chosen in the sidebar: hide the local picker
 
   if (routing.error) return <ErrorState message={`Could not load routed work: ${routing.error}`} onRetry={routing.reload} />;
   if (selectedId) return <RoutingDetail routingId={selectedId} onBack={() => setSelectedId(null)} />;
@@ -28,13 +29,13 @@ export function Work() {
     <section>
       <PageHead title="Work" subtitle="Every task the orchestrator routed, and what became of it." />
       <div className="filters">
-        <div className="filter">
+        {!globalApp && <div className="filter">
           <label htmlFor="work-app">App</label>
           <select id="work-app" value={draft.app ?? ''} onChange={(ev) => setDraft({ ...draft, app: ev.target.value || undefined })}>
             <option value="">All apps</option>
             {apps.data?.apps.map((a) => <option key={a.id} value={a.slug}>{a.slug}</option>)}
           </select>
-        </div>
+        </div>}
         <div className="filter">
           <label htmlFor="work-from">From</label>
           <input id="work-from" type="date" value={draft.from ?? ''} onChange={(ev) => setDraft({ ...draft, from: ev.target.value || undefined })} />

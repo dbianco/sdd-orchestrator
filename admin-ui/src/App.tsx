@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getApprovals, getMe } from './api';
+import { getApps, getApprovals, getMe } from './api';
 import { Overview } from './views/Overview';
 import { AppsFeatures } from './views/AppsFeatures';
 import { Flow } from './views/Flow';
@@ -47,6 +47,14 @@ export function App() {
   const [version, setVersion] = useState(0);
   const [pending, setPending] = useState(0);
   const [actor, setActor] = useState<string | null>(null);
+  const [apps, setApps] = useState<string[]>([]);
+  const [app, setAppState] = useState<string | null>(() => {
+    try { return localStorage.getItem('sdd-app') || null; } catch { return null; }
+  });
+  const setApp = (slug: string | null) => {
+    setAppState(slug);
+    try { if (slug) localStorage.setItem('sdd-app', slug); else localStorage.removeItem('sdd-app'); } catch { /* storage unavailable */ }
+  };
   const [, toggleTheme] = useTheme();
 
   const setTab = (t: Tab) => { window.location.hash = `/${t}`; setTabState(t); };
@@ -58,9 +66,18 @@ export function App() {
   }, []);
 
   const refreshBadges = useCallback(() => {
-    getApprovals().then((r) => setPending(Array.isArray(r.approvals) ? r.approvals.filter((a) => a.status === 'pending').length : 0)).catch(() => undefined);
+    getApprovals(app).then((r) => setPending(Array.isArray(r.approvals) ? r.approvals.filter((a) => a.status === 'pending').length : 0)).catch(() => undefined);
     getMe().then((m) => setActor(m.actor ?? null)).catch(() => undefined);
-  }, []);
+  }, [app]);
+
+  useEffect(() => {
+    getApps().then((r) => {
+      const slugs = Array.isArray(r.apps) ? r.apps.map((a) => a.slug) : [];
+      setApps(slugs);
+      if (app && slugs.length > 0 && !slugs.includes(app)) setApp(null);
+    }).catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [version]);
 
   useEffect(() => {
     refreshBadges();
@@ -75,6 +92,15 @@ export function App() {
           <span className="brand-logo"><Icon name="approvals" /></span>
           <span>SDD Admin<small>Orchestrator console</small></span>
         </div>
+        {apps.length > 0 && (
+          <label className="project-picker">
+            <span>Project</span>
+            <select aria-label="Project" value={app ?? ''} onChange={(e) => setApp(e.target.value || null)}>
+              <option value="">All projects</option>
+              {apps.map((slug) => <option key={slug} value={slug}>{slug}</option>)}
+            </select>
+          </label>
+        )}
         <nav className="tabs" aria-label="Sections">
           {TABS.map((t) => (
             <button key={t.id} className={t.id === tab ? 'tab tab-active' : 'tab'} aria-current={t.id === tab ? 'page' : undefined} onClick={() => setTab(t.id)}>
@@ -91,13 +117,13 @@ export function App() {
         </div>
       </aside>
       <main className="main">
-        <div className="content" key={`${tab}:${version}`}>
-          {tab === 'overview' && <Overview onNavigate={setTab} />}
-          {tab === 'apps' && <AppsFeatures />}
-          {tab === 'flow' && <Flow />}
-          {tab === 'proposals' && <Proposals />}
-          {tab === 'work' && <Work />}
-          {tab === 'approvals' && <Approvals />}
+        <div className="content" key={`${tab}:${version}:${app ?? ''}`}>
+          {tab === 'overview' && <Overview app={app} onNavigate={setTab} />}
+          {tab === 'apps' && <AppsFeatures app={app} />}
+          {tab === 'flow' && <Flow app={app} />}
+          {tab === 'proposals' && <Proposals app={app} />}
+          {tab === 'work' && <Work app={app} />}
+          {tab === 'approvals' && <Approvals app={app} />}
         </div>
       </main>
     </div>

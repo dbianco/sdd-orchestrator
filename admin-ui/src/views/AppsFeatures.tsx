@@ -47,9 +47,10 @@ function FeaturesTable({ features, onOpen }: { features: FeatureSummary[]; onOpe
   );
 }
 
-export function AppsFeatures() {
+export function AppsFeatures({ app }: { app?: string | null }) {
   const apps = useLoad(getApps, []);
-  const [selectedApp, setSelectedApp] = useState<string | null>(null);
+  const [pickedApp, setSelectedApp] = useState<string | null>(null);
+  const selectedApp = app ?? pickedApp;
   const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null);
   const features = useLoad(() => (selectedApp ? getAppFeatures(selectedApp) : Promise.resolve(null)), [selectedApp]);
   const rtm = useLoad(() => (selectedApp ? getRtm(selectedApp) : Promise.resolve(null)), [selectedApp]);
@@ -71,8 +72,8 @@ export function AppsFeatures() {
       ) : list.length === 0 ? (
         <Empty title="No apps yet." hint="Apps are created when an agent routes its first task." />
       ) : (
-        <div className="split">
-          <div className="card">
+        <div className={app ? '' : 'split'}>
+          {!app && <div className="card">
             <h3>Apps</h3>
             <ul className="apps-list">
               {list.map((a) => (
@@ -84,7 +85,7 @@ export function AppsFeatures() {
                 </li>
               ))}
             </ul>
-          </div>
+          </div>}
           <div className="stack">
             {!selectedApp ? (
               <Empty title="Select an app" hint="Its features and traceability matrix will show up here." />

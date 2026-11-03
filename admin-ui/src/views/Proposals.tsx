@@ -1,17 +1,21 @@
 import { useState } from 'react';
-import { getProposals } from '../api';
+import { getApps, getProposals } from '../api';
 import { Badge, Empty, ErrorState, Loading, PageHead, Table, Time, useLoad } from '../ui';
 
 const FILTERS = ['all', 'pending', 'approved', 'rejected'] as const;
 
-export function Proposals() {
-  const { data, error, reload } = useLoad(() => getProposals(), []);
+export function Proposals({ app }: { app?: string | null }) {
+  const { data, error, reload } = useLoad(async () => {
+    const [p, a] = await Promise.all([getProposals(), app ? getApps() : Promise.resolve(null)]);
+    const appId = app ? a?.apps.find((x) => x.slug === app)?.id : undefined;
+    return { proposals: app ? p.proposals.filter((x) => x.app_id === appId) : p.proposals };
+  }, [app]);
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>('all');
 
   if (error) return <ErrorState message={`Could not load proposals: ${error}`} onRetry={reload} />;
   if (!data) return <Loading />;
   const proposals = data.proposals;
-  if (proposals.length === 0) return <Empty title="No proposals yet." hint="Agents propose memory with propose_memory; they land here for review." />;
+  if (proposals.length === 0) return <Empty title="No proposals yet." hint={app ? `Nothing proposed for ${app}.` : 'Agents propose memory with propose_memory; they land here for review.'} />;
   const shown = filter === 'all' ? proposals : proposals.filter((p) => p.status === filter);
 
   return (
