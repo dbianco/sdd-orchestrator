@@ -44,4 +44,18 @@ describe('loadConfig', () => {
     expect(loadConfig({ ...base, VOYAGE_API_KEY: 'k', SDD_AUTH_MODE: 'enforce' }).authMode).toBe('enforce');
     expect(() => loadConfig({ ...base, VOYAGE_API_KEY: 'k', SDD_AUTH_MODE: 'strict' })).toThrow();
   });
+
+  it('explains a missing SDD_DATABASE_URL in one readable message (issue #9)', () => {
+    let message = '';
+    try { loadConfig({}); } catch (e) { message = (e as Error).message; }
+    expect(message).toMatch(/^SDD_DATABASE_URL is not set\./);
+    expect(message).toMatch(/SDD_URL and SDD_TOKEN are different/);
+    expect(message).not.toContain('invalid_type');
+    expect(message).not.toContain('[');
+  });
+
+  it('names the variable for other invalid values', () => {
+    expect(() => loadConfig({ ...base, VOYAGE_API_KEY: 'k', SDD_TOKEN_BUDGET: 'lots' })).toThrow(/^SDD_TOKEN_BUDGET: /);
+  });
 });
+

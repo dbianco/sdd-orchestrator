@@ -13,6 +13,9 @@ describe('inferIntent', () => {
   it('detects remediation', () => {
     expect(inferIntent('Fix CVE-2026-1234 in lodash').intent).toBe('remediation');
     expect(inferIntent('Snyk flagged a vulnerability').intent).toBe('remediation');
+    expect(inferIntent('Trivy flagged a vulnerability').intent).toBe('remediation');
+    expect(inferIntent('Trivy found an issue in the base image').matched).toBe('Trivy');
+    expect(inferIntent('Opengrep found an issue').intent).toBe('remediation');
   });
   it('detects refactor, spike and product', () => {
     expect(inferIntent('Refactor the export module, no behaviour change').intent).toBe('refactor');

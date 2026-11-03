@@ -183,6 +183,18 @@ claude plugin install sdd@sdd-orchestrator
 
 Without the plugin, configure the server by hand as below.
 
+Which variable is read by what:
+
+| Variable | Read by | Purpose |
+|---|---|---|
+| `SDD_DATABASE_URL` | the server and `sdd-admin` | Postgres connection URL. `sdd-admin` talks to the database directly. |
+| `SDD_URL`, `SDD_TOKEN` | the Claude Code plugin | where the MCP server is and which token to send |
+| `SDD_ENFORCEMENT` | the plugin hooks | personal override of `.sdd/config.json` (`block`, `warn`, `off`) |
+
+Something not working? `sdd-admin doctor` checks the database, pgvector,
+migrations, the embedding provider, packs and auth settings and prints the fix
+for each problem.
+
 Each person and each pipeline gets its own token; the server records the
 token's identity instead of trusting an `actor` field. `SDD_AUTH_MODE`
 defaults to `warn` (calls without a token still work, with a warning); set it
@@ -191,7 +203,14 @@ to `enforce` once every host sends a token.
 ```bash
 sdd-admin token create --for daniel --scope host,approver --name "daniel laptop"
 sdd-admin token create --for checkout-ci --scope ci --app checkout --name "checkout pipeline"
+sdd-admin token list                                   # shows each token's app slugs
+sdd-admin token update <id> --add-app billing          # widen a token without issuing a new secret
 ```
+
+A token created with `--app` only sees those apps. The plugin reads `SDD_TOKEN`
+when the session starts, so **restart the session after you change the token
+you export**. Widening a token with `token update` needs no restart: the server
+checks the token's scope on every call.
 
 Claude Code (`.mcp.json` in the workspace):
 
@@ -383,7 +402,10 @@ For compliance apps and high-risk features (and apps whose policy sets
 `"evidence": "ci"`), the move out of `verify` takes tests, lint and security
 results only from CI, and only for the feature's latest commit. The pipeline
 posts them with `scripts/sdd-ci-evidence.mjs`, which finds the feature from
-the `SDD-Ref` commit trailer; see `docs/ci/github-actions.md`.
+the `SDD-Ref` commit trailer; see `docs/ci/github-actions.md`. The `security`
+field is scanner-agnostic; [`docs/security-evidence.md`](docs/security-evidence.md)
+shows how to produce it from Trivy and Opengrep (free, no account) with a
+baseline so only new findings count.
 
 ### 9. Review approvals and browse metrics
 

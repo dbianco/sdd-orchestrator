@@ -52,3 +52,18 @@ export async function touchToken(q: Queryable, id: string): Promise<void> {
     [id],
   );
 }
+
+/** Widens (add) or replaces (set) an active token's app scope without changing its secret. */
+export async function updateTokenApps(q: Queryable, id: string, change: { add?: string[]; set?: string[] }): Promise<ApiTokenRow> {
+  const current = (await q.query<ApiTokenRow>(`SELECT ${PUBLIC_COLUMNS} FROM api_tokens WHERE id = $1 FOR UPDATE`, [id])).rows[0];
+  if (!current) throw new DomainError('VALIDATION_ERROR', `token ${id} does not exist`, { field: 'id' });
+  if (current.revoked_at) throw new DomainError('VALIDATION_ERROR', `token ${id} is revoked; issue a new one instead`, { field: 'id' });
+  let next: string[];
+  if (change.set) next = [...new Set(change.set)];
+  else {
+    if (current.app_ids === null) throw new DomainError('VALIDATION_ERROR', `token ${id} is not restricted to apps, so it already covers every app`, { field: 'id' });
+    next = [...new Set([...current.app_ids, ...(change.add ?? [])])];
+  }
+  const r = await q.query<ApiTokenRow>(`UPDATE api_tokens SET app_ids = $2, updated_at = now() WHERE id = $1 RETURNING ${PUBLIC_COLUMNS}`, [id, next]);
+  return r.rows[0]!;
+}

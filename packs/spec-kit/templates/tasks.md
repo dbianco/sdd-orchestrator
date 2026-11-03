@@ -10,3 +10,5 @@ title: Spec Kit tasks template
 - [ ] T003 <implementation task>, depends on T002
 
 Tasks are ordered so every dependency appears earlier. Mark tasks that can run in parallel with [P].
+
+Write dependencies as "depends on T001"; several can be listed as "depends on T001, T002". Every id must appear earlier in the list. Ticked tasks (`- [x]`) count the same as open ones.

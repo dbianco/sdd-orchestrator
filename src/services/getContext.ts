@@ -23,7 +23,7 @@ export async function getContext(deps: ServiceDeps, input: GetContextInput): Pro
     }
     const app = (await tx.query<AppRow>('SELECT * FROM apps WHERE id = $1', [feature.app_id])).rows[0]!;
     const { pack, warnings } = await assembleContextPack({ q: tx, embedder: deps.embedder, defaultBudget: deps.tokenBudget }, {
-      feature, app, phase, focus: input.focus ?? null, scope: input.scope ?? 'app', createdBy: input.actor,
+      feature, app, phase, focus: input.focus ?? null, scope: input.scope ?? 'app', createdBy: input.actor, quietWhenNotConfigured: true,
     });
     if (pack.degraded) deps.metrics?.degradedPack();
     if (pack.over_budget) deps.metrics?.overBudgetPack();

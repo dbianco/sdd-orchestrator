@@ -8,7 +8,7 @@ export const INFERENCE_ORDER: InferableIntent[] = ['incident', 'remediation', 'r
 
 export const DEFAULT_PHRASE_LISTS: IntentPhraseLists = {
   incident: ['outage', 'production is down', 'hotfix', 'P1', 'INC-\\d+'],
-  remediation: ['CVE-\\d+', 'vulnerability', 'Snyk', 'deprecated library'],
+  remediation: ['CVE-\\d+', 'vulnerability', 'Snyk', 'Trivy', 'Opengrep', 'deprecated library'],
   refactor: ['refactor', 'no behaviour change', 'no behavior change', 'extract', 'untangle'],
   spike: ['can we', 'prototype', 'spike', 'is it possible'],
   product: ['whole product', 'new product', 'PRD'],

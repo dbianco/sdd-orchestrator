@@ -5,6 +5,7 @@ import { appCommand } from './commands/app.js';
 import { approvalsCommand } from './commands/approvals.js';
 import { demoCommand } from './commands/demo.js';
 import { deprecateCommand, deprecateFrameworkCommand } from './commands/deprecate.js';
+import { doctorCommand } from './commands/doctor.js';
 import { evalCommand } from './commands/eval.js';
 import { exportCommand } from './commands/export.js';
 import { initCommand } from './commands/init.js';
@@ -20,6 +21,7 @@ const actorOption = (c: Command): Command => c.option('--actor <name>', 'display
 
 const program = new Command('sdd-admin').description('SDD Orchestrator admin CLI');
 program.addCommand(initCommand(actorOption));
+program.addCommand(doctorCommand());
 program.addCommand(appCommand(actorOption));
 program.addCommand(demoCommand(actorOption));
 program.addCommand(ingestCommand(actorOption));

@@ -1,5 +1,6 @@
 import { withTransaction, type Queryable } from '../db/pool.js';
 import type { Finding, PhaseOrArchived } from '../domain/types.js';
+import { notScopedMessage } from '../auth/authorize.js';
 import { DomainError } from '../errors.js';
 import { gateFor } from '../lifecycle/track.js';
 import { decideApproval, getApproval } from '../store/approvals.js';
@@ -24,7 +25,7 @@ async function lockPending(tx: Queryable, input: DecisionInput): Promise<Locked>
   const feature = await requireFeature(tx, request.feature_id, { forUpdate: true });
   const app = (await tx.query<AppRow>('SELECT * FROM apps WHERE id = $1', [feature.app_id])).rows[0]!;
   if (input.apps && !input.apps.includes(feature.app_id)) {
-    throw new DomainError('FORBIDDEN', `this token is not allowed for app ${app.slug}`, { app: app.slug });
+    throw new DomainError('FORBIDDEN', notScopedMessage(app.slug), { app: app.slug });
   }
   if (request.status !== 'pending') {
     throw new DomainError('APPROVAL_NOT_PENDING', `approval request ${request.id} is ${request.status}`, { approval_id: request.id, status: request.status });

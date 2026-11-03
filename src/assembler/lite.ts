@@ -4,6 +4,7 @@ import type { RetrievedChunk } from '../store/retrieval.js';
 import { countTokens } from '../tokens.js';
 import type { AssemblerDeps } from './assemble.js';
 import { trimToBudget } from './budget.js';
+import { describeDegraded } from './degraded.js';
 import { extractExactIds } from './exactIds.js';
 import { attachedLayers, resolveStack } from './layers.js';
 import { renderAlwaysOn, renderChunk, renderStopConditions } from './render.js';
@@ -31,11 +32,11 @@ export async function buildLitePack(deps: AssemblerDeps, input: { app: AppRow; t
   // skipped, so its meaning doesn't flip depending on unrelated stack-guide data.
   const embedderDegraded = deps.embedder === null;
   const guides = stackPacks.length === 0
-    ? { chunks: [] as RetrievedChunk[], degraded: embedderDegraded }
+    ? { chunks: [] as RetrievedChunk[], degraded: embedderDegraded, reason: embedderDegraded ? { kind: 'not_configured' as const } : null }
     : await retrieve(deps, { query: input.taskDescription, ids: extractExactIds(input.taskDescription), minSimilarity: app.min_similarity ?? DEFAULT_MIN_SIMILARITY,
         filter: { scope: { appIds: [app.id] }, framework: null, frameworkPackVersion: null, phase: null, kinds: ['stack_guide'], packNames: stackPacks } });
   const degraded = embedderDegraded || guides.degraded;
-  if (degraded) warnings.push('retrieval degraded: embedding provider unavailable');
+  if (degraded) warnings.push(describeDegraded(guides.reason, 'Stack guides use exact-id matches only.'));
   const scored = guides.chunks.map((c) => ({ chunk: c, tokens: countTokens(renderChunk(c)), score: c.score }));
   const trimmed = trimToBudget(fixedTokens, [], scored, budget);
   if (trimmed.over_budget) warnings.push(`over budget: always-on standards use ${fixedTokens} tokens of ${budget}`);

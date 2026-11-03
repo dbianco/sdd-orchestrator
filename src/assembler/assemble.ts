@@ -9,13 +9,14 @@ import type { AppRow, ContextPackRow, FeatureRow, KnowledgeItemRow } from '../st
 import type { RetrievedChunk } from '../store/retrieval.js';
 import { countTokens } from '../tokens.js';
 import { trimToBudget } from './budget.js';
+import { describeDegraded, worstReason } from './degraded.js';
 import { extractExactIds } from './exactIds.js';
 import { attachedLayers, resolveScope, resolveStack } from './layers.js';
 import { renderAlwaysOn, renderChunk, renderPack, renderStopConditions } from './render.js';
 import { DEFAULT_MIN_SIMILARITY, knowledgeFilter, retrieve, type RetrieveDeps } from './retrieve.js';
 
 export interface AssemblerDeps extends RetrieveDeps { defaultBudget: number }
-export interface AssembleInput { feature: FeatureRow; app: AppRow; phase: Phase; focus: string | null; scope: Scope; createdBy: string }
+export interface AssembleInput { feature: FeatureRow; app: AppRow; phase: Phase; focus: string | null; scope: Scope; createdBy: string; quietWhenNotConfigured?: boolean }
 export interface AssembledPack { pack: ContextPackRow; warnings: string[] }
 
 interface Scored { chunk: RetrievedChunk; tokens: number; score: number }
@@ -82,10 +83,13 @@ export async function assembleContextPack(deps: AssemblerDeps, input: AssembleIn
     filter: knowledgeFilter({ scope: resolved, framework: feature.framework, frameworkPackVersion: feature.framework_pack_version, phase, excludeItemIds: pinnedIds }),
   });
   const guides = stackPacks.length === 0
-    ? { chunks: [], degraded: knowledge.degraded }
+    ? { chunks: [], degraded: knowledge.degraded, reason: knowledge.reason }
     : await retrieve(deps, { query, ids, minSimilarity, filter: { scope: resolved, framework: feature.framework, frameworkPackVersion: feature.framework_pack_version, phase, kinds: ['stack_guide'], packNames: stackPacks, excludeItemIds: pinnedIds } });
   const degraded = knowledge.degraded || guides.degraded;
-  if (degraded) warnings.push('retrieval degraded: embedding provider unavailable, positions 4 and 5 built from exact-id matches only');
+  const reason = worstReason(knowledge.reason, guides.reason);
+  // A server with no embedding provider by design is not a fault: say so on the first pack (start_feature) and stay quiet afterwards.
+  const quiet = reason?.kind === 'not_configured' && input.quietWhenNotConfigured === true;
+  if (degraded && !quiet) warnings.push(describeDegraded(reason, 'Positions 4 and 5 of the pack use exact-id matches only.'));
 
   const score = (c: RetrievedChunk): Scored => ({ chunk: c, tokens: countTokens(renderChunk(c)), score: c.match === 'exact_id' ? 2 : c.score });
   const trimmed = trimToBudget(fixedTokens, knowledge.chunks.map(score), guides.chunks.map(score), budget);

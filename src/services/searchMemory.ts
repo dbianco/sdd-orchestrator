@@ -1,3 +1,4 @@
+import { describeDegraded } from '../assembler/degraded.js';
 import { extractExactIds } from '../assembler/exactIds.js';
 import { resolveScope } from '../assembler/layers.js';
 import { DEFAULT_MIN_SIMILARITY, retrieve } from '../assembler/retrieve.js';
@@ -17,7 +18,7 @@ export async function searchMemory(deps: ServiceDeps, input: SearchMemoryInput):
   const app = await requireApp(q, input.app);
   if (deps.embedder) await assertEmbeddingConfigMatches(q, deps.embedder);
   const scope = await resolveScope(q, input.scope ?? 'app', app);
-  const { chunks, degraded } = await retrieve({ q, embedder: deps.embedder }, {
+  const { chunks, degraded, reason } = await retrieve({ q, embedder: deps.embedder }, {
     query: input.query, ids: extractExactIds(input.query), minSimilarity: app.min_similarity ?? DEFAULT_MIN_SIMILARITY, limit: input.limit ?? 8,
     filter: { scope, framework: null, frameworkPackVersion: null, phase: null, kinds: input.kinds ?? ['framework_pack', 'standard', 'stack_guide', 'app_memory'] },
   });
@@ -26,6 +27,6 @@ export async function searchMemory(deps: ServiceDeps, input: SearchMemoryInput):
   return {
     chunks: chunks.map((c) => ({ item_id: c.item_id, stable_id: c.stable_id, version: c.version, app: c.app_id ? slugs.get(c.app_id) ?? null : null, kind: c.kind, memory_type: c.memory_type, heading_path: c.heading_path, text: c.text, score: c.score, match: c.match })),
     degraded,
-    warnings: degraded ? ['retrieval degraded: embedding provider unavailable, exact-id matches only'] : [],
+    warnings: degraded ? [describeDegraded(reason, 'Results are exact-id matches only.')] : [],
   };
 }

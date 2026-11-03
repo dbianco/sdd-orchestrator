@@ -1,7 +1,7 @@
 name: spec-kit
 kind: framework_pack
 framework: spec-kit
-version: 1.1.0
+version: 1.1.1
 source_url: https://github.com/github/spec-kit
 license: MIT
 tracks:
@@ -32,7 +32,7 @@ tracks:
         artifacts: [tasks.md]
         checks:
           - { name: placeholder_scan }
-          - { name: task_ordering, params: { artifact: tasks.md, task_regex: "^- \\[ \\] (?<id>T\\d+)", dep_regex: "depends on (?<id>T\\d+)" } }
+          - { name: task_ordering, params: { artifact: tasks.md, task_regex: "^- \\[[ xX]\\] (?<id>T\\d+)", dep_regex: "depends on (?<ids>T\\d+(?:\\s*(?:,|and|&)\\s*(?:depends on\\s+)?T\\d+)*)", id_regex: "T\\d+" } }
       - transition: verify->integrate
         artifacts: [plan.md]
         checks:
@@ -65,7 +65,7 @@ tracks:
         artifacts: [tasks.md]
         checks:
           - { name: placeholder_scan }
-          - { name: task_ordering, params: { artifact: tasks.md, task_regex: "^- \\[ \\] (?<id>T\\d+)", dep_regex: "depends on (?<id>T\\d+)" } }
+          - { name: task_ordering, params: { artifact: tasks.md, task_regex: "^- \\[[ xX]\\] (?<id>T\\d+)", dep_regex: "depends on (?<ids>T\\d+(?:\\s*(?:,|and|&)\\s*(?:depends on\\s+)?T\\d+)*)", id_regex: "T\\d+" } }
       - transition: verify->integrate
         artifacts: [plan.md]
         checks:
