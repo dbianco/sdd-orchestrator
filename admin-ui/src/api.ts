@@ -64,8 +64,8 @@ export function getMe(): Promise<Me> {
   return get<Me>('/admin/api/me');
 }
 
-export function getApprovals(): Promise<{ approvals: Approval[] }> {
-  return get<{ approvals: Approval[] }>('/admin/api/approvals');
+export function getApprovals(app?: string | null): Promise<{ approvals: Approval[] }> {
+  return get<{ approvals: Approval[] }>(`/admin/api/approvals${app ? `?app=${encodeURIComponent(app)}` : ''}`);
 }
 
 export function getApproval(id: string): Promise<ApprovalDetail> {

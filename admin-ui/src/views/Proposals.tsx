@@ -1,35 +1,49 @@
-import { useEffect, useState } from 'react';
-import { getProposals } from '../api';
-import type { Proposal } from '../types';
+import { useState } from 'react';
+import { getApps, getProposals } from '../api';
+import { Badge, Empty, ErrorState, Loading, PageHead, Table, Time, useLoad } from '../ui';
 
-export function Proposals() {
-  const [proposals, setProposals] = useState<Proposal[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+const FILTERS = ['all', 'pending', 'approved', 'rejected'] as const;
 
-  useEffect(() => {
-    getProposals().then((r) => setProposals(r.proposals)).catch((e: Error) => setError(e.message));
-  }, []);
+export function Proposals({ app }: { app?: string | null }) {
+  const { data, error, reload } = useLoad(async () => {
+    const [p, a] = await Promise.all([getProposals(), app ? getApps() : Promise.resolve(null)]);
+    const appId = app ? a?.apps.find((x) => x.slug === app)?.id : undefined;
+    return { proposals: app ? p.proposals.filter((x) => x.app_id === appId) : p.proposals };
+  }, [app]);
+  const [filter, setFilter] = useState<(typeof FILTERS)[number]>('all');
 
-  if (error) return <p className="error">Could not load proposals: {error}</p>;
-  if (!proposals) return <p>Loading…</p>;
-  if (proposals.length === 0) return <p>No proposals yet.</p>;
+  if (error) return <ErrorState message={`Could not load proposals: ${error}`} onRetry={reload} />;
+  if (!data) return <Loading />;
+  const proposals = data.proposals;
+  if (proposals.length === 0) return <Empty title="No proposals yet." hint={app ? `Nothing proposed for ${app}.` : 'Agents propose memory with propose_memory; they land here for review.'} />;
+  const shown = filter === 'all' ? proposals : proposals.filter((p) => p.status === filter);
 
   return (
     <section>
-      <h2>Proposals</h2>
-      <table>
-        <thead><tr><th>Id</th><th>Status</th><th>Created by</th><th>Created at</th></tr></thead>
-        <tbody>
-          {proposals.map((p) => (
-            <tr key={p.id}>
-              <td>{p.id}</td>
-              <td>{p.status}</td>
-              <td>{p.created_by}</td>
-              <td>{p.created_at}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <PageHead title="Proposals" subtitle="Memory that agents suggested for the knowledge base." />
+      <div className="filters">
+        <div className="chips" role="group" aria-label="Filter by status">
+          {FILTERS.map((f) => {
+            const n = f === 'all' ? proposals.length : proposals.filter((p) => p.status === f).length;
+            return <button key={f} className="chip" aria-pressed={filter === f} onClick={() => setFilter(f)}>{`${f.charAt(0).toUpperCase()}${f.slice(1)} (${n})`}</button>;
+          })}
+        </div>
+      </div>
+      {shown.length === 0 ? <Empty title="Nothing in this status." /> : (
+        <Table>
+          <thead><tr><th>Id</th><th>Status</th><th>Created by</th><th>Created</th></tr></thead>
+          <tbody>
+            {shown.map((p) => (
+              <tr key={p.id}>
+                <td className="mono">{p.id}</td>
+                <td><Badge value={p.status} /></td>
+                <td>{p.created_by}</td>
+                <td><Time iso={p.created_at} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      )}
     </section>
   );
 }
