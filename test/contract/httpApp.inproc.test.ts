@@ -77,6 +77,10 @@ describe.skipIf(!url)('HTTP app and entry point in-process', () => {
       expect(deps.embedder?.provider).toBe('fake');
       expect(deps.notifier).toBeDefined();
       await deps.pool.end();
+      delete process.env.SDD_NOTIFY_WEBHOOK_URL;
+      const plain = await buildDeps();
+      expect(plain.notifier).toBeUndefined();
+      await plain.pool.end();
       await main(['node', 'index.js']); // not --stdio: starts the HTTP server on a free port
     } finally {
       for (const k of Object.keys(process.env)) if (!(k in saved)) delete process.env[k];

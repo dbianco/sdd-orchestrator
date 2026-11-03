@@ -5,7 +5,7 @@ import { Readable } from 'node:stream';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { context, deny, emit, projectDir, projectRelative, readInput, run } from '../hooks/lib/io.mjs';
-import { currentBranch, readBranchState, readConfig, sddToolName, stateFromToolResult, writeBranchState } from '../hooks/lib/state.mjs';
+import { currentBranch, parseToolResponse, readBranchState, readConfig, sddToolName, stateFromToolResult, writeBranchState } from '../hooks/lib/state.mjs';
 
 describe('io helpers', () => {
   afterEach(() => { vi.restoreAllMocks(); delete process.env.CLAUDE_PROJECT_DIR; });
@@ -118,5 +118,11 @@ describe('state helpers', () => {
     expect(stateFromToolResult('mcp__sdd__start_feature', { feature: {} }, prev)).toBe(prev);
     expect(stateFromToolResult('mcp__sdd__get_feature_status', { feature_id: 'f_1', status: 'archived' }, prev)).toBeNull();
     expect(stateFromToolResult('mcp__sdd__route_task', { routing_id: 'r_2', decision: null, lite_pack: null }, null)).toMatchObject({ routing_id: 'r_2', intent: null, lite: false });
+  });
+
+  it('parses only strings and objects as tool responses', () => {
+    expect(parseToolResponse(42)).toBeNull();
+    expect(parseToolResponse(undefined)).toBeNull();
+    expect(parseToolResponse(null)).toBeNull();
   });
 });

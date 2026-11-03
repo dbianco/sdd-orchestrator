@@ -7,6 +7,9 @@ import { seedAll, embedder } from '../helpers/seed.js';
 import { createMcpServer, type McpDeps } from '../../src/mcp/server.js';
 import { runStdio } from '../../src/mcp/stdio.js';
 import { createLogger } from '../../src/logging.js';
+import { appendPolicy } from '../../src/store/policies.js';
+import { approveProposal } from '../../src/services/approveProposal.js';
+import { insertProposal } from '../../src/store/proposals.js';
 import type { AuthContext } from '../../src/auth/context.js';
 
 const url = process.env.SDD_TEST_DATABASE_URL;
@@ -44,6 +47,18 @@ describe.skipIf(!url)('MCP server in-process', () => {
     await expect(client.readResource({ uri: 'sdd://knowledge/nope' })).rejects.toThrow(/KNOWLEDGE_NOT_FOUND/);
     await expect(client.readResource({ uri: 'sdd://knowledge/nope/v/3' })).rejects.toThrow(/KNOWLEDGE_NOT_FOUND/);
     await expect(client.readResource({ uri: 'sdd://knowledge/mini.template.proposal/v/99' })).rejects.toThrow(/KNOWLEDGE_NOT_FOUND/);
+  });
+
+  it('reads an app profile with a policy and an app-scoped knowledge item', async () => {
+    await connect();
+    const appId = (await deps.pool.query<{ id: string }>(`SELECT id FROM apps WHERE slug = 'checkout'`)).rows[0]!.id;
+    await appendPolicy(deps.pool, appId, { framework: null, path_rules: [], risk_paths: [] } as never, 'test', 'seed');
+    expect(text(await client.readResource({ uri: 'sdd://apps/checkout' }))).toMatchObject({ policy_version: 1 });
+    const fid = structured<{ feature_id: string }>(await client.callTool({ name: 'start_feature', arguments: { app: 'checkout', actor: 'd', task_description: 'x', decision } })).feature_id;
+    const pid = (await insertProposal(deps.pool, { app_id: appId, feature_id: fid, payload: { kind: 'app_memory', memory_type: 'decision', title: 'Stream', body: 'Stream rows.', stack_tags: [], links: [] }, supersedes: null }, 'agent')).id;
+    const item = await approveProposal({ pool: deps.pool, embedder }, pid, 'erin');
+    expect(text(await client.readResource({ uri: `sdd://knowledge/${item.stable_id}` }))).toMatchObject({ stable_id: item.stable_id });
+    expect(text(await client.readResource({ uri: `sdd://knowledge/${item.stable_id}/v/1` }))).toMatchObject({ version: 1 });
   });
 
   it('serves phase prompts and refuses unknown features', async () => {
