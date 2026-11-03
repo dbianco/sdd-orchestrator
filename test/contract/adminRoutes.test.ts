@@ -13,6 +13,7 @@ import { createLogger } from '../../src/logging.js';
 import { createMetrics } from '../../src/metrics.js';
 import type { Config } from '../../src/config.js';
 import type { Decision } from '../../src/domain/types.js';
+import { insertProposal } from '../../src/store/proposals.js';
 import { createToken } from '../../src/store/tokens.js';
 import { seedDemo } from '../../src/cli/commands/demo.js';
 
@@ -251,6 +252,37 @@ describe.skipIf(!url)('admin routes', () => {
     const hints = await get('gate-hints');
     expect(hints.hints.requirement_coverage.fix).toMatch(/implements/);
     expect((await fetch(`${listening.origin}/admin/api/week?days=0`, { headers: { Authorization: authHeader('s3cret') } })).status).toBe(400);
+  });
+
+  it('approves and rejects memory proposals for approvers only, once each', async () => {
+    const approver = (await createToken(deps.pool, { actor: 'erin', name: 't', scopes: ['approver'], app_ids: null, expires_at: null }, 'test')).secret;
+    const listening = await listen(createHttpApp(deps, { ...baseConfig, adminToken: 's3cret', authMode: 'warn' }));
+    server = listening.server;
+    const fid = (await startFeature(deps, { app: 'checkout', actor: 'dana', task_description: 'CSV export', decision })).feature_id;
+    const appId = (await deps.pool.query<{ id: string }>(`SELECT id FROM apps WHERE slug = 'checkout'`)).rows[0]!.id;
+    const payload = { kind: 'app_memory', memory_type: 'decision', title: 'Use streaming for exports', body: 'Exports stream rows to keep memory flat.', stack_tags: [], links: [] };
+    const p1 = (await insertProposal(deps.pool, { app_id: appId, feature_id: fid, payload, supersedes: null }, 'agent')).id;
+    const p2 = (await insertProposal(deps.pool, { app_id: appId, feature_id: fid, payload: { ...payload, title: 'Other' }, supersedes: null }, 'agent')).id;
+    const as = (secret: string) => ({ Authorization: authHeader(secret), 'Content-Type': 'application/json' });
+    const post = (id: string, action: string, secret: string, body: unknown = {}) => fetch(`${listening.origin}/admin/api/proposals/${id}/${action}`, { method: 'POST', headers: as(secret), body: JSON.stringify(body) });
+
+    expect((await post(p1, 'approve', 's3cret')).status).toBe(403);
+    expect((await post('p_nope', 'approve', approver)).status).toBe(404);
+    expect((await post(p2, 'reject', approver)).status).toBe(400);
+    const approved = await post(p1, 'approve', approver);
+    expect(approved.status).toBe(200);
+    expect(((await approved.json()) as any)).toMatchObject({ proposal: { status: 'approved', reviewed_by: 'erin' }, item: { title: 'Use streaming for exports' } });
+    expect((await post(p1, 'approve', approver)).status).toBe(409);
+    const rejected = await post(p2, 'reject', approver, { reason: 'duplicate' });
+    expect(((await rejected.json()) as any).proposal).toMatchObject({ status: 'rejected', review_reason: 'duplicate' });
+  });
+
+  it('notifies once, after commit, when an approval is requested', async () => {
+    const events: { feature: string; to_phase: string; requested_by: string }[] = [];
+    const notifyDeps = { ...deps, authMode: 'warn' as const, notifier: { approvalRequested: (e: { feature: string; to_phase: string; requested_by: string }) => { events.push(e); } } };
+    const fid = (await startFeature(notifyDeps, { app: 'checkout', actor: 'dana', task_description: 'Notify me', decision })).feature_id;
+    await advancePhase(notifyDeps, { feature_id: fid, actor: 'dana', expected_phase: 'specify', target_phase: 'implement', artifacts: { 'proposal.md': '## Why\nx\n\n## What Changes\ny\n' } });
+    expect(events).toEqual([expect.objectContaining({ to_phase: 'implement', requested_by: 'dana' })]);
   });
 });
 

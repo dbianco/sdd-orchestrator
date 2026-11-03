@@ -68,6 +68,9 @@ export interface Proposal {
   status: 'pending' | 'approved' | 'rejected';
   created_at: string;
   created_by: string;
+  payload?: { kind?: string; memory_type?: string | null; title?: string; body?: string; stack_tags?: string[]; links?: string[] };
+  reviewed_by?: string | null;
+  review_reason?: string | null;
 }
 
 export interface RoutingEvent {

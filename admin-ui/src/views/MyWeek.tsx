@@ -39,7 +39,7 @@ export function MyWeek({ app }: { app?: string | null }) {
         <Empty title={`Nothing recorded for ${data.actor} in the last ${data.days} days.`} hint="Route a task and move a feature through a phase, or pick someone else above." />
       ) : (
         <>
-          <div className="tiles">
+          <div className="tiles tiles-sentence">
             <div className="tile tone-green"><span className="tile-value">{data.transitions.passed}</span><span className="tile-label">phase moves passed</span></div>
             <div className="tile tone-amber"><span className="tile-value">{caughtTotal}</span><span className="tile-label">problems caught early</span></div>
             <div className="tile tone-blue"><span className="tile-value">{data.shipped.length}</span><span className="tile-label">features shipped</span></div>

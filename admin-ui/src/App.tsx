@@ -8,6 +8,7 @@ import { Work } from './views/Work';
 import { Approvals } from './views/Approvals';
 import { MyWeek } from './views/MyWeek';
 import { Icon } from './ui';
+import { CommandPalette, type Command } from './CommandPalette';
 
 type Tab = 'overview' | 'week' | 'apps' | 'flow' | 'proposals' | 'work' | 'approvals';
 
@@ -87,8 +88,17 @@ export function App() {
     return () => clearInterval(id);
   }, [refreshBadges, version]);
 
+  const commands: Command[] = [
+    ...TABS.map((t) => ({ id: `go:${t.id}`, label: `Go to ${t.label}`, hint: 'Section', run: () => setTab(t.id) })),
+    { id: 'project:all', label: 'Project: all projects', hint: 'Filter', run: () => setApp(null) },
+    ...apps.map((slug) => ({ id: `project:${slug}`, label: `Project: ${slug}`, hint: 'Filter', run: () => setApp(slug) })),
+    { id: 'refresh', label: 'Refresh the current view', hint: 'Action', run: () => setVersion((v) => v + 1) },
+    { id: 'theme', label: 'Toggle light / dark theme', hint: 'Action', run: toggleTheme },
+  ];
+
   return (
     <div className="app">
+      <CommandPalette commands={commands} />
       <aside className="sidebar">
         <div className="brand">
           <span className="brand-logo"><Icon name="approvals" /></span>
@@ -115,6 +125,7 @@ export function App() {
         <div className="sidebar-footer">
           <button className="tab" onClick={() => setVersion((v) => v + 1)} title="Reload the current view"><Icon name="refresh" />Refresh</button>
           <button className="tab" onClick={toggleTheme} title="Switch light / dark theme"><Icon name="sun" />Theme</button>
+          <div className="who">Quick jump <kbd>Ctrl</kbd> <kbd>K</kbd></div>
           {actor && <div className="who">Signed in as<strong>{actor}</strong></div>}
         </div>
       </aside>

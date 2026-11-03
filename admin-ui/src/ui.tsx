@@ -136,3 +136,48 @@ export function formatHours(h: number | null | undefined): string {
   if (h < 48) return `${Math.round(h * 10) / 10}h`;
   return `${Math.round(h / 24)}d`;
 }
+
+export type SortDir = 'asc' | 'desc';
+type Accessor<T> = (row: T) => string | number | null | undefined;
+
+/** Client-side sorting: click a header to sort, click again to reverse. Missing values always sort last. */
+export function useSort<T>(rows: T[], accessors: Record<string, Accessor<T>>, initial?: { key: string; dir: SortDir }) {
+  const [sort, setSort] = useState<{ key: string; dir: SortDir } | null>(initial ?? null);
+  const acc = sort ? accessors[sort.key] : undefined;
+  const sorted = !sort || !acc ? rows : [...rows].sort((a, b) => {
+    const x = acc(a); const y = acc(b);
+    if (x === null || x === undefined) return y === null || y === undefined ? 0 : 1;
+    if (y === null || y === undefined) return -1;
+    const c = typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y), undefined, { numeric: true });
+    return sort.dir === 'asc' ? c : -c;
+  });
+  const toggle = (key: string) => setSort((s) => (s?.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }));
+  return { sorted, sort, toggle };
+}
+
+export function SortTh({ label, id, sort, onSort, className }: { label: string; id: string; sort: { key: string; dir: SortDir } | null; onSort: (key: string) => void; className?: string }) {
+  const active = sort?.key === id;
+  return (
+    <th className={className} aria-sort={active ? (sort!.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+      <button className="sort" onClick={() => onSort(id)} title={`Sort by ${label}`}>{label}<span aria-hidden="true">{active ? (sort!.dir === 'asc' ? ' ▲' : ' ▼') : ''}</span></button>
+    </th>
+  );
+}
+
+export function toCsv(headers: string[], rows: (string | number | boolean | null | undefined)[][]): string {
+  const cell = (v: string | number | boolean | null | undefined) => {
+    const s = v === null || v === undefined ? '' : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  return `${[headers, ...rows].map((r) => r.map(cell).join(',')).join('\n')}\n`;
+}
+
+export function ExportCsv({ filename, headers, rows }: { filename: string; headers: string[]; rows: (string | number | boolean | null | undefined)[][] }) {
+  const download = () => {
+    const url = URL.createObjectURL(new Blob([toCsv(headers, rows)], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  };
+  return <button onClick={download} title={`Download ${rows.length} row(s) as CSV`}>Export CSV</button>;
+}

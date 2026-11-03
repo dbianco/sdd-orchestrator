@@ -99,3 +99,11 @@ export function getGateHints(): Promise<Record<string, CheckHint>> {
   hintsCache ??= get<{ hints?: Record<string, CheckHint> }>('/admin/api/gate-hints').then((r) => r.hints ?? {}).catch(() => ({}));
   return hintsCache;
 }
+
+export function approveProposal(id: string): Promise<unknown> {
+  return post(`/admin/api/proposals/${encodeURIComponent(id)}/approve`, {});
+}
+
+export function rejectProposal(id: string, reason: string): Promise<unknown> {
+  return post(`/admin/api/proposals/${encodeURIComponent(id)}/reject`, { reason });
+}

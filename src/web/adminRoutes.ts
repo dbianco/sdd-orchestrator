@@ -17,7 +17,8 @@ import { CHECK_HINTS } from '../gates/hints.js';
 import { listApps, requireApp } from '../store/apps.js';
 import { listCommitsForRouting } from '../store/commits.js';
 import { requireFeature } from '../store/features.js';
-import { listProposals } from '../store/proposals.js';
+import { getProposal, listProposals, reviewProposal } from '../store/proposals.js';
+import { approveProposal } from '../services/approveProposal.js';
 import { listRoutingEvents, requireRoutingEventDetail, routingSummary } from '../store/routingEvents.js';
 import { rtmRows } from '../store/rtm.js';
 import { listTransitions } from '../store/transitions.js';
@@ -210,6 +211,33 @@ export function createAdminRouter(deps: ServiceDeps & { logger?: Logger }, legac
     const { reason } = RejectBody.parse(req.body ?? {});
     const me = admin(res);
     res.json(await rejectRequest(deps, { approval_id: req.params.id as string, actor: me.actor, reason, apps: me.apps }));
+  }));
+
+  // Memory proposals: same rules as approvals (approver scope, JSON body, app-scoped tokens).
+  const pendingProposal = async (req: Request, res: Response) => {
+    const proposal = await getProposal(deps.pool, req.params.id as string);
+    if (!proposal) { res.status(404).json({ error: `no proposal with id "${req.params.id as string}"` }); return null; }
+    const scope = admin(res).apps;
+    if (scope && !scope.includes(proposal.app_id)) { res.status(403).json({ error: 'this token is not allowed for that app' }); return null; }
+    if (proposal.status !== 'pending') { res.status(409).json({ error: `proposal ${proposal.id} is already ${proposal.status}` }); return null; }
+    return proposal;
+  };
+
+  router.post('/api/proposals/:id/approve', express.json(), handle(async (req, res) => {
+    if (!canApprove(req, res)) return;
+    const proposal = await pendingProposal(req, res);
+    if (!proposal) return;
+    if (!deps.embedder) { res.status(503).json({ error: 'no embedding provider configured' }); return; }
+    const item = await approveProposal({ pool: deps.pool, embedder: deps.embedder }, proposal.id, admin(res).actor);
+    res.json({ proposal: await getProposal(deps.pool, proposal.id), item: { id: item.id, stable_id: item.stable_id, version: item.version, title: item.title } });
+  }));
+
+  router.post('/api/proposals/:id/reject', express.json(), handle(async (req, res) => {
+    if (!canApprove(req, res)) return;
+    const { reason } = RejectBody.parse(req.body ?? {});
+    const proposal = await pendingProposal(req, res);
+    if (!proposal) return;
+    res.json({ proposal: await reviewProposal(deps.pool, proposal.id, 'rejected', admin(res).actor, reason) });
   }));
 
   router.use(express.static(adminUiDist));
