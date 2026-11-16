@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { CHECK_HINTS, hintFor } from '../../../src/gates/hints.js';
 import { GATE_LIBRARY, GATE_LIBRARY_VERSION, validateGateDecl } from '../../../src/gates/library.js';
 import { runGate } from '../../../src/gates/run.js';
 
@@ -9,6 +10,13 @@ describe('library', () => {
       'required_sections', 'requirement_coverage', 'requirement_ids', 'scope_drift', 'task_done_checks', 'task_ordering', 'verify_evidence',
     ]);
     expect(GATE_LIBRARY_VERSION).toBe('3');
+  });
+  it('has a remediation hint for every registered check, and none for unregistered ones', () => {
+    for (const name of Object.keys(GATE_LIBRARY)) {
+      expect(hintFor(name), name).toMatchObject({ title: expect.stringMatching(/\S/), fix: expect.stringMatching(/\S/) });
+    }
+    expect(Object.keys(CHECK_HINTS).sort()).toEqual(Object.keys(GATE_LIBRARY).sort());
+    expect(hintFor('artifact_traceability')?.title).toBe('Tasks and requirements do not line up');
   });
   it('validates declarations', () => {
     expect(validateGateDecl({ transition: 'specify->implement', artifacts: ['a.md'], checks: [{ name: 'nope' }] })).toEqual(['unknown check "nope"']);

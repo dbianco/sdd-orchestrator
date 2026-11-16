@@ -21,8 +21,8 @@ export function registerAdvancePhase(server: McpServer, deps: McpDeps, auth: Aut
     inputSchema: {
       feature_id: z.string().min(1), actor: ActorSchema, expected_phase: PhaseSchema,
       target_phase: z.string().min(1).describe('A phase name or the literal "archived"'),
-      artifacts: z.record(z.string()).optional().describe('Artifact name to content; the transition declares which names it needs'),
-      evidence: z.record(z.unknown()).optional().describe('Verify evidence object (spec section 10.4); required out of verify'),
+      artifacts: z.record(z.string(), z.string()).optional().describe('Artifact name to content; the transition declares which names it needs'),
+      evidence: z.record(z.string(), z.unknown()).optional().describe('Verify evidence object (spec section 10.4); required out of verify'),
       human_approved: z.boolean().optional(), cycle_failed: z.boolean().optional(), pack_id: z.string().optional(),
       reason: z.string().min(1).optional().describe('Required for backward moves'), repin: z.boolean().optional(),
       dry_run: z.boolean().optional().describe('Evaluate gate checks without recording a transition; forward moves only'),

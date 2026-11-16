@@ -22,7 +22,7 @@ export function registerGetFeatureStatus(server: McpServer, deps: McpDeps, auth:
         id: z.string(), from_phase: z.string(), to_phase: z.string(), direction: z.string(), result: z.string(), human_approved: z.boolean(),
         reason: z.string().nullable(), created_by: z.string(), created_at: z.string(), findings_count: z.number().int(),
       })),
-      latest_pack_per_phase: z.record(z.string()),
+      latest_pack_per_phase: z.record(z.string(), z.string()),
       requirements: z.array(z.object({ id: z.string(), covered: z.boolean().nullable() })),
       warnings: WarningsShape.optional(),
     },

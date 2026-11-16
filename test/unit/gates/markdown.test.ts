@@ -29,6 +29,24 @@ describe('lines', () => {
   });
 });
 
+describe('lines fences', () => {
+  const marks = (md: string) => lines(md).map((l) => (l.fence ?? (l.inFence ? 'in' : '-')));
+  it('marks the opening and closing delimiter lines', () => {
+    expect(marks('a\n```ts\ncode\n```\nb')).toEqual(['-', 'open', 'in', 'close', '-']);
+  });
+  it('closes only on the same character, at least as long, with nothing after it', () => {
+    expect(marks('````\n```\n~~~\n```ts\n`````\nout')).toEqual(['open', 'in', 'in', 'in', 'close', '-']);
+    expect(marks('```\n``` x\n```  \nout')).toEqual(['open', 'in', 'close', '-']);
+  });
+  it('does not open a backtick fence whose info string contains a backtick', () => {
+    expect(marks('``` `inline` ```\n## Heading')).toEqual(['-', '-']);
+    expect(parseSections('``` `inline` ```\n## Heading').map((x) => x.heading)).toEqual(['Heading']);
+  });
+  it('runs an unclosed fence to the end of the document', () => {
+    expect(marks('```\n## not a heading\n')).toEqual(['open', 'in', 'in']);
+  });
+});
+
 describe('parseSections', () => {
   it('finds headings outside fences with levels and line ranges', () => {
     const s = parseSections(md);

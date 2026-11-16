@@ -1,15 +1,10 @@
 import { z } from 'zod';
+import { regexParam } from '../regex.js';
 import { finding, type CheckDefinition } from '../types.js';
-
-function compiles(pattern: string): boolean {
-  try { new RegExp(pattern, 'gm'); return true; } catch { return false; }
-}
 
 const Params = z.object({
   artifact: z.string(),
-  id_regex: z.string()
-    .refine(compiles, 'id_regex is not a valid regular expression')
-    .refine((v) => v.includes('(?<id>'), 'id_regex must contain a named group "id"'),
+  id_regex: regexParam('gm').refine((v) => v.includes('(?<id>'), 'must contain a named group "id"'),
   min: z.number().int().nonnegative().default(1),
 });
 

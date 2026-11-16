@@ -1,35 +1,42 @@
-export interface Line { n: number; text: string; inFence: boolean }
+/** `fence` marks the delimiter lines of a fenced block: the line that opens it and the line that closes it. */
+export interface Line { n: number; text: string; inFence: boolean; fence?: 'open' | 'close' }
 export interface Section { heading: string; level: number; startLine: number; endLine: number; body: Line[] }
 
-const FENCE = /^\s*(`{3,}|~{3,})/;
+const FENCE = /^\s*(`{3,}|~{3,})(.*)$/;
 const HEADING = /^(#{1,6})\s+(.*?)\s*#*\s*$/;
 
+/**
+ * Splits markdown into numbered lines and tracks fenced code blocks as CommonMark does: a fence closes only
+ * on a line of the same character, at least as long as the opener, with nothing but whitespace after it.
+ * So a ```` fence can show ``` lines, a ``` fence can show ~~~ lines, and a ```ts line never closes a fence.
+ * An unclosed fence runs to the end of the document.
+ */
 export function lines(md: string): Line[] {
   const out: Line[] = [];
   let fenceChar: string | null = null;
   let fenceLen = 0;
   md.split(/\r?\n/).forEach((text, i) => {
     const m = FENCE.exec(text);
+    const n = i + 1;
     if (fenceChar === null) {
-      // not currently in a fence
-      if (m) {
-        // opening a fence
+      // an info string after backticks may not contain a backtick (that is inline code, not a fence)
+      if (m && !(m[1]![0] === '`' && m[2]!.includes('`'))) {
         fenceChar = m[1]![0]!;
         fenceLen = m[1]!.length;
-        out.push({ n: i + 1, text, inFence: true });
+        out.push({ n, text, inFence: true, fence: 'open' });
         return;
       }
-      // regular line outside fence
-      out.push({ n: i + 1, text, inFence: false });
+      out.push({ n, text, inFence: false });
       return;
     }
-    // currently in a fence
-    const closes = m && m[1]![0] === fenceChar && m[1]!.length >= fenceLen;
-    out.push({ n: i + 1, text, inFence: true });
+    const closes = m !== null && m[1]![0] === fenceChar && m[1]!.length >= fenceLen && m[2]!.trim() === '';
     if (closes) {
+      out.push({ n, text, inFence: true, fence: 'close' });
       fenceChar = null;
       fenceLen = 0;
+      return;
     }
+    out.push({ n, text, inFence: true });
   });
   return out;
 }

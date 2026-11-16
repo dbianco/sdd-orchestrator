@@ -45,6 +45,14 @@ describe('validatePack', () => {
     delete noTracks.manifest.tracks;
     expect(validatePack(noTracks, ctx).errors).toContain('framework packs must declare tracks');
   });
+  it('rejects a gate whose regex param does not compile, naming the track, gate, check and field', async () => {
+    const p = clone(await loadPack(`${fixtures}mini-framework`));
+    p.manifest.tracks!.default!.gates[0]!.checks[0] = { name: 'placeholder_scan', params: { markers: ['\\bTODO\\b', '(?<open'] } };
+    const { errors } = validatePack(p, ctx);
+    expect(errors).toEqual([
+      'track default gate specify->implement: check placeholder_scan has invalid params: markers.1 is not a valid regular expression: /(?<open/: Invalid capture group name',
+    ]);
+  });
   it('rejects a framework pack whose framework differs from its name', async () => {
     const p = clone(await loadPack(`${fixtures}mini-framework`));
     p.manifest.framework = 'other';

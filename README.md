@@ -165,6 +165,12 @@ phases.
 
 Every finding in the admin UI comes with a plain-language fix.
 
+Regular-expression params in a pack's gates (`task_regex`, `done_regex`,
+`dep_regex`, `ref_regex`, `id_regex` and each `placeholder_scan` marker) must
+compile: `sdd-admin ingest` rejects the pack and names the field, for example
+`track default gate tasks->implement: check task_ordering has invalid params:
+dep_regex is not a valid regular expression: /(?<id>T\d+/g: Unterminated group`.
+
 ## Using it day to day
 
 ### Connect a host
@@ -546,6 +552,7 @@ Start with `sdd-admin doctor`: it checks each dependency and prints the fix.
 | "retrieval degraded at runtime" | the embedding provider failed; the warning names it and the error (check the key, URL and network) |
 | edits are blocked by the hooks | the task is not routed or the feature is not in `implement`; run `/sdd:route`, or try `SDD_ENFORCEMENT=warn` |
 | the admin UI returns 404 | `SDD_AUTH_MODE=off` and `SDD_ADMIN_TOKEN` is unset; set either |
+| a gate finding says "check is misconfigured in the framework pack" | the feature is pinned to a pack version ingested before its regex params were validated; ingest a corrected version, then make a backward move with `repin: true` |
 | `hnsw.iterative_scan` errors | pgvector is older than 0.8; use the `pgvector/pgvector:pg16` image or upgrade the extension |
 
 ## Development

@@ -10,6 +10,7 @@ export const CHECK_HINTS: Record<string, CheckHint> = {
   delta_markers: { title: 'Delta spec lacks ADDED / MODIFIED / REMOVED', fix: 'Group changes under ADDED, MODIFIED or REMOVED Requirements; removals must say why.' },
   task_ordering: { title: 'Task depends on a later task', fix: 'Reorder the tasks, or fix the dependency, so each task only depends on earlier ones.' },
   task_done_checks: { title: 'Task has no done check', fix: 'Add a concrete done check (a command to run or an observable result) to the task.' },
+  artifact_traceability: { title: 'Tasks and requirements do not line up', fix: 'Cite every requirement id in the task that delivers it, and correct or remove any task citation naming a requirement the spec does not define.' },
   scope_drift: { title: 'Changed file not in the plan', fix: 'Either add the file to the plan\'s files section or revert the change if it is out of scope.' },
   verify_evidence: { title: 'Verification evidence incomplete', fix: 'Run the tests and pass evidence with tests.passed, tests.failed, files_changed and implements; failing tests block the move.' },
   requirement_coverage: { title: 'Requirement not covered by evidence', fix: 'Add the requirement id to evidence.implements once code and tests cover it, or move the requirement out of scope with a spec change.' },

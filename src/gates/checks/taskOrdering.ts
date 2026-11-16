@@ -1,13 +1,14 @@
 import { z } from 'zod';
+import { regexParam } from '../regex.js';
 import { finding, type CheckDefinition } from '../types.js';
 import { taskBlocks } from './taskDoneChecks.js';
 
 // dep_regex captures either one dependency in group "id" or a whole list in group "ids"; with "ids",
 // every task id inside the list is found with id_regex (so "depends on T1, T2 and T3" checks all three).
-const hasIdGroup = z.string().refine((s) => s.includes('(?<id>') || s.includes('(?<ids>'), { message: 'regex must contain named group "id" (or "ids" for dep_regex)' });
-const withIdGroup = z.string().refine((s) => s.includes('(?<id>'), { message: 'regex must contain named group "id"' });
-const Params = z.object({ artifact: z.string(), task_regex: withIdGroup, dep_regex: hasIdGroup, id_regex: z.string().optional() })
-  .refine((p) => !p.dep_regex.includes('(?<ids>') || p.id_regex !== undefined, { message: 'id_regex is required when dep_regex uses group "ids"', path: ['id_regex'] });
+const hasIdGroup = regexParam('g').refine((s) => s.includes('(?<id>') || s.includes('(?<ids>'), { message: 'must contain named group "id" (or "ids" for dep_regex)' });
+const withIdGroup = regexParam().refine((s) => s.includes('(?<id>'), { message: 'must contain named group "id"' });
+const Params = z.object({ artifact: z.string(), task_regex: withIdGroup, dep_regex: hasIdGroup, id_regex: regexParam('g').optional() })
+  .refine((p) => !p.dep_regex.includes('(?<ids>') || p.id_regex !== undefined, { message: 'is required when dep_regex uses group "ids"', path: ['id_regex'] });
 
 export const taskOrdering: CheckDefinition = {
   name: 'task_ordering',

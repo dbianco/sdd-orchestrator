@@ -106,6 +106,26 @@ that reaches `verify` without captured requirements gets a warning, not a
 blocker.
 
 
+## Invalid regular expressions in gate params
+
+Ingestion rejects a framework pack whose gate params hold a regular expression
+that does not compile (`task_regex`, `done_regex`, `dep_regex`, `ref_regex`,
+`id_regex`, `placeholder_scan` markers); the error names the track, the gate,
+the check and the field. A pack version ingested before this validation can
+still hold such a pattern. Its gate no longer crashes the move with a
+`SyntaxError`: the check reports a blocker finding, "check is misconfigured in
+the framework pack", with the reason. Ingest a corrected pack version and move
+the affected features back with `repin: true`.
+
+Chunking for retrieval follows the same fence rules as the gates: a fence ends
+only at a line of the same character, at least as long as the opener and with
+nothing after it. Code samples that show other fences, `|` lines or blank lines
+are stored as written. The bundled packs chunk exactly as before. Ingestion
+skips files whose content has not changed, so a custom pack that nests fences
+keeps its old chunks until the file changes (or, for a framework pack, until
+its version is bumped) and the pack is ingested again; `sdd-admin reindex` only
+re-embeds the stored chunks and does not re-split them.
+
 ## Authentication, approvals and CI evidence
 
 `SDD_AUTH_MODE` controls the trust model:
