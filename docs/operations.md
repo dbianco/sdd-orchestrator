@@ -113,18 +113,32 @@ that does not compile (`task_regex`, `done_regex`, `dep_regex`, `ref_regex`,
 `id_regex`, `placeholder_scan` markers); the error names the track, the gate,
 the check and the field. A pack version ingested before this validation can
 still hold such a pattern. Its gate no longer crashes the move with a
-`SyntaxError`: the check reports a blocker finding, "check is misconfigured in
-the framework pack", with the reason. Ingest a corrected pack version and move
-the affected features back with `repin: true`.
+`SyntaxError`: the move is blocked by a `gate_misconfigured` finding whose
+location is the broken check and whose message gives the field and the reason
+(its own check name, so the admin UI and pull-request comments show advice
+about the pack rather than about the artifacts).
+
+To repair it, fix the pattern in `pack.yaml` and re-ingest the **same** pack
+version with `sdd-admin ingest`. Features read their track from the stored pack
+version, so every feature pinned to it picks up the fix in place, whatever
+phase it is in, and the move can simply be retried. Do not ship the fix only
+as a new version: moving a feature to it needs a backward move with
+`repin: true`, which a feature in its first phase cannot make. This is the one
+case where editing an ingested version's gates is right, because a gate that
+cannot run has never passed or failed anything on its own terms.
 
 Chunking for retrieval follows the same fence rules as the gates: a fence ends
-only at a line of the same character, at least as long as the opener and with
-nothing after it. Code samples that show other fences, `|` lines or blank lines
-are stored as written. The bundled packs chunk exactly as before. Ingestion
-skips files whose content has not changed, so a custom pack that nests fences
-keeps its old chunks until the file changes (or, for a framework pack, until
-its version is bumped) and the pack is ingested again; `sdd-admin reindex` only
-re-embeds the stored chunks and does not re-split them.
+only at a bare line (nothing after the delimiter) of the same character and at
+least as long as the opener. A sample nested inside a fence of the same length
+(a ```` ```bash ```` line and its closing ```` ``` ```` inside a ```` ```md ````
+fence) pairs up instead of closing the outer fence early; if pairing would leave
+the outer fence open, the first bare line closes it, as in CommonMark. Code
+samples that show other fences, `|` lines or blank lines are stored as
+written. The bundled packs chunk exactly as before. Ingestion skips files whose
+content has not changed, so a custom pack that nests fences keeps its old
+chunks until the file changes (or, for a framework pack, until its version is
+bumped) and the pack is ingested again; `sdd-admin reindex` only re-embeds the
+stored chunks and does not re-split them.
 
 ## Authentication, approvals and CI evidence
 

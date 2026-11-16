@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { validateGateDecl } from '../../../src/gates/library.js';
 import { regexError } from '../../../src/gates/regex.js';
-import { runGate } from '../../../src/gates/run.js';
+import { hintFor } from '../../../src/gates/hints.js';
+import { GATE_MISCONFIGURED, runGate } from '../../../src/gates/run.js';
 
 const gate = (name: string, params: Record<string, unknown>) => ({ transition: 'tasks->implement', artifacts: ['tasks.md'], checks: [{ name, params }] });
 const TASK = String.raw`^- \[[ xX]\] (?<id>T\d+)`;
@@ -48,17 +49,33 @@ describe('regex gate params', () => {
 });
 
 describe('runGate with a pack ingested before its params were validated', () => {
+  const g = gate('task_done_checks', { artifact: 'tasks.md', task_regex: '[', done_regex: 'Done:' });
+  const ctx = { artifacts: { 'tasks.md': '- [ ] T1 do it\n' }, evidence: null, human_approved: true, pack: 'mini@1.0.0' };
   it('blocks the move with a finding instead of throwing a SyntaxError', () => {
-    const g = gate('task_done_checks', { artifact: 'tasks.md', task_regex: '[', done_regex: 'Done:' });
-    const run = () => runGate(g, { artifacts: { 'tasks.md': '- [ ] T1 do it\n' }, evidence: null, human_approved: true }, false);
+    const run = () => runGate(g, ctx, false);
     expect(run).not.toThrow();
     expect(run()).toEqual({
       result: 'fail',
       findings: [{
-        check: 'task_done_checks', severity: 'blocker', location: null,
-        message: 'check is misconfigured in the framework pack (task_regex is not a valid regular expression: /[/: Unterminated character class); ingest a corrected pack version, then repin the feature with a backward move and repin: true',
+        check: 'gate_misconfigured', severity: 'blocker', location: 'task_done_checks',
+        message: 'check task_done_checks in framework pack mini@1.0.0 cannot run: task_regex is not a valid regular expression: /[/: Unterminated character class. '
+          + 'This is not a problem with the artifacts: an admin must fix the pack and re-ingest the same version (sdd-admin ingest), which repairs this feature in place; then retry the move',
       }],
     });
+  });
+  it('reports under its own check, so the hint is about the pack rather than the broken check', () => {
+    const [f] = runGate(g, ctx, false).findings;
+    expect(f?.check).toBe(GATE_MISCONFIGURED);
+    expect(hintFor(f!.check)?.title).toBe('Framework pack gate is misconfigured');
+    expect(hintFor(f!.check)?.fix).toMatch(/re-ingest the same pack version/);
+    expect(hintFor(f!.check)?.fix).not.toMatch(/repin|backward/);
+    expect(hintFor(f!.check)).not.toEqual(hintFor('task_done_checks'));
+  });
+  it('does not tell anyone to make a backward move, which a feature in its first phase cannot do', () => {
+    expect(runGate(g, ctx, false).findings[0]?.message).not.toMatch(/repin|backward/);
+  });
+  it('names the pack generically when the caller does not say which one', () => {
+    expect(runGate(g, { ...ctx, pack: undefined }, false).findings[0]?.message).toMatch(/^check task_done_checks in the framework pack cannot run: /);
   });
   it('keeps running the other checks of the gate', () => {
     const g = { transition: 'tasks->implement', artifacts: ['tasks.md'], checks: [
@@ -66,6 +83,6 @@ describe('runGate with a pack ingested before its params were validated', () => 
       { name: 'required_sections', params: { artifact: 'tasks.md', sections: ['Tasks'] } },
     ] };
     const r = runGate(g, { artifacts: { 'tasks.md': '# x\n' }, evidence: null, human_approved: true }, false);
-    expect(r.findings.map((f) => f.check)).toEqual(['placeholder_scan', 'required_sections']);
+    expect(r.findings.map((f) => [f.check, f.location])).toEqual([['gate_misconfigured', 'placeholder_scan'], ['required_sections', 'tasks.md']]);
   });
 });

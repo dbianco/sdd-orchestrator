@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { CHECK_HINTS, hintFor } from '../../../src/gates/hints.js';
 import { GATE_LIBRARY, GATE_LIBRARY_VERSION, validateGateDecl } from '../../../src/gates/library.js';
-import { runGate } from '../../../src/gates/run.js';
+import { GATE_MISCONFIGURED, runGate } from '../../../src/gates/run.js';
 
 describe('library', () => {
   it('exposes exactly the spec checks', () => {
@@ -11,11 +11,12 @@ describe('library', () => {
     ]);
     expect(GATE_LIBRARY_VERSION).toBe('3');
   });
-  it('has a remediation hint for every registered check, and none for unregistered ones', () => {
-    for (const name of Object.keys(GATE_LIBRARY)) {
+  it('has a remediation hint for every check a finding can name, and no others', () => {
+    const reported = [...Object.keys(GATE_LIBRARY), GATE_MISCONFIGURED];
+    for (const name of reported) {
       expect(hintFor(name), name).toMatchObject({ title: expect.stringMatching(/\S/), fix: expect.stringMatching(/\S/) });
     }
-    expect(Object.keys(CHECK_HINTS).sort()).toEqual(Object.keys(GATE_LIBRARY).sort());
+    expect(Object.keys(CHECK_HINTS).sort()).toEqual(reported.sort());
     expect(hintFor('artifact_traceability')?.title).toBe('Tasks and requirements do not line up');
   });
   it('validates declarations', () => {

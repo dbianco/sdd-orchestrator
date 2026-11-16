@@ -45,6 +45,11 @@ describe('required_sections', () => {
     const f = requiredSections.run(input({ artifacts: { 'spec.md': '### goal\nx' }, params: { artifact: 'spec.md', sections: ['Goal'] } }));
     expect(f).toEqual([]);
   });
+  it('does not report a section missing because a nested same-length fence sample came before it', () => {
+    const spec = '## Goal\n```md\n```bash\nnpm test\n```\n```\n\n## Acceptance Criteria\n- responds in under 200 ms';
+    const f = requiredSections.run(input({ artifacts: { 'spec.md': spec }, params: { artifact: 'spec.md', sections: ['Goal', 'Acceptance Criteria'] } }));
+    expect(f).toEqual([]);
+  });
   it('is silent when the artifact is absent (missing_artifact reports that)', () => {
     expect(requiredSections.run(input({ params: { artifact: 'spec.md', sections: ['Goal'] } }))).toEqual([]);
   });

@@ -15,6 +15,8 @@ export const CHECK_HINTS: Record<string, CheckHint> = {
   verify_evidence: { title: 'Verification evidence incomplete', fix: 'Run the tests and pass evidence with tests.passed, tests.failed, files_changed and implements; failing tests block the move.' },
   requirement_coverage: { title: 'Requirement not covered by evidence', fix: 'Add the requirement id to evidence.implements once code and tests cover it, or move the requirement out of scope with a spec change.' },
   human_approved: { title: 'Human approval required', fix: 'Ask a reviewer to approve the request in the admin UI (Approvals) or with sdd-admin approvals approve.' },
+  // Not a library check: reported by runGate when a check's params in the pinned pack do not validate.
+  gate_misconfigured: { title: 'Framework pack gate is misconfigured', fix: 'Nothing to change in your artifacts. Ask an admin to fix the named param in the pack\'s pack.yaml and re-ingest the same pack version with sdd-admin ingest; features pinned to it are repaired in place, in any phase. Then retry the move.' },
 };
 
 export function hintFor(check: string): CheckHint | null {

@@ -14,6 +14,20 @@ describe('taskBlocks', () => {
   });
 });
 
+describe('tasks after a nested same-length fence sample', () => {
+  const md = ['- [ ] T1 add export. Done: `npm test`', '', '```md', 'Example task block:', '```bash', 'npm test', '```', '```', '',
+    '- [ ] T2 wire the button', '- [ ] T3 ship it, after T4. Done: released', '- [ ] T4 docs. Done: merged'].join('\n');
+  const TASK = '^- \\[[ xX]\\] (?<id>T\\d+)';
+  it('are still checked for a done check', () => {
+    const f = taskDoneChecks.run(input(md, { task_regex: TASK, done_regex: 'Done:' }));
+    expect(f.map((x) => x.location)).toEqual(['tasks.md:10']);
+  });
+  it('are still checked for ordering', () => {
+    const f = taskOrdering.run(input(md, { task_regex: TASK, dep_regex: 'after (?<id>T\\d+)' }));
+    expect(f.map((x) => x.message)).toEqual(['task T3 depends on T4 which does not appear earlier']);
+  });
+});
+
 describe('task_done_checks', () => {
   it('treats ticked tasks like open ones (issue #12)', () => {
     const f = taskDoneChecks.run(input('- [x] one (AC: 1)\n- [X] two\n- [ ] three (AC: 3)', { task_regex: '^- \\[[ xX]\\] ', done_regex: '\\(AC: \\d' }));

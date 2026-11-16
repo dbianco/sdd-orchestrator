@@ -46,6 +46,11 @@ describe('chunkMarkdown', () => {
     expect(c.length).toBeGreaterThan(1);
     expect(c.filter((x) => x.text.includes(code))).toHaveLength(1);
   });
+  it('keeps a nested same-length sample in one block and chunks what follows as text', () => {
+    const fence = ['```md', 'Example:', '```bash', 'npm test', '| grep ok', '```', '```'].join('\n');
+    const c = chunkMarkdown(`## Usage\n\n${fence}\n\nAfter.\n\n## Next\n\nmore`);
+    expect(c.map((x) => [x.heading_path, x.text])).toEqual([['Usage', `${fence}\n\nAfter.`], ['Next', 'more']]);
+  });
   it('treats two back-to-back fences as two blocks', () => {
     const c = chunkMarkdown('## Two\n\n```\na\n```\n```\nb\n```');
     expect(c[0]?.text).toBe('```\na\n```\n\n```\nb\n```');
