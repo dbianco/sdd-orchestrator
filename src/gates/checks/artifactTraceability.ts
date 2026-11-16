@@ -1,14 +1,15 @@
 import { z } from 'zod';
+import { regexParam } from '../regex.js';
 import { finding, type CheckDefinition } from '../types.js';
 import { taskBlocks } from './taskDoneChecks.js';
 
 // Cross-artifact consistency: the requirements captured at the spec gate must each be referenced by a task,
 // and every requirement a task cites must exist. ref_regex finds citations inside a task block, either one id
 // in group "id" or a list in group "ids" (then id_regex extracts each id), like task_ordering's dep_regex.
-const hasRefGroup = z.string().refine((s) => s.includes('(?<id>') || s.includes('(?<ids>'), { message: 'ref_regex must contain named group "id" or "ids"' });
-const withIdGroup = z.string().refine((s) => s.includes('(?<id>'), { message: 'task_regex must contain named group "id"' });
-const Params = z.object({ artifact: z.string(), task_regex: withIdGroup, ref_regex: hasRefGroup, id_regex: z.string().optional() })
-  .refine((p) => !p.ref_regex.includes('(?<ids>') || p.id_regex !== undefined, { message: 'id_regex is required when ref_regex uses group "ids"', path: ['id_regex'] });
+const hasRefGroup = regexParam('g').refine((s) => s.includes('(?<id>') || s.includes('(?<ids>'), { message: 'must contain named group "id" or "ids"' });
+const withIdGroup = regexParam().refine((s) => s.includes('(?<id>'), { message: 'must contain named group "id"' });
+const Params = z.object({ artifact: z.string(), task_regex: withIdGroup, ref_regex: hasRefGroup, id_regex: regexParam('g').optional() })
+  .refine((p) => !p.ref_regex.includes('(?<ids>') || p.id_regex !== undefined, { message: 'is required when ref_regex uses group "ids"', path: ['id_regex'] });
 
 const normalize = (s: string): string => s.trim().toLowerCase();
 

@@ -160,7 +160,7 @@ async function advancePhaseTx(deps: ServiceDeps, input: AdvancePhaseInput): Prom
       const ev = onServer && gate?.checks.some((c) => c.name === 'verify_evidence')
         ? await resolveEvidence(tx, feature, input.evidence)
         : { evidence: input.evidence ?? null, findings: [] as Finding[], sources: null, ci_evidence_id: null };
-      const gateOutcome = runGate(gateToRun, { artifacts, evidence: ev.evidence, human_approved: humanApproved, requirements }, onServer ? false : mandated);
+      const gateOutcome = runGate(gateToRun, { artifacts, evidence: ev.evidence, human_approved: humanApproved, requirements, pack: `${feature.framework}@${feature.framework_pack_version}` }, onServer ? false : mandated);
       const allFindings = [...ev.findings, ...gateOutcome.findings];
       const outcome = { result: allFindings.some((f) => f.severity === 'blocker') ? 'fail' as const : 'pass' as const, findings: allFindings };
       const awaiting = onServer && needsApproval && outcome.result === 'pass';

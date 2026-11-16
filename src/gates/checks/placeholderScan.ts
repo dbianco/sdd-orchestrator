@@ -1,10 +1,11 @@
 import { z } from 'zod';
 import { lines } from '../markdown.js';
+import { regexParam } from '../regex.js';
 import { finding, type CheckDefinition } from '../types.js';
 
 export const DEFAULT_MARKERS = ['\\bTBD\\b', '\\bTODO\\b', 'NEEDS HUMAN INPUT', '\\bOQ-\\d+\\b'];
 
-const Params = z.object({ markers: z.array(z.string()).optional() });
+const Params = z.object({ markers: z.array(regexParam()).optional() });
 
 export const placeholderScan: CheckDefinition = {
   name: 'placeholder_scan',

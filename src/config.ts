@@ -52,17 +52,18 @@ const ENV_HINTS: Record<string, string> = {
 };
 
 /** One readable line per invalid variable instead of a raw schema-validation array. */
-function describeEnvIssues(issues: z.ZodIssue[]): string {
+function describeEnvIssues(issues: z.ZodIssue[], env: NodeJS.ProcessEnv): string {
   return issues.map((i) => {
     const name = String(i.path[0] ?? 'environment');
-    const unset = i.code === 'invalid_type' && (i as { received?: string }).received === 'undefined';
+    // Read the variable itself rather than the issue's `received`, which zod 4 no longer reports.
+    const unset = i.code === 'invalid_type' && env[name] === undefined;
     return unset && ENV_HINTS[name] ? ENV_HINTS[name]! : `${name}: ${i.message}`;
   }).join('\n');
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv): Config {
   const parsed = EnvSchema.safeParse(env);
-  if (!parsed.success) throw new Error(describeEnvIssues(parsed.error.issues));
+  if (!parsed.success) throw new Error(describeEnvIssues(parsed.error.issues, env));
   const e = parsed.data;
   const provider = e.SDD_EMBEDDING_PROVIDER;
   const model = e.SDD_EMBEDDING_MODEL ?? DEFAULT_MODEL[provider];

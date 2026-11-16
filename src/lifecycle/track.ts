@@ -11,7 +11,7 @@ const PhaseEntrySchema = z.union([z.literal('skipped'), PhaseMappingSchema]);
 
 export const GateCheckDeclSchema = z.object({
   name: z.string().min(1),
-  params: z.record(z.unknown()).optional(),
+  params: z.record(z.string(), z.unknown()).optional(),
   severity: z.enum(['blocker', 'warning']).optional(),
 });
 export const GateDeclSchema = z.object({

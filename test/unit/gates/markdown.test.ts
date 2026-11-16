@@ -29,6 +29,41 @@ describe('lines', () => {
   });
 });
 
+describe('lines fences', () => {
+  const marks = (md: string) => lines(md).map((l) => (l.fence ?? (l.inFence ? 'in' : '-')));
+  it('marks the opening and closing delimiter lines', () => {
+    expect(marks('a\n```ts\ncode\n```\nb')).toEqual(['-', 'open', 'in', 'close', '-']);
+  });
+  it('closes only on the same character, at least as long, with nothing after it', () => {
+    expect(marks('````\n```\n~~~\n```ts\n`````\nout')).toEqual(['open', 'in', 'in', 'in', 'close', '-']);
+    expect(marks('```\n``` x\n```  \nout')).toEqual(['open', 'in', 'close', '-']);
+  });
+  it('does not open a backtick fence whose info string contains a backtick', () => {
+    expect(marks('``` `inline` ```\n## Heading')).toEqual(['-', '-']);
+    expect(parseSections('``` `inline` ```\n## Heading').map((x) => x.heading)).toEqual(['Heading']);
+  });
+  it('pairs a nested sample of the same length instead of leaving a stray fence open to the end', () => {
+    const md = '```md\nExample:\n```bash\nnpm test\n```\n```\n\n## After\n- item';
+    expect(marks(md)).toEqual(['open', 'in', 'in', 'in', 'in', 'close', '-', '-', '-']);
+    expect(parseSections(md).map((x) => x.heading)).toEqual(['After']);
+  });
+  it('pairs several and deeper nested samples', () => {
+    expect(marks('```md\n```ts\na\n```\n```json\nb\n```\n```\nout')).toEqual(['open', 'in', 'in', 'in', 'in', 'in', 'in', 'close', '-']);
+    expect(marks('~~~md\n~~~md\n~~~ts\nx\n~~~\n~~~\n~~~\nout')).toEqual(['open', 'in', 'in', 'in', 'in', 'in', 'close', '-']);
+  });
+  it('lets a longer bare line close a nested level', () => {
+    expect(marks('```md\n```ts\nx\n````\n```\nout')).toEqual(['open', 'in', 'in', 'in', 'close', '-']);
+  });
+  it('falls back to the strict reading when pairing would leave the outer fence open', () => {
+    // the ```ts line is content here (CommonMark): nothing after it balances a nested level
+    expect(marks('```md\n```ts\nx\n```\n## After')).toEqual(['open', 'in', 'in', 'close', '-']);
+    expect(parseSections('```md\n```ts\nx\n```\n## After').map((x) => x.heading)).toEqual(['After']);
+  });
+  it('runs an unclosed fence to the end of the document', () => {
+    expect(marks('```\n## not a heading\n')).toEqual(['open', 'in', 'in']);
+  });
+});
+
 describe('parseSections', () => {
   it('finds headings outside fences with levels and line ranges', () => {
     const s = parseSections(md);

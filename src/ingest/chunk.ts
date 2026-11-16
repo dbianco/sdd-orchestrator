@@ -23,17 +23,26 @@ function splitByHeading(ls: Line[], level: number, basePath: string): Section[] 
   return out;
 }
 
-/** Atomic blocks: fenced code, tables (consecutive `|` lines), otherwise paragraphs separated by blank lines. */
+/**
+ * Atomic blocks: fenced code, tables (consecutive `|` lines), otherwise paragraphs separated by blank lines.
+ * Fences follow the `inFence` / `fence` marks from lines(), so a fence ends only at its real closer: ``` inside
+ * a ```` fence, ~~~ inside a ``` fence, or a `| pipe` line inside code stays part of the block, and the block's
+ * lines (blank lines included) are kept exactly as written.
+ */
 function blocks(ls: Line[]): string[] {
   const out: string[] = [];
   let buf: string[] = [];
   let mode: 'para' | 'fence' | 'table' = 'para';
   const flush = () => { if (buf.length > 0) { out.push(buf.join('\n')); buf = []; } };
   for (const line of ls) {
-    const isFenceLine = /^\s*(```|~~~)/.test(line.text);
+    if (line.inFence) {
+      if (mode !== 'fence' || line.fence === 'open') { flush(); mode = 'fence'; }
+      buf.push(line.text);
+      if (line.fence === 'close') { flush(); mode = 'para'; }
+      continue;
+    }
+    if (mode === 'fence') { flush(); mode = 'para'; }
     const isTableLine = /^\s*\|/.test(line.text);
-    if (mode === 'fence') { buf.push(line.text); if (isFenceLine) { flush(); mode = 'para'; } continue; }
-    if (isFenceLine) { flush(); mode = 'fence'; buf.push(line.text); continue; }
     if (mode === 'table' && !isTableLine) { flush(); mode = 'para'; }
     if (isTableLine) { if (mode !== 'table') { flush(); mode = 'table'; } buf.push(line.text); continue; }
     if (line.text.trim() === '') { flush(); continue; }

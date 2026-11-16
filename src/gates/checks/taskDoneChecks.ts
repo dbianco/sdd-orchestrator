@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { lines, type Line } from '../markdown.js';
+import { regexParam } from '../regex.js';
 import { finding, type CheckDefinition } from '../types.js';
 
 export interface TaskBlock { startLine: number; lines: Line[]; match: RegExpExecArray }
@@ -19,7 +20,7 @@ export function taskBlocks(text: string, taskRegex: RegExp): TaskBlock[] {
   return blocks;
 }
 
-const Params = z.object({ artifact: z.string(), task_regex: z.string(), done_regex: z.string() });
+const Params = z.object({ artifact: z.string(), task_regex: regexParam(), done_regex: regexParam() });
 
 export const taskDoneChecks: CheckDefinition = {
   name: 'task_done_checks',

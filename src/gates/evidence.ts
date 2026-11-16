@@ -14,6 +14,13 @@ export const VerifyEvidenceSchema = z.object({
   characterization_tests: z.array(z.string()).optional(),
 });
 
+// What CI may report: any subset of the verify evidence, down to the nested fields. It is merged with the
+// host's evidence before the gate runs (zod 4 has no deepPartial, so the nested objects are made partial here).
+export const PartialVerifyEvidenceSchema = VerifyEvidenceSchema.extend({
+  tests: VerifyEvidenceSchema.shape.tests.partial(),
+  security: VerifyEvidenceSchema.shape.security.partial(),
+}).partial();
+
 export const VerifyEvidenceParamsSchema = z.object({
   max_new_high: z.number().int().nonnegative().default(0),
   max_existing_tests_modified: z.number().int().nonnegative().nullable().default(null),

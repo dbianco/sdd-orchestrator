@@ -2,7 +2,7 @@ import express, { Router, type Request, type Response } from 'express';
 import type pg from 'pg';
 import { z, ZodError } from 'zod';
 import { hasScope } from '../auth/tokens.js';
-import { VerifyEvidenceSchema } from '../gates/evidence.js';
+import { PartialVerifyEvidenceSchema } from '../gates/evidence.js';
 import type { Logger } from '../logging.js';
 import type { MetricsHooks } from '../services/deps.js';
 import { getAppBySlug } from '../store/apps.js';
@@ -18,7 +18,7 @@ const Body = z.object({
   commit_sha: z.string().regex(/^[0-9a-fA-F]{7,64}$/, 'commit_sha must be 7-64 hex characters'),
   branch: z.string().min(1).max(512).optional(),
   run_url: z.string().url().max(2048).optional(),
-  evidence: VerifyEvidenceSchema.deepPartial(),
+  evidence: PartialVerifyEvidenceSchema,
 });
 
 interface Deps { pool: pg.Pool; logger?: Logger; metrics?: MetricsHooks }

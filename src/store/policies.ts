@@ -4,13 +4,17 @@ import type { Policy } from '../domain/types.js';
 import { newId } from '../ids.js';
 import type { PolicyRow } from './rows.js';
 
-export const PolicySchema: z.ZodType<Policy, z.ZodTypeDef, unknown> = z.object({
+export const PolicySchema = z.object({
   framework: z.string().min(1).nullable().default(null),
   path_rules: z.array(z.object({ glob: z.string().min(1), framework: z.string().min(1) })).default([]),
   risk_paths: z.array(z.string().min(1)).default([]),
   approval: z.object({ distinct_approver: z.boolean() }).strict().optional(),
   evidence: z.enum(['ci', 'host']).optional(),
 }).strict();
+
+// Compile-time guard that a parsed policy is a Policy (the schema's type is inferred so it works on zod 3 and 4).
+const parsedPolicyIsPolicy: z.infer<typeof PolicySchema> extends Policy ? true : never = true;
+void parsedPolicyIsPolicy;
 
 export async function currentPolicy(q: Queryable, appId: string): Promise<PolicyRow | null> {
   const r = await q.query<PolicyRow>('SELECT * FROM app_policies WHERE app_id = $1 ORDER BY version DESC LIMIT 1', [appId]);
